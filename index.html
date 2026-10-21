@@ -367,7 +367,31 @@ function renderPortalEmployee(){
 async function setEmployeeBookingStatus(id,status){try{await firebase.app().functions('us-central1').httpsCallable('setEmployeeBookingStatus')({id,status});await loadPortalBookings();renderPortalEmployee();toast(lang==='ar'?'تم تحديث الحالة':'Status updated')}catch(e){toast(e.message)}}
 
 // Owner can publish a limited catalog; private invoices and phone lists are never published.
-async function publishPortalCatalog(){if(db.session?.type!=='owner')return;try{await firestore.collection('portal').doc('catalog').set({services:db.services.map(({id,name,nameEn,price,duration,active,loyaltyPoints,imageUrl})=>({id,name,nameEn,price,duration,active,loyaltyPoints,imageUrl:imageUrl||''})),staff:db.staff.map(({id,name,active,authUid})=>({id,name,active,authUid:authUid||''})),settings:{redeemPoints:Number(db.settings.redeemPoints)||50,redeemRiyals:Number(db.settings.redeemRiyals)||10,homeServiceEnabled:db.settings.homeServiceEnabled===true}});toast('تم نشر قائمة الخدمات للبوابات')}catch(e){toast(e.message)}}
+async function publishPortalCatalog(){
+ if(db.session?.type!=='owner'){toast('النشر متاح للمالكة فقط');return false;}
+ try{
+  const cleanText=v=>v==null?'':String(v);
+  const cleanNumber=v=>Number.isFinite(Number(v))?Number(v):0;
+  const services=(db.services||[]).filter(Boolean).map(s=>({
+   id:cleanText(s.id),name:cleanText(s.name),nameEn:cleanText(s.nameEn),
+   price:cleanNumber(s.price),duration:cleanNumber(s.duration)||30,
+   active:s.active!==false,loyaltyPoints:cleanNumber(s.loyaltyPoints),
+   imageUrl:cleanText(s.imageUrl||s.image||'')
+  }));
+  const staff=(db.staff||[]).filter(Boolean).map(s=>({
+   id:cleanText(s.id),name:cleanText(s.name),active:s.active!==false,
+   authUid:cleanText(s.authUid)
+  }));
+  const catalog={services,staff,settings:{
+   redeemPoints:cleanNumber(db.settings?.redeemPoints)||50,
+   redeemRiyals:cleanNumber(db.settings?.redeemRiyals)||10,
+   homeServiceEnabled:db.settings?.homeServiceEnabled===true
+  },publishedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  await firestore.collection('portal').doc('catalog').set(catalog);
+  toast('تم نشر '+services.length+' خدمة للعميلات بنجاح');
+  return true;
+ }catch(e){console.error('Catalog publish failed',e);toast('تعذر نشر الخدمات: '+(e.message||'خطأ غير معروف'));return false;}
+}
 async function showPortalBookingsOwner(){try{const snap=await firestore.collection('portalBookings').get();const rows=snap.docs.map(d=>({id:d.id,...d.data()}));$("#portalBookingsOwner").innerHTML=rows.map(b=>`<div class="card" style="margin-bottom:8px"><b>${esc(b.clientName)} — ${esc(b.date)} ${esc(b.time)}</b><p>${esc(b.serviceName)} — ${money(b.price)} — ${esc(b.staffName)}</p><p>${esc(b.location==='home'?'منزل':'صالون')} — ${esc(b.status)}</p><button class="btn small" onclick="confirmPortalBooking('${esc(b.id)}')">تأكيد الحجز</button></div>`).join('')||'لا توجد طلبات' }catch(e){toast(e.message)}}
 async function confirmPortalBooking(id){try{await firestore.collection('portalBookings').doc(id).update({status:'confirmed'});await showPortalBookingsOwner()}catch(e){toast(e.message)}}
 const legacyOwnerRender=renderOwner;
