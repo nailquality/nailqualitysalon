@@ -353,7 +353,7 @@ async function loadPortalCatalog(){
  portalCatalog={services:Array.isArray(data.services)?data.services:[],staff:Array.isArray(data.staff)?data.staff:[],settings:data.settings||{redeemPoints:50,redeemRiyals:10,homeServiceEnabled:false}};
 }
 async function loadPortalBookings(){if(portalRole==='employee'){portalBookings=[];return}const q=firestore.collection('portalBookings').where('clientUid','==',auth.currentUser.uid);portalBookings=(await q.get()).docs.map(d=>({id:d.id,...d.data()}))}
-function renderPortalClient(){applyLang();$("#homeBtn").classList.remove('hidden');const p=portalCatalog.settings||{},points=Number(portalUser.points)||0,threshold=Number(p.redeemPoints)||50,discount=Number(p.redeemRiyals)||10;$("#app").innerHTML=`${headerPanel(t('clientPortal'),portalUser.name||'')}<div class="stats"><div class="stat"><span>${t('points')}</span><strong>${points}</strong></div><div class="stat"><span>الخصم المتاح</span><strong>${money(Math.floor(points/threshold)*discount)}</strong></div></div><div class="card" style="margin-top:16px"><h3>${t('book')}</h3><form id="portalBooking" class="form-grid"><div class="field full"><label>${t('chooseService')}</label><div class="service-grid">${(portalCatalog.services||[]).filter(x=>x.active!==false).map(x=>`<label class="service checkline"><input type="checkbox" name="services" value="${esc(x.id)}"><span>${servicePicture(x)}<strong>${esc(lang==='en'?(x.nameEn||x.name):x.name)}</strong><br>${money(x.price)} (${Number(x.duration)||30} دقيقة)</span></label>`).join('')}</div></div><div class="field"><label>${t('chooseEmployee')}</label><select name="staff" required><option value="">${t('choose')}</option>${(portalCatalog.staff||[]).filter(x=>x.active!==false&&x.authUid).map(x=>`<option value="${esc(x.authUid)}">${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>${t('date')}</label><input type="date" name="date" min="${today()}" required></div><div class="field"><label>${t('time')}</label><input type="time" name="time" required></div><div class="field"><label>مكان الخدمة</label><select name="location" onchange="$('#homeAddress').classList.toggle('hidden',this.value!=='home')"><option value="salon">في الصالون</option>${p.homeServiceEnabled===true?`<option value="home">${lang==='en'?'At home':'خدمة منزلية'}</option>`:""}</select></div><div class="field full hidden" id="homeAddress"><label>العنوان</label><input name="address" maxlength="200"></div><div class="field full"><label class="checkline"><input type="checkbox" name="redeem"> استخدام خصم النقاط عند الدفع (يحتاج تأكيد المالكة)</label><small>${threshold} نقطة = ${money(discount)}؛ لا تُخصم النقاط عند طلب الحجز</small></div><div class="field full"><label>${t('notes')}</label><textarea name="notes" maxlength="300"></textarea></div><button class="btn full" type="button" onclick="window.open('https://wa.me/966544267911?text='+encodeURIComponent('مرحبًا، أريد طلب حجز في صالون جودة الأظافر'),'_blank','noopener,noreferrer')">طلب الحجز عبر واتساب مؤقتًا</button><p class="notice full">الحجز المباشر متوقف مؤقتًا لحماية الأسعار والمواعيد حتى تفعيل التحقق الآمن.</p></form></div><div class="section-head"><h3>${t('myBookings')}</h3></div>${portalBookings.map(b=>`<div class="card" style="margin-bottom:8px">${esc(b.date)} ${esc(b.time)} — ${esc(b.serviceName)} — ${esc(b.status||'pending')}</div>`).join('')||'<div class="empty">لا توجد حجوزات</div>'}<button class="btn danger" onclick="clearSession()">${t('logout')}</button>`;$("#portalBooking").onsubmit=submitPortalBooking}
+function renderPortalClient(){applyLang();$("#homeBtn").classList.remove('hidden');const p=portalCatalog.settings||{},points=Number(portalUser.points)||0,threshold=Number(p.redeemPoints)||50,discount=Number(p.redeemRiyals)||10;$("#app").innerHTML=`${headerPanel(t('clientPortal'),portalUser.name||'')}<div class="stats"><div class="stat"><span>${t('points')}</span><strong>${points}</strong></div><div class="stat"><span>الخصم المتاح</span><strong>${money(Math.floor(points/threshold)*discount)}</strong></div></div><div class="card" style="margin-top:16px"><h3>${t('book')}</h3><form id="portalBooking" class="form-grid"><div class="field full"><label>${t('chooseService')}</label><div class="service-grid">${(portalCatalog.services||[]).filter(x=>x.active!==false).map(x=>`<label class="service checkline"><input type="checkbox" name="services" value="${esc(x.id)}"><span>${servicePicture(x)}<strong>${esc(lang==='en'?(x.nameEn||x.name):x.name)}</strong><br>${money(x.price)} (${Number(x.duration)||30} دقيقة)</span></label>`).join('')}</div></div><div class="field"><label>${t('chooseEmployee')}</label><select name="staff" required><option value="">${t('choose')}</option>${(portalCatalog.staff||[]).filter(x=>x.active!==false).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>${t('date')}</label><input type="date" name="date" min="${today()}" required></div><div class="field"><label>${t('time')}</label><input type="time" name="time" required></div><div class="field"><label>مكان الخدمة</label><select name="location" onchange="$('#homeAddress').classList.toggle('hidden',this.value!=='home')"><option value="salon">في الصالون</option>${p.homeServiceEnabled===true?`<option value="home">${lang==='en'?'At home':'خدمة منزلية'}</option>`:""}</select></div><div class="field full hidden" id="homeAddress"><label>العنوان</label><input name="address" maxlength="200"></div><div class="field full"><label class="checkline"><input type="checkbox" name="redeem"> استخدام خصم النقاط عند الدفع (يحتاج تأكيد المالكة)</label><small>${threshold} نقطة = ${money(discount)}؛ لا تُخصم النقاط عند طلب الحجز</small></div><div class="field full"><label>${t('notes')}</label><textarea name="notes" maxlength="300"></textarea></div><button class="btn full" type="button" onclick="window.open('https://wa.me/966544267911?text='+encodeURIComponent('مرحبًا، أريد طلب حجز في صالون جودة الأظافر'),'_blank','noopener,noreferrer')">طلب الحجز عبر واتساب مؤقتًا</button><p class="notice full">الحجز المباشر متوقف مؤقتًا لحماية الأسعار والمواعيد حتى تفعيل التحقق الآمن.</p></form></div><div class="section-head"><h3>${t('myBookings')}</h3></div>${portalBookings.map(b=>`<div class="card" style="margin-bottom:8px">${esc(b.date)} ${esc(b.time)} — ${esc(b.serviceName)} — ${esc(b.status||'pending')}</div>`).join('')||'<div class="empty">لا توجد حجوزات</div>'}<button class="btn danger" onclick="clearSession()">${t('logout')}</button>`;$("#portalBooking").onsubmit=submitPortalBooking}
 async function submitPortalBooking(e){e.preventDefault();const f=new FormData(e.target),ids=f.getAll('services'),services=(portalCatalog.services||[]).filter(s=>ids.includes(s.id)&&s.active!==false),staffUid=String(f.get('staff')||''),staff=(portalCatalog.staff||[]).find(s=>s.authUid===staffUid&&s.active!==false),date=String(f.get('date')),time=String(f.get('time')),location=String(f.get('location')),address=String(f.get('address')||'').trim();if(!services.length||!staff||date<today()||(location==='home'&&(portalCatalog.settings?.homeServiceEnabled!==true||!address))){toast('أكملي البيانات');return}const duration=services.reduce((n,s)=>n+(Number(s.duration)||30),0);if(timeToMin(time)+duration>1440){toast('المدة تتجاوز نهاية اليوم');return}const conflict=portalBookings.some(b=>b.staffUid===staffUid&&b.date===date&&b.status!=='cancelled'&&timeToMin(time)<timeToMin(b.time)+Number(b.duration||30)&&timeToMin(time)+duration>timeToMin(b.time));if(conflict){toast('يوجد تعارض ظاهر في المواعيد');return}const record={clientUid:auth.currentUser.uid,staffUid,clientName:portalUser.name,staffName:staff.name,serviceIds:ids,serviceName:services.map(s=>s.name).join('، '),price:services.reduce((n,s)=>n+Number(s.price||0),0),duration,date,time,location,address,notes:String(f.get('notes')||''),redeemRequested:!!f.get('redeem'),status:'pending',createdAt:firebase.firestore.FieldValue.serverTimestamp()};try{await firestore.collection('portalBookings').add(record);await loadPortalBookings();renderPortalClient();toast('تم إرسال طلب الحجز؛ بانتظار التأكيد')}catch(err){toast('تعذر حفظ الحجز: '+err.message)}}
 function renderPortalEmployee(){
  applyLang();$("#homeBtn").classList.remove('hidden');
@@ -738,7 +738,7 @@ renderPortalClient=function(){
 function salonSendWhatsAppBooking(e){
  e.preventDefault();const f=new FormData(e.currentTarget),ids=f.getAll('services');
  const services=(portalCatalog.services||[]).filter(s=>ids.includes(String(s.id))&&s.active!==false);
- const staff=(portalCatalog.staff||[]).find(s=>String(s.authUid)===String(f.get('staff'))&&s.active!==false);
+ const staff=(portalCatalog.staff||[]).find(s=>String(s.id)===String(f.get('staff'))&&s.active!==false);
  const date=String(f.get('date')||''),time=String(f.get('time')||''),location=String(f.get('location')||'salon');
  const address=String(f.get('address')||'').trim(),notes=String(f.get('notes')||'').trim();
  if(!services.length||!staff||!date||!time){toast('اختاري الخدمة والموظفة والتاريخ والوقت');return}
@@ -776,6 +776,41 @@ function salonSendWhatsAppBooking(e){
  const w=window.open(url,'_blank','noopener,noreferrer');if(!w)window.location.href=url;
  toast('تم تجهيز تفاصيل الطلب لواتساب. أرسلي الرسالة لتأكيد الطلب مع الصالون.');
 }
+
+/* Search in booking services, and publish employee changes without requiring employee Firebase login. */
+const salonClientSearchRender=renderPortalClient;
+renderPortalClient=function(){
+ salonClientSearchRender();
+ const form=document.querySelector('#portalBooking');
+ if(!form)return;
+ const grid=form.querySelector('.service-grid');
+ if(!grid)return;
+ const holder=document.createElement('div');holder.className='field full';holder.style.marginBottom='10px';
+ holder.innerHTML='<label for="salonBookingServiceSearch">🔎 ابحثي عن الخدمة بالاسم</label><input id="salonBookingServiceSearch" type="search" placeholder="اكتبي اسم الخدمة، مثل جل أو باديكير" autocomplete="off" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px"><small id="salonServiceSearchCount" class="muted"></small>';
+ grid.before(holder);
+ const cards=Array.from(grid.querySelectorAll('label.service'));
+ const draw=()=>{
+  const query=holder.querySelector('input').value.trim().toLocaleLowerCase();
+  let visible=0;
+  for(const card of cards){const input=card.querySelector('input[name="services"]');const item=(portalCatalog.services||[]).find(s=>String(s.id)===String(input?.value));const words=[item?.name,item?.nameEn].filter(Boolean).join(' ').toLocaleLowerCase();const match=!query||words.includes(query)||input?.checked;card.classList.toggle('hidden',!match);if(match)visible++}
+  holder.querySelector('#salonServiceSearchCount').textContent=visible?'الخدمات الظاهرة: '+visible+' — يمكنك اختيار أكثر من خدمة':'لا توجد خدمات مطابقة، جربي كلمة أخرى';
+ };
+ holder.querySelector('input').addEventListener('input',draw);
+ grid.addEventListener('change',draw);draw();
+};
+// Detect changes to the public employee roster and republish the safe catalog automatically.
+let salonPublishedStaffSignature=JSON.stringify((db.staff||[]).map(s=>[s.id,s.name,s.active!==false,s.authUid||'']));
+let salonStaffPublishTimer=null;
+const salonStaffOriginalPersist=persist;
+persist=function(){
+ salonStaffOriginalPersist();
+ if(db.session?.type!=='owner'||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')return;
+ const signature=JSON.stringify((db.staff||[]).map(s=>[s.id,s.name,s.active!==false,s.authUid||'']));
+ if(signature===salonPublishedStaffSignature)return;
+ salonPublishedStaffSignature=signature;
+ if(salonStaffPublishTimer)clearTimeout(salonStaffPublishTimer);
+ salonStaffPublishTimer=setTimeout(async()=>{const ok=await publishPortalCatalog();if(!ok)toast('تعذر تحديث الموظفات للعميلات؛ استخدمي زر نشر الخدمات والموظفات')},800);
+};
 </script>
 
 </body>
