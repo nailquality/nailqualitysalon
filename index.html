@@ -790,10 +790,10 @@ renderPortalClient=function(){
  grid.before(holder);
  const cards=Array.from(grid.querySelectorAll('label.service'));
  const draw=()=>{
-  const query=holder.querySelector('input').value.trim().toLocaleLowerCase();
+  const query=holder.querySelector('input').value.trim().toLocaleLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');
   let visible=0;
-  for(const card of cards){const input=card.querySelector('input[name="services"]');const item=(portalCatalog.services||[]).find(s=>String(s.id)===String(input?.value));const words=[item?.name,item?.nameEn].filter(Boolean).join(' ').toLocaleLowerCase();const match=!query||words.includes(query)||input?.checked;card.classList.toggle('hidden',!match);if(match)visible++}
-  holder.querySelector('#salonServiceSearchCount').textContent=visible?'الخدمات الظاهرة: '+visible+' — يمكنك اختيار أكثر من خدمة':'لا توجد خدمات مطابقة، جربي كلمة أخرى';
+  for(const card of cards){const input=card.querySelector('input[name="services"]');const item=(portalCatalog.services||[]).find(s=>String(s.id)===String(input?.value));const words=[item?.name,item?.nameEn].filter(Boolean).join(' ').toLocaleLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');const match=Boolean(query)&&words.includes(query);card.classList.toggle('hidden',!match);if(match)visible++}
+  const selected=cards.filter(card=>card.querySelector('input[name="services"]')?.checked).length;holder.querySelector('#salonServiceSearchCount').textContent=!query?'اكتبي حرفًا أو جزءًا من اسم الخدمة لتظهر النتائج. الخدمات المختارة: '+selected:visible?'نتائج البحث: '+visible+' — الخدمات المختارة: '+selected:'لا توجد خدمات مطابقة، جربي كلمة أخرى. الخدمات المختارة: '+selected;
  };
  holder.querySelector('input').addEventListener('input',draw);
  grid.addEventListener('change',draw);draw();
