@@ -15,6 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-functions-compat.js"></script>
 </head>
 <body>
 <header class="topbar">
@@ -297,7 +298,53 @@ applyLang();renderHome();
 
 let portalRole="",portalUser=null,portalCatalog={services:[],staff:[],settings:{redeemPoints:50,redeemRiyals:10}},portalBookings=[];
 function renderHome(){applyLang();$("#homeBtn").classList.add("hidden");$("#app").innerHTML=`<section class="hero"><div><h2>${lang==='ar'?'مرحبًا بكِ في صالون جودة الأظافر':'Welcome to Quality Nail Salon'}</h2><p>${lang==='ar'?'اختاري بوابتك للمتابعة':'Choose your portal'}</p></div><div class="hero-art">🌸</div></section><div class="grid"><button class="card portal" onclick="portalLogin('client')"><div class="portal-icon">💗</div><h3>${t('clientPortal')}</h3><p>${t('clientDesc')}</p></button><button class="card portal" onclick="portalLogin('employee')"><div class="portal-icon">📅</div><h3>${t('employeePortal')}</h3><p>${t('employeeDesc')}</p></button><button class="card portal" onclick="renderOwnerLogin()"><div class="portal-icon">👑</div><h3>${t('ownerPortal')}</h3><p>${t('ownerDesc')}</p></button></div>`}
-function portalLogin(role,register=false){portalRole=role;applyLang();$("#homeBtn").classList.remove("hidden");$("#app").innerHTML=`<div class="card" style="max-width:560px;margin:auto"><h2>${register?'إنشاء حساب عميلة':role==='client'?t('clientLogin'):t('employeeLogin')}</h2><form id="portalAuth" class="form-grid">${register?`<div class="field full"><label>الاسم</label><input name="name" required maxlength="80"></div><div class="field full"><label>رقم الجوال</label><input name="phone" required inputmode="tel" pattern="[0-9+ ]{9,16}"></div>`:''}<div class="field full"><label>${t('email')}</label><input type="email" name="email" required></div><div class="field full"><label>${t('password')}</label><input type="password" name="password" minlength="6" required></div><button class="btn full">${register?t('createAccount'):t('login')}</button></form>${role==='client'?`<button class="btn secondary" style="margin-top:12px" onclick="portalLogin('client',${!register})">${register?t('login'):t('createAccount')}</button>`:''}<p id="portalError" class="danger-text"></p></div>`;$("#portalAuth").onsubmit=async e=>{e.preventDefault();loginInProgress=true;const f=new FormData(e.target);try{let user;if(register){const cr=await auth.createUserWithEmailAndPassword(String(f.get('email')),String(f.get('password')));user=cr.user;const profile={uid:user.uid,name:String(f.get('name')).trim(),phone:String(f.get('phone')).trim(),email:user.email,points:0,createdAt:firebase.firestore.FieldValue.serverTimestamp()};await firestore.collection('clientProfiles').doc(user.uid).set(profile);portalUser=profile;}else{const cr=await auth.signInWithEmailAndPassword(String(f.get('email')),String(f.get('password')));user=cr.user;const path=role==='client'?'clientProfiles':'employeeProfiles';const snap=await firestore.collection(path).doc(user.uid).get();if(!snap.exists||snap.data().active===false)throw Error('هذا الحساب غير مسجل في البوابة المختارة');portalUser=snap.data()}portalRole=role;await loadPortalCatalog();await loadPortalBookings();role==='client'?renderPortalClient():renderPortalEmployee()}catch(err){$("#portalError").textContent=err.message||String(err)}finally{loginInProgress=false}}}
+function normalizeSaudiPhone(raw){
+ const digits=String(raw||'').replace(/[^\d]/g,'');
+ if(/^05\d{8}$/.test(digits))return '966'+digits.slice(1);
+ if(/^5\d{8}$/.test(digits))return '966'+digits;
+ if(/^9665\d{8}$/.test(digits))return digits;
+ if(/^009665\d{8}$/.test(digits))return digits.slice(2);
+ throw Error(lang==='ar'?'أدخلي رقم جوال سعودي صحيح':'Enter a valid Saudi mobile number');
+}
+function clientAuthEmail(phone){return 'client'+normalizeSaudiPhone(phone)+'@users.nailqualitysalon.app'}
+function staffAuthEmail(username){
+ const u=String(username||'').trim().toLowerCase();
+ if(!/^[a-z0-9._-]{3,32}$/.test(u))throw Error(lang==='ar'?'اسم الحساب 3-32 حرفًا إنجليزيًا أو رقمًا':'Username must be 3-32 Latin letters, digits or ._-');
+ return u+'@staff.nailqualitysalon.app';
+}
+function portalLogin(role,register=false){
+ portalRole=role;applyLang();$("#homeBtn").classList.remove("hidden");
+ const ar=lang==='ar',client=role==='client';
+ $("#app").innerHTML=`<div class="card" style="max-width:560px;margin:auto"><h2>${register?(ar?'إنشاء حساب عميلة':'Create client account'):(client?t('clientLogin'):t('employeeLogin'))}</h2><form id="portalAuth" class="form-grid">
+ ${register?`<div class="field full"><label>${ar?'الاسم الكامل':'Full name'}</label><input name="name" required maxlength="80" autocomplete="name"></div>`:''}
+ <div class="field full"><label>${client?(ar?'رقم الجوال':'Mobile number'):(ar?'اسم الحساب':'Username')}</label><input name="identifier" required ${client?'type="tel" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx"':'type="text" autocomplete="username" maxlength="32"'}></div>
+ <div class="field full"><label>${t('password')}</label><input type="password" name="password" minlength="6" required autocomplete="${register?'new-password':'current-password'}"></div>
+ <button class="btn full">${register?t('createAccount'):t('login')}</button></form>
+ ${client?`<button class="btn secondary" style="margin-top:12px" onclick="portalLogin('client',${!register})">${register?(ar?'لدي حساب بالفعل — تسجيل الدخول':'Already have an account? Log in'):(ar?'ليس لديك حساب؟ إنشاء حساب':'No account? Create one')}</button>`:''}
+ <p class="muted tiny">${client?(ar?'يُستخدم رقم الجوال لتسجيل الدخول. لا ترسلي كلمة المرور لأي شخص.':'Your phone number is used for sign-in. Never share your password.'):(ar?'تنشئ المالكة حساب الموظفة من لوحة الإدارة.':'The owner creates employee accounts from the dashboard.')}</p><p id="portalError" class="danger-text"></p></div>`;
+ $("#portalAuth").onsubmit=async e=>{
+  e.preventDefault();loginInProgress=true;const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit]');btn.disabled=true;
+  try{
+   const identifier=String(f.get('identifier')||'').trim(),password=String(f.get('password')||'');
+   const email=client?clientAuthEmail(identifier):staffAuthEmail(identifier);
+   let user;
+   if(register){
+    if(!client)throw Error('إنشاء حساب الموظفة متاح للمالكة فقط');
+    const cr=await auth.createUserWithEmailAndPassword(email,password);user=cr.user;
+    const profile={uid:user.uid,name:String(f.get('name')).trim(),phone:'+'+normalizeSaudiPhone(identifier),email:user.email,points:0,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+    await firestore.collection('clientProfiles').doc(user.uid).set(profile);portalUser=profile;
+   }else{
+    const cr=await auth.signInWithEmailAndPassword(email,password);user=cr.user;
+    const path=client?'clientProfiles':'employeeProfiles',snap=await firestore.collection(path).doc(user.uid).get();
+    if(!snap.exists||snap.data().active===false)throw Error(ar?'الحساب غير مفعل في هذه البوابة':'Account is not active in this portal');
+    portalUser=snap.data();
+   }
+   portalRole=role;await loadPortalCatalog();await loadPortalBookings();client?renderPortalClient():renderPortalEmployee();
+  }catch(err){
+   if($('#portalError'))$('#portalError').textContent=err.code==='auth/email-already-in-use'?(ar?'رقم الجوال مسجل مسبقًا':'This mobile number already has an account'):err.message||String(err);
+  }finally{loginInProgress=false;if(btn.isConnected)btn.disabled=false}
+ };
+}
 async function loadPortalCatalog(){const snap=await firestore.collection('portal').doc('catalog').get();portalCatalog=snap.exists?snap.data():{services:[],staff:[],settings:{redeemPoints:50,redeemRiyals:10}}}
 async function loadPortalBookings(){const q=portalRole==='client'?firestore.collection('portalBookings').where('clientUid','==',auth.currentUser.uid):firestore.collection('portalBookings').where('staffUid','==',auth.currentUser.uid);portalBookings=(await q.get()).docs.map(d=>({id:d.id,...d.data()}))}
 function renderPortalClient(){applyLang();$("#homeBtn").classList.remove('hidden');const p=portalCatalog.settings||{},points=Number(portalUser.points)||0,threshold=Number(p.redeemPoints)||50,discount=Number(p.redeemRiyals)||10;$("#app").innerHTML=`${headerPanel(t('clientPortal'),portalUser.name||'')}<div class="stats"><div class="stat"><span>${t('points')}</span><strong>${points}</strong></div><div class="stat"><span>الخصم المتاح</span><strong>${money(Math.floor(points/threshold)*discount)}</strong></div></div><div class="card" style="margin-top:16px"><h3>${t('book')}</h3><form id="portalBooking" class="form-grid"><div class="field full"><label>${t('chooseService')}</label><div class="service-grid">${(portalCatalog.services||[]).filter(x=>x.active!==false).map(x=>`<label class="service checkline"><input type="checkbox" name="services" value="${esc(x.id)}"><span>${esc(lang==='en'?(x.nameEn||x.name):x.name)} — ${money(x.price)} (${Number(x.duration)||30} دقيقة)</span></label>`).join('')}</div></div><div class="field"><label>${t('chooseEmployee')}</label><select name="staff" required><option value="">${t('choose')}</option>${(portalCatalog.staff||[]).filter(x=>x.active!==false&&x.authUid).map(x=>`<option value="${esc(x.authUid)}">${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>${t('date')}</label><input type="date" name="date" min="${today()}" required></div><div class="field"><label>${t('time')}</label><input type="time" name="time" required></div><div class="field"><label>مكان الخدمة</label><select name="location" onchange="$('#homeAddress').classList.toggle('hidden',this.value!=='home')"><option value="salon">في الصالون</option><option value="home">في المنزل</option></select></div><div class="field full hidden" id="homeAddress"><label>العنوان</label><input name="address" maxlength="200"></div><div class="field full"><label class="checkline"><input type="checkbox" name="redeem"> استخدام خصم النقاط عند الدفع (يحتاج تأكيد المالكة)</label><small>${threshold} نقطة = ${money(discount)}؛ لا تُخصم النقاط عند طلب الحجز</small></div><div class="field full"><label>${t('notes')}</label><textarea name="notes" maxlength="300"></textarea></div><button class="btn full">${t('submitBooking')}</button></form></div><div class="section-head"><h3>${t('myBookings')}</h3></div>${portalBookings.map(b=>`<div class="card" style="margin-bottom:8px">${esc(b.date)} ${esc(b.time)} — ${esc(b.serviceName)} — ${esc(b.status||'pending')}</div>`).join('')||'<div class="empty">لا توجد حجوزات</div>'}<button class="btn danger" onclick="clearSession()">${t('logout')}</button>`;$("#portalBooking").onsubmit=submitPortalBooking}
@@ -366,6 +413,41 @@ function closeWaitlist(id){const w=db.waitlist.find(x=>x.id===id);if(!w)return;w
 async function loadStaffRequestsOwner(){const el=$('#cloudStaffRequests');if(!el)return;try{const snap=await firestore.collection('staffRequests').get();el.innerHTML=extTable(['الموظفة','النوع','التاريخ','الملاحظات','الحالة'],snap.docs.map(x=>extRow([esc(x.data().employeeName),esc(x.data().type),esc(x.data().date),esc(x.data().notes),esc(x.data().status)])))}catch(e){el.textContent='تعذر جلب الطلبات: '+e.message}}
 const extensionRenderOwner=renderOwner;
 renderOwner=function(tab=ownerActiveTab){ensureExtensions();if(['leases','deposits','waitlist','loyaltyExt','audit','staffRequests','financeExt'].includes(tab)){extensionRenderOwner('dashboard');ownerActiveTab=tab;const tabs=[['leases','الإيجارات والعقود'],['deposits','العربونات'],['waitlist','قائمة الانتظار'],['loyaltyExt','النقاط والولاء'],['financeExt','الملخص المالي'],['staffRequests','طلبات الموظفات'],['audit','سجل النشاط']];$('#app').innerHTML=headerPanel('إدارة الصالون','وحدات إضافية مرتبطة ببيانات المالكة في Firebase')+nav(tabs,tab)+extensionPanel(tab)+`<div class="row" style="margin-top:15px"><button class="btn secondary" onclick="renderOwner('dashboard')">العودة للوحة الرئيسية</button><button class="btn danger" onclick="clearSession()">تسجيل الخروج</button></div>`;setupExtension(tab);return}extensionRenderOwner(tab);if(db.session?.type==='owner'){const strip=document.createElement('div');strip.className='card';strip.style.margin='14px 0';strip.innerHTML='<h3>وحدات الإدارة الإضافية</h3><div class="nav">'+[['leases','الإيجارات والعقود'],['deposits','العربونات'],['waitlist','قائمة الانتظار'],['loyaltyExt','النقاط والولاء'],['financeExt','الملخص المالي'],['staffRequests','طلبات الموظفات'],['audit','سجل النشاط']].map(([k,n])=>`<button onclick="renderOwner('${k}')">${n}</button>`).join('')+'</div>';$('#app').append(strip)}};
+
+const accountOwnerRender=renderOwner;
+renderOwner=function(tab=ownerActiveTab){
+ accountOwnerRender(tab);
+ if(tab!=='staff'||db.session?.type!=='owner')return;
+ const panel=document.createElement('section');panel.className='card';panel.style.marginTop='16px';
+ panel.innerHTML=`<h3>${lang==='ar'?'إنشاء حساب دخول للموظفة':'Create employee login'}</h3>
+ <p class="notice">${lang==='ar'?'إنشاء الحساب وتغيير كلمة المرور يتمان على الخادم فقط. لا تُحفظ كلمة المرور في بيانات الصالون.':'Accounts and password changes are processed on the server. Passwords are not stored in salon records.'}</p>
+ <form id="secureStaffForm" class="form-grid">
+ <div class="field"><label>${lang==='ar'?'اسم الموظفة':'Employee name'}</label><input name="name" required maxlength="100"></div>
+ <div class="field"><label>${lang==='ar'?'اسم الحساب (بالإنجليزية)':'Username (Latin)'}</label><input name="username" pattern="[A-Za-z0-9._-]{3,32}" required maxlength="32"></div>
+ <div class="field"><label>${lang==='ar'?'رقم الإقامة':'Iqama number'}</label><input name="iqama" inputmode="numeric" pattern="[0-9]{10}" required maxlength="10"></div>
+ <div class="field"><label>${lang==='ar'?'تاريخ انتهاء الإقامة':'Iqama expiry date'}</label><input name="iqamaExpiry" type="date" required></div>
+ <div class="field full"><label>${lang==='ar'?'كلمة المرور':'Password'}</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div>
+ <button class="btn full">${lang==='ar'?'إنشاء حساب الموظفة':'Create employee account'}</button></form>
+ <div class="section-head"><h3>${lang==='ar'?'حسابات الموظفات':'Employee accounts'}</h3><button class="btn secondary small" id="refreshSecureStaff">${lang==='ar'?'تحديث':'Refresh'}</button></div><div id="secureStaffList" class="empty">${lang==='ar'?'جارٍ التحميل':'Loading'}</div>`;
+ $('#app').append(panel);
+ const fn=firebase.app().functions('us-central1');
+ const call=(name,payload)=>fn.httpsCallable(name)(payload);
+ const refresh=async()=>{
+  const root=$('#secureStaffList');if(!root)return;
+  try{
+   const snap=await firestore.collection('employeeProfiles').get();
+   root.innerHTML=snap.docs.map(d=>{const v=d.data();return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||'')}</b><p class="muted tiny">${esc(v.username||'')} • ${lang==='ar'?'الإقامة':'Iqama'}: ${esc(v.iqamaMasked||'****')} • ${lang==='ar'?'انتهاء':'Expiry'}: ${esc(v.iqamaExpiry||'')}</p><span class="badge ${v.active===false?'red':'green'}">${v.active===false?(lang==='ar'?'موقوف':'Disabled'):(lang==='ar'?'نشط':'Active')}</span></div><div class="row"><button class="btn secondary small" onclick="toggleSecureEmployee('${esc(d.id)}',${v.active===false?'true':'false'})">${v.active===false?(lang==='ar'?'تفعيل':'Enable'):(lang==='ar'?'إيقاف':'Disable')}</button><button class="btn small" onclick="resetSecureEmployeePassword('${esc(d.id)}')">${lang==='ar'?'تغيير كلمة المرور':'Change password'}</button></div></div>`}).join('')||'<p class="empty">لا توجد حسابات</p>';
+  }catch(err){root.textContent=err.message}
+ };
+ $('#refreshSecureStaff').onclick=refresh;refresh();
+ $('#secureStaffForm').onsubmit=async e=>{
+  e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button');btn.disabled=true;
+  try{const data={name:String(f.get('name')).trim(),username:String(f.get('username')).trim(),iqama:String(f.get('iqama')),iqamaExpiry:String(f.get('iqamaExpiry')),password:String(f.get('password'))};const created=await call('createSalonEmployee',data);const matching=db.staff.find(x=>x.name.trim()===data.name);if(matching){matching.authUid=created.data.uid;persist();await publishPortalCatalog()}e.target.reset();toast(lang==='ar'?'تم إنشاء حساب الموظفة':'Employee account created');await refresh()}catch(err){toast(err.message)}finally{btn.disabled=false}
+ };
+ window.toggleSecureEmployee=async(uid,active)=>{try{await call('setSalonEmployeeActive',{uid,active});await refresh();toast(t('saved'))}catch(err){toast(err.message)}};
+ window.resetSecureEmployeePassword=async(uid)=>{const password=prompt(lang==='ar'?'كلمة المرور الجديدة (8 أحرف على الأقل)':'New password (at least 8 characters)');if(password===null)return;if(password.length<8){toast(lang==='ar'?'كلمة المرور قصيرة':'Password too short');return}try{await call('changeSalonEmployeePassword',{uid,password});toast(lang==='ar'?'تم تغيير كلمة المرور':'Password changed')}catch(err){toast(err.message)}};
+};
+
 const extensionRenderPortalClient=renderPortalClient;
 renderPortalClient=function(){extensionRenderPortalClient();const services=(portalCatalog.services||[]).filter(s=>s.active!==false);const extra=document.createElement('section');extra.className='card';extra.style.marginTop='14px';extra.innerHTML=`<div class="spread"><h3>دليل الخدمات / Service catalog</h3><input id="portalServiceSearch" placeholder="ابحثي عن خدمة / Search" style="padding:10px;border:1px solid #eadde3;border-radius:10px"></div><div id="portalServiceCards" class="service-grid" style="margin-top:12px"></div><div class="section-head"><h3>التواصل مع الصالون</h3><button class="btn success" id="clientWhatsApp">حجز عبر واتساب</button></div><p class="notice">يتم تأكيد الحجز بعد موافقة المالكة والتحقق من العربون. لا ترسلي معلومات بنكية سرية داخل الموقع.</p>`;$('#app').append(extra);const draw=()=>{$('#portalServiceCards').innerHTML=services.filter(s=>(s.name+' '+(s.nameEn||'')).toLowerCase().includes($('#portalServiceSearch').value.toLowerCase())).map(s=>`<div class="service">${s.imageUrl&&/^https:\/\//.test(s.imageUrl)?`<img src="${esc(s.imageUrl)}" alt="" style="width:100%;height:120px;object-fit:cover;border-radius:10px">`:''}<h3>${esc(lang==='en'?(s.nameEn||s.name):s.name)}</h3><div class="price">${money(s.price)}</div><p>${Number(s.duration)||30} دقيقة · ${Number(s.loyaltyPoints)||0} نقطة</p></div>`).join('')||'<div class="empty">لا توجد خدمات مطابقة</div>'};$('#portalServiceSearch').oninput=draw;draw();$('#clientWhatsApp').onclick=()=>window.open('https://wa.me/966544267911?text='+encodeURIComponent('مرحبًا، أريد الاستفسار عن حجز في صالون جودة الأظافر'),'_blank','noopener,noreferrer')};
 const extensionRenderPortalEmployee=renderPortalEmployee;
