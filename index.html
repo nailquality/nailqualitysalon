@@ -439,7 +439,7 @@ async function loadPortalCatalog(){
 async function loadPortalBookings(){if(portalRole==='employee'){portalBookings=[];return}const q=firestore.collection('portalBookings').where('clientUid','==',auth.currentUser.uid);portalBookings=(await q.get()).docs.map(d=>({id:d.id,...d.data()}))}
 function renderPortalClient(){applyLang();$("#homeBtn").classList.remove('hidden');const p=portalCatalog.settings||{},points=Number(portalUser.points)||0,threshold=Number(p.redeemPoints)||50,discount=Number(p.redeemRiyals)||10;$("#app").innerHTML=`${headerPanel(t('clientPortal'),portalUser.name||'')}<div class="stats"><div class="stat"><span>${t('points')}</span><strong>${points}</strong></div><div class="stat"><span>الخصم المتاح</span><strong>${money(Math.floor(points/threshold)*discount)}</strong></div></div><div class="card" style="margin-top:16px"><h3>${t('book')}</h3><form id="portalBooking" class="form-grid"><div class="field full"><label>${t('chooseService')}</label><div class="service-grid">${(portalCatalog.services||[]).filter(x=>x.active!==false).map(x=>`<label class="service checkline"><span>${servicePicture(x)}<strong>${esc(lang==='en'?(x.nameEn||x.name):x.name)}</strong><br>${money(x.price)} (${Number(x.duration)||30} دقيقة)</span><span style="display:block;margin-top:8px">العدد <input type="number" name="serviceQty_${esc(x.id)}" min="0" max="20" value="0" inputmode="numeric" style="width:75px" aria-label="عدد ${esc(x.name)}"></span></label>`).join('')}</div></div><div class="field"><label>${t('chooseEmployee')}</label><select name="staff" required><option value="">${t('choose')}</option>${(portalCatalog.staff||[]).filter(x=>x.active!==false).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>${t('date')}</label><input type="date" name="date" min="${today()}" required></div><div class="field"><label>${t('time')}</label><input type="time" name="time" required></div><div class="field"><label>مكان الخدمة</label><select name="location" onchange="$('#homeAddress').classList.toggle('hidden',this.value!=='home')"><option value="salon">في الصالون</option>${p.homeServiceEnabled===true?`<option value="home">${lang==='en'?'At home':'خدمة منزلية'}</option>`:""}</select></div><div class="field full hidden" id="homeAddress"><label>العنوان</label><input name="address" maxlength="200"></div><div class="field full"><label class="checkline"><input type="checkbox" name="redeem"> استخدام خصم النقاط عند الدفع (يحتاج تأكيد المالكة)</label><small>${threshold} نقطة = ${money(discount)}؛ لا تُخصم النقاط عند طلب الحجز</small></div><div class="field full"><label>${t('notes')}</label><textarea name="notes" maxlength="300"></textarea></div><div class="notice full" id="portalQuantitySummary">حددي عدد الخدمات المطلوبة ثم احفظي الحجز.</div><button class="btn full" type="submit">إرسال طلب الحجز</button></form></div><div class="section-head"><h3>${t('myBookings')}</h3></div>${portalBookings.map(b=>`<div class="card" style="margin-bottom:8px">${esc(b.date)} ${esc(b.time)} — ${esc(b.serviceName)} — ${esc(b.status||'pending')}</div>`).join('')||'<div class="empty">لا توجد حجوزات</div>'}<button class="btn danger" onclick="clearSession()">${t('logout')}</button>`;$("#portalBooking").onsubmit=submitPortalBooking}
 async function submitPortalBooking(e){e.preventDefault();const f=new FormData(e.target),catalog=(portalCatalog.services||[]).filter(s=>s.active!==false),services=[];
- for(const item of catalog){const q=Number(f.get('serviceQty_'+item.id)||0);if(!Number.isInteger(q)||q<0||q>20){toast('الحد الأقصى 20 من كل خدمة');return}for(let i=0;i<q;i++)services.push(item)}
+ for(const item of catalog){const q=Number(f.get('serviceQty_'+item.id)||0);if(!Number.isInteger(q)||q<0||q>10){toast('الحد الأقصى 10 مرات للخدمة الواحدة');return}for(let i=0;i<q;i++)services.push(item)}
  const staffId=String(f.get('staff')||''),staff=(portalCatalog.staff||[]).find(s=>String(s.id)===staffId&&s.active!==false),date=String(f.get('date')||''),time=String(f.get('time')||''),location=String(f.get('location')||''),address=String(f.get('address')||'').trim();
  if(!services.length||!staff||!date||!time||date<today()||(location==='home'&&(portalCatalog.settings?.homeServiceEnabled!==true||!address))){toast('أكملي البيانات وحددي كمية الخدمات');return}
  const duration=services.reduce((n,s)=>n+(Number(s.duration)||30),0);if(timeToMin(time)+duration>1440){toast('المدة تتجاوز نهاية اليوم');return}
@@ -967,13 +967,13 @@ submitPortalBooking=async function(event){
  const data=new FormData(form),services=[];
  for(const item of (portalCatalog.services||[]).filter(x=>x.active!==false)){
   const qty=Number(data.get('serviceQty_'+item.id)||0);
-  if(!Number.isInteger(qty)||qty<0||qty>20){toast('العدد المسموح من 0 إلى 20 لكل خدمة');return}
+  if(!Number.isInteger(qty)||qty<0||qty>10){toast('الحد الأقصى 10 مرات للخدمة الواحدة');return}
   for(let i=0;i<qty;i++)services.push(item);
  }
  const staff=(portalCatalog.staff||[]).find(x=>String(x.id)===String(data.get('staff'))&&x.active!==false);
  const date=safeStr(data.get('date')),time=safeStr(data.get('time')),location=safeStr(data.get('location')||'salon');
  const address=safeStr(data.get('address')).trim().slice(0,200),notes=safeStr(data.get('notes')).trim().slice(0,300);
- if(!services.length||services.length>40||!staff||!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<today()||!/^\d{2}:\d{2}$/.test(time)){toast('اختاري الخدمات والموظفة والتاريخ والوقت الصحيح');return}
+ if(!services.length||!staff||!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<today()||!/^\d{2}:\d{2}$/.test(time)){toast('اختاري الخدمات والموظفة والتاريخ والوقت الصحيح');return}
  if(location==='home'&&(!portalCatalog.settings?.homeServiceEnabled||!address)){toast('أدخلي عنوان الخدمة المنزلية');return}
  const duration=services.reduce((n,x)=>n+(Number(x.duration)||30),0);
  if(timeToMin(time)+duration>1440){toast('وقت الحجز يتجاوز نهاية اليوم');return}
@@ -1359,7 +1359,7 @@ document.addEventListener('submit',async e=>{
   if(oldSearch)oldSearch.remove();
   grid.style.display='none';
   for(const field of grid.querySelectorAll('input[name^="serviceQty_"]')){
-   field.max='10';field.min='0';field.value='0';
+   field.max='10';field.min='0';field.value='0';field.required=false;
   }
   const area=document.createElement('div');area.className='field full';area.id='salonCartPicker';
   area.innerHTML=`<label for="salonCartSearch">ابحثي عن الخدمة وأضيفيها للسلة</label>
@@ -1381,7 +1381,7 @@ document.addEventListener('submit',async e=>{
   const change=(item,delta)=>{
    const el=fieldOf(item);if(!el)return;
    const next=qty(item)+delta;
-   if(next<0||next>10||total()+delta>10){toast('الحد الأقصى 10 خدمات في الحجز الواحد');return}
+   if(next<0||next>10){toast('الحد الأقصى 10 مرات للخدمة الواحدة');return}
    el.value=String(next);el.dispatchEvent(new Event('input',{bubbles:true}));
    drawResults();drawCart();
   };
@@ -1393,7 +1393,7 @@ document.addEventListener('submit',async e=>{
    matches.forEach(item=>{
     const line=document.createElement('div');line.className='service';line.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px';
     const title=document.createElement('div');title.textContent=(lang==='en'?(item.nameEn||item.name):item.name)+' — '+money(item.price)+' ('+(Number(item.duration)||30)+' دقيقة)';
-    const add=document.createElement('button');add.type='button';add.className='btn';add.textContent='إضافة +';add.disabled=total()>=10;add.onclick=()=>change(item,1);
+    const add=document.createElement('button');add.type='button';add.className='btn';add.textContent='إضافة +';add.disabled=qty(item)>=10;add.onclick=()=>change(item,1);
     line.append(title,add);results.append(line);
    });
   }
@@ -1408,16 +1408,16 @@ document.addEventListener('submit',async e=>{
     const controls=document.createElement('span');controls.style.cssText='display:flex;align-items:center;gap:10px';
     const minus=document.createElement('button');minus.type='button';minus.className='btn secondary';minus.textContent='−';minus.onclick=()=>change(item,-1);
     const n=document.createElement('strong');n.textContent=String(count);
-    const plus=document.createElement('button');plus.type='button';plus.className='btn secondary';plus.textContent='+';plus.disabled=total()>=10;plus.onclick=()=>change(item,1);
+    const plus=document.createElement('button');plus.type='button';plus.className='btn secondary';plus.textContent='+';plus.disabled=qty(item)>=10;plus.onclick=()=>change(item,1);
     controls.append(minus,n,plus);row.append(name,controls);cart.append(row);
    });
-   const foot=document.createElement('p');foot.style.fontWeight='bold';foot.textContent='عدد الخدمات: '+total()+' / 10 — الإجمالي: '+money(price)+' — المدة: '+duration+' دقيقة';cart.append(foot);
+   const foot=document.createElement('p');foot.style.fontWeight='bold';foot.textContent='إجمالي عدد الخدمات: '+total()+' (الحد 10 لكل خدمة) — الإجمالي: '+money(price)+' — المدة: '+duration+' دقيقة';cart.append(foot);
    if(summary)summary.textContent='اختاري الموظفة والتاريخ والوقت بعد إضافة الخدمات إلى السلة.';
   }
   search.addEventListener('input',drawResults);
   const oldSubmit=form.onsubmit;
   form.onsubmit=function(e){
-   const n=total();if(n<1||n>10){e.preventDefault();toast('اختاري من 1 إلى 10 خدمات فقط');return false}
+   const n=total();if(n<1){e.preventDefault();toast('أضيفي خدمة واحدة على الأقل إلى السلة');return false}
    if(typeof oldSubmit==='function')return oldSubmit.call(this,e);
   };
   drawResults();drawCart();
