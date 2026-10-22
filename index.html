@@ -23,7 +23,7 @@
   <div class="top-actions"><button class="btn secondary" id="langBtn">English</button><button class="btn secondary hidden" id="homeBtn" data-i18n="home">الرئيسية</button></div>
 </header>
 <main class="wrap" id="app"></main>
-<div class="footer" data-i18n="footer">نظام إدارة صالون جودة الأظافر • إصدار ملف واحد</div>
+<div class="footer">تم تصميم وتطوير هذا الموقع بواسطة المصمم <strong>عبدالله</strong> · <a href="https://wa.me/966593055867" target="_blank" rel="noopener noreferrer">للتواصل عبر واتساب: +966 59 305 5867</a></div>
 <div id="modalRoot"></div><div id="toastRoot"></div>
 <script>
 "use strict";
@@ -813,5 +813,47 @@ persist=function(){
 };
 </script>
 
+
+<script>
+/* Quality Nail Salon: owner marketing, reversible offers, and employee deactivation. */
+(function(){
+'use strict';
+const hasOwner=()=>db.session?.type==='owner' && auth.currentUser?.uid===firebaseConfigOwner();
+function firebaseConfigOwner(){return 'AvRinM2frzLkDWH1CsH7CnIhFnK2'}
+function discountPct(){const n=Number(db.settings?.bulkDiscountPercent||0);return Number.isFinite(n)?Math.min(100,Math.max(0,n)):0}
+function discounted(price){return Math.round((Number(price)||0)*(1-discountPct()/100)*100)/100}
+function safePhone(raw){let p=String(raw||'').replace(/\D/g,'');if(p.startsWith('00'))p=p.slice(2);if(p.startsWith('0')&&p.length===10)p='966'+p.slice(1);if(p.startsWith('5')&&p.length===9)p='966'+p;return /^9665\d{8}$/.test(p)?p:''}
+function lastVisit(c){const records=(db.invoices||[]).filter(i=>i.clientId===c.id||safePhone(i.customerPhone)===safePhone(c.phone)&&!!safePhone(c.phone));const dates=records.map(i=>String(i.date||i.createdAt||'').slice(0,10)).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)).sort();return dates.at(-1)||''}
+function eligible(c,days){if(c.marketingConsent!==true||!safePhone(c.phone))return false;if(days===0)return true;const v=lastVisit(c);return v && (Date.now()-new Date(v+'T12:00:00').getTime())/86400000>=days}
+function offerPanel(){return `<section class="card"><h2>الخصم الجماعي على الخدمات</h2><p class="muted">خصم موحد على جميع الخدمات المنشورة. السعر الأساسي محفوظ، ويمكن إلغاء الخصم في أي وقت. لا يغيّر الفواتير القديمة.</p><div class="form-grid"><div class="field"><label>نسبة الخصم %</label><input id="salonBulkPercent" type="number" min="0" max="100" step="1" value="${discountPct()}"></div><div class="field"><label>معاينة</label><div class="notice good">خدمة سعرها 100 ريال تصبح <strong id="salonBulkPreview">${money(discounted(100))}</strong></div></div><div class="row full"><button class="btn" type="button" id="salonBulkSave">تطبيق الخصم ونشر الأسعار</button><button class="btn secondary" type="button" id="salonBulkReset">إلغاء الخصم</button></div></div><p class="notice">تحديث الأسعار العامة يحتاج نجاح نشر الخدمات في Firebase. تحققي من النشر قبل الإعلان للعميلات.</p></section>`}
+function marketingPanel(){return `<section class="card"><h2>رسائل العميلات والعروض (واتساب مجاني)</h2><p class="muted">رسائل جاهزة تُفتح عميلةً عميلةً، ولا تُرسل تلقائيًا. اختاري العميلات الموافقـات على العروض فقط.</p><div class="form-grid"><div class="field"><label>الفئة</label><select id="salonMarketingDays"><option value="0">جميع المشتركات في العروض</option><option value="30">لم تزُر منذ 30 يومًا</option><option value="60">لم تزُر منذ 60 يومًا</option><option value="90">لم تزُر منذ 90 يومًا</option></select></div><div class="field"><label>عدد المستهدفات</label><div class="notice good" id="salonMarketingCount"></div></div><div class="field full"><label>نص الرسالة</label><textarea id="salonMarketingMessage" rows="5">🌸 أهلًا بكِ من صالون جودة الأظافر! يسعدنا تقديم خصم 30% على خدمات الصالون لفترة محدودة. نتشرف بزيارتكِ 💗</textarea></div></div><div id="salonMarketingList" style="margin-top:14px"></div><p class="notice">مهم: الموافقة على الرسائل التسويقية لا تُفترض تلقائيًا. يجب تسجيل موافقة العميلة الفعلية وإتاحة إيقاف الرسائل. فتح واتساب لا يثبت إرسال الرسالة.</p></section>`}
+const oldOwner=renderOwner;
+renderOwner=function(tab=ownerActiveTab){oldOwner(tab);if(!hasOwner())return;
+if(tab==='services'){
+const container=document.createElement('div');container.style.marginBottom='14px';container.innerHTML=offerPanel();const main=$('#app');const cards=main.querySelector('.card');if(cards)cards.before(container);else main.append(container);
+const field=$('#salonBulkPercent');field.oninput=()=>{$('#salonBulkPreview').textContent=money(Math.round(100*(1-Math.min(100,Math.max(0,Number(field.value)||0))/100)*100)/100)};
+async function save(n){if(!Number.isInteger(n)||n<0||n>100){toast('أدخلي نسبة صحيحة من 0 إلى 100');return}db.settings.bulkDiscountPercent=n;persist();try{await saveQueue;const ok=await publishPortalCatalog();if(ok)toast(n?'تم نشر الخصم':'تم إلغاء الخصم ونشر الأسعار الأصلية');else toast('تم حفظ الخصم محليًا لكن تعذر النشر. أعيدي المحاولة')}catch(e){toast('تعذر النشر: '+e.message)}renderOwner('services')}
+$('#salonBulkSave').onclick=()=>save(Number(field.value));$('#salonBulkReset').onclick=()=>save(0);
+}
+if(tab==='marketing'){
+const wrap=document.createElement('div');wrap.innerHTML=marketingPanel();$('#app').append(wrap);
+const draw=()=>{const days=Number($('#salonMarketingDays').value),clients=(db.clients||[]).filter(c=>eligible(c,days));$('#salonMarketingCount').textContent=clients.length+' عميلة';$('#salonMarketingList').innerHTML=clients.length?clients.map(c=>`<div class="card spread" style="margin:8px 0"><div><b>${esc(c.name)}</b><p class="muted tiny">آخر زيارة مسجلة: ${esc(lastVisit(c)||'غير مسجلة')}</p><p class="muted tiny">آخر فتح لواتساب: ${esc(c.lastMarketingOpenedAt?.slice(0,10)||'—')}</p></div><button class="btn success small" data-marketing-id="${esc(c.id)}">فتح واتساب</button></div>`).join(''):'<div class="empty">لا توجد عميلات مؤهلات. سجّلي موافقتهن من إدارة العميلات أولًا.</div>';$('#salonMarketingList').querySelectorAll('[data-marketing-id]').forEach(b=>b.onclick=()=>{const c=db.clients.find(x=>x.id===b.dataset.marketingId),message=$('#salonMarketingMessage').value.trim();if(!c||!eligible(c,days)||!message){toast('تحققي من العميلة والرسالة');return}const url='https://wa.me/'+safePhone(c.phone)+'?text='+encodeURIComponent('مرحبًا '+c.name+'،\n'+message+'\nلإيقاف العروض أخبرينا بذلك.');window.open(url,'_blank','noopener,noreferrer');c.lastMarketingOpenedAt=new Date().toISOString();persist();draw()})};$('#salonMarketingDays').onchange=draw;draw();
+}
+if(tab==='clients'){
+$('#clientsTable')?.addEventListener('click',e=>{const btn=e.target.closest('[data-consent-id]');if(!btn)return;const c=db.clients.find(x=>x.id===btn.dataset.consentId);if(!c)return;const next=c.marketingConsent!==true;if(next&&!confirm('هل أكدت العميلة بنفسها موافقتها على استقبال عروض واتساب؟'))return;c.marketingConsent=next;c.marketingConsentUpdatedAt=new Date().toISOString();persist();renderOwner('clients')});
+const oldList=$('#clientsTable');if(oldList){const base=oldList.innerHTML;oldList.innerHTML=base+`<div class="card" style="margin-top:14px"><h3>موافقات رسائل العروض</h3>${db.clients.map(c=>`<div class="spread" style="padding:8px;border-bottom:1px solid var(--line)"><span>${esc(c.name)} — ${c.marketingConsent===true?'موافقة':'غير موافقة'}</span><button class="btn secondary small" data-consent-id="${esc(c.id)}">${c.marketingConsent===true?'إيقاف الرسائل':'تسجيل موافقتها'}</button></div>`).join('')}</div>`}
+}
+if(tab==='staff'){
+const notice=document.createElement('p');notice.className='notice';notice.style.marginTop='12px';notice.textContent='اسم حساب الموظفة من 3 إلى 32 حرفًا إنجليزيًا (مثل sara)، وليس مطلوبًا 32 حرفًا. إيقاف الحساب يمنع دخول بوابة الموظفة، لكنه لا يحذف مستخدم Firebase Authentication.';$('#secureStaffForm')?.after(notice);
+const list=$('#secureStaffList');if(list){const observer=new MutationObserver(()=>{list.querySelectorAll('button[onclick^="toggleSecureEmployee"]').forEach(btn=>{const m=btn.getAttribute('onclick').match(/toggleSecureEmployee\('([^']+)'/);if(!m||btn.parentElement.querySelector('[data-retire-uid]'))return;const retire=document.createElement('button');retire.className='btn danger small';retire.textContent='إيقاف وإخفاء الحساب';retire.dataset.retireUid=m[1];retire.onclick=async()=>{if(!hasOwner()||!confirm('سيُوقف حساب الموظفة ويُخفى من القائمة النشطة، لكنه سيبقى في Firebase Authentication حتى تحذفيه من لوحة Firebase. متابعة؟'))return;try{await firestore.collection('employeeProfiles').doc(m[1]).update({active:false,archived:true,archivedAt:firebase.firestore.FieldValue.serverTimestamp()});const s=db.staff.find(x=>x.authUid===m[1]);if(s){s.active=false;persist();await publishPortalCatalog()}toast('تم إيقاف الحساب. لحذفه نهائيًا من Authentication استخدمي Firebase Console.');renderOwner('staff')}catch(e){toast(e.message)}};btn.parentElement.append(retire)})});observer.observe(list,{childList:true,subtree:true});}
+}
+};
+const oldTab=ownerTab;ownerTab=function(tab){if(tab==='marketing'&&hasOwner())renderOwner('marketing');else oldTab(tab)};
+const oldRender=renderOwner;renderOwner=function(tab=ownerActiveTab){oldRender(tab);if(!hasOwner())return;const nav=$('#app .nav');if(nav&&!nav.querySelector('[data-marketing-nav]')){const b=document.createElement('button');b.dataset.marketingNav='1';b.textContent='💌 رسائل العميلات';b.className=tab==='marketing'?'active':'';b.onclick=()=>renderOwner('marketing');nav.append(b)}};
+const oldPublish=publishPortalCatalog;
+publishPortalCatalog=async function(){const ok=await oldPublish();if(!ok||!hasOwner())return ok;try{const percent=discountPct();const ref=firestore.collection('portal').doc('catalog');const snap=await ref.get();if(!snap.exists)return false;const services=(snap.data().services||[]).map(s=>{const original=Number(db.services.find(x=>x.id===s.id)?.price??s.originalPrice??s.price)||0;return {...s,originalPrice:original,price:Math.round(original*(1-percent/100)*100)/100,discountPercent:percent}});await ref.update({services});return true}catch(e){console.error(e);toast('تعذر نشر السعر بعد الخصم: '+e.message);return false}};
+const oldClientPortal=renderPortalClient;renderPortalClient=function(){oldClientPortal();const percent=(portalCatalog.services||[]).find(x=>Number(x.discountPercent)>0)?.discountPercent;if(!percent)return;$('#app').querySelectorAll('.service .price').forEach(el=>{const card=el.closest('.service'),name=card?.querySelector('h3')?.textContent,svc=(portalCatalog.services||[]).find(s=>(lang==='en'?(s.nameEn||s.name):s.name)===name);if(svc&&Number(svc.originalPrice)>Number(svc.price)){el.insertAdjacentHTML('beforebegin',`<p class="muted tiny"><s>${money(svc.originalPrice)}</s> · خصم ${Number(svc.discountPercent)}%</p>`)}})};
+})();
+</script>
 </body>
 </html>
