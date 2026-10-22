@@ -81,11 +81,12 @@ function load(){return initialState()}
 let db=load();
 function persist(){
   if(!firebaseReady || !auth.currentUser || auth.currentUser.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){
-    console.warn("Blocked unauthenticated salon data write");return;
+    console.warn("Blocked unauthenticated salon data write");return Promise.resolve(false);
   }
   const cleanRecords=arr=>(arr||[]).map(({password,...record})=>record);
   const cloudData={...db,clients:cleanRecords(db.clients),staff:cleanRecords(db.staff),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
-  saveQueue=saveQueue.then(()=>salonDoc.set(cloudData,{merge:false})).catch(err=>{console.error("Firestore save failed",err);toast("تعذر حفظ البيانات في Firebase. تحققي من قواعد Firestore والاتصال.")});
+  saveQueue=saveQueue.then(()=>salonDoc.set(cloudData,{merge:false})).then(()=>true).catch(err=>{console.error("Firestore save failed",err);toast("تعذر حفظ البيانات في Firebase. تحققي من قواعد Firestore والاتصال.");return false});
+  return saveQueue;
 }
 function toast(msg){const root=$("#toastRoot");root.innerHTML=`<div class="toast">${esc(msg)}</div>`;setTimeout(()=>root.innerHTML="",2800)}
 function applyLang(){document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";$("#langBtn").textContent=lang==="ar"?"English":"العربية";$$("[data-i18n]").forEach(el=>el.textContent=t(el.dataset.i18n));}
@@ -107,6 +108,7 @@ function renderOwnerLogin(){
     e.preventDefault();loginInProgress=true;const form=e.currentTarget,fd=new FormData(form),btn=$("#ownerLoginSubmit"),error=$("#loginError");btn.disabled=true;btn.textContent="جارٍ التحقق…";error.textContent="";
     try{
       const credential=await auth.signInWithEmailAndPassword(String(fd.get("email")).trim(),String(fd.get("password")));
+      if(credential.user.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2")throw Object.assign(new Error("هذا الحساب ليس حساب صاحبة الصالون المصرّح له."),{code:"owner/not-authorized"});
       const snap=await salonDoc.get();
       if(snap.exists){const remote=snap.data();const base=initialState();db={...base,...remote,settings:{...base.settings,...(remote.settings||{})},session:{type:"owner",id:credential.user.uid}};}
       else {db={...db,session:{type:"owner",id:credential.user.uid}};}
@@ -985,6 +987,12 @@ window.ownerEditSavedBooking=async id=>{
 .owner-menu-title{padding:14px 12px 3px;font-size:11px;color:#c5b5ca}
 @media(max-width:760px){.owner-shell{grid-template-columns:74px minmax(0,1fr)}.owner-brand div,.owner-menu button span:last-child,.owner-side-bottom{display:none}.owner-menu button{justify-content:center;padding:12px 4px}.owner-menu-icon{font-size:21px}.owner-content{padding:12px!important}}
 </style>
+<script id="shared-owner-guard">
+function hasOwner(){
+ return typeof db!=="undefined" && db.session?.type==="owner" &&
+ typeof auth!=="undefined" && auth.currentUser?.uid==="AvRinM2frzLkDWH1CsH7CnIhFnK2";
+}
+</script>
 <script>
 /* Consolidated owner navigation. Keeps the existing Firestore collections and data. */
 (function(){
@@ -996,7 +1004,7 @@ const prior=renderOwner;
 let bookingFilter='all';
 function settingsContent(section){
  if(!section)return `<div class="section-head"><h2>⚙ الإعدادات</h2></div><div class="owner-settings-grid">${[['design','🎨 تخصيص التصميم','الشعار والخطوط والعبارات والألوان'],['theme','🖌 تعديل الثيم','اللون الوردي وألوان الواجهة'],['backup','💾 النسخ الاحتياطي','تنزيل نسخة أو استعادتها بعد التأكيد'],['system','⚙ إعدادات النظام','اسم الصالون، واتساب ومكان الحجز']].map(([id,n,d])=>`<button type="button" class="card" onclick="openOwnerSettingsSection('${id}')"><h3>${n}</h3><p>${d}</p></button>`).join('')}</div>`;
- if(section==='backup')return `<div class="section-head"><h2>النسخ الاحتياطي</h2></div>${backupPanel()}`;
+ if(section==='backup')return `<div class="section-head"><h2>النسخ الاحتياطي</h2></div><p class="notice">احفظي نسخة JSON قبل أي استعادة. استعادة النسخة قد تستبدل بيانات الإدارة الحالية ولا تشمل بالضرورة مجموعات بوابة العميلات المنفصلة.</p>${backupPanel()}`;
  if(section==='system')return `<div class="card"><h2>إعدادات النظام</h2><p>إعدادات الصالون والحجوزات والصلاحيات الأساسية.</p><button class="btn" onclick="ownerSettings()">فتح إعدادات النظام</button></div>`;
  return `<div class="card"><h2>${section==='theme'?'تعديل الثيم':'تخصيص التصميم'}</h2><p>يمكنك تعديل الألوان والشعار والعبارات مع معاينة التصميم وحفظه.</p><button class="btn" onclick="openSalonThemeSettings()">فتح محرر التصميم والثيم</button></div>`;
 }
@@ -1028,8 +1036,8 @@ window.ownerDeleteService=async id=>{
  const service=db.services.find(s=>String(s.id)===String(id));if(!service)return;
  if(!confirm(`حذف خدمة «${service.name}» نهائيًا من قائمة الخدمات؟\nستبقى تفاصيل الحجوزات والفواتير السابقة كما هي.`))return;
  const backup=db.services.slice();db.services=db.services.filter(s=>String(s.id)!==String(id));
- try{await persist();const published=await publishPortalCatalog();if(published===false)throw new Error('تعذر تحديث قائمة الخدمات المنشورة');renderOwner('services');toast('حُذفت الخدمة من الإدارة وبوابة العميلات')}
- catch(err){db.services=backup;await persist();renderOwner('services');toast('تعذر حذف الخدمة ونشرها: '+err.message)}
+ try{const saved=await persist();if(saved===false)throw new Error('تعذر حفظ التغيير في Firebase');const published=await publishPortalCatalog();if(published===false)throw new Error('تعذر تحديث قائمة الخدمات المنشورة');renderOwner('services');toast('حُذفت الخدمة من الإدارة وبوابة العميلات')}
+ catch(err){db.services=backup;const restored=await persist();renderOwner('services');toast('تعذر إكمال الحذف: '+err.message+(restored===false?' — يرجى مراجعة بيانات Firebase.':''))}
 };
 function addLoyaltySettings(){
  const content=document.querySelector('.owner-content');if(!content)return;
