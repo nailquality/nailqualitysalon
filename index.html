@@ -569,7 +569,7 @@ renderOwner=function(tab=ownerActiveTab){
   const root=$('#secureStaffList');if(!root)return;
   try{
    const snap=await firestore.collection('employeeProfiles').get();
-   root.innerHTML=snap.docs.map(d=>{const v=d.data();return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||'')}</b><p class="muted tiny">${esc(v.username||'')} • ${lang==='ar'?'الإقامة':'Iqama'}: ${esc(v.iqamaMasked||'****')} • ${lang==='ar'?'انتهاء':'Expiry'}: ${esc(v.iqamaExpiry||'')}</p><span class="badge ${v.active===false?'red':'green'}">${v.active===false?(lang==='ar'?'موقوف':'Disabled'):(lang==='ar'?'نشط':'Active')}</span></div><div class="row"><button class="btn secondary small" onclick="toggleSecureEmployee('${esc(d.id)}',${v.active===false?'true':'false'})">${v.active===false?(lang==='ar'?'تفعيل':'Enable'):(lang==='ar'?'إيقاف':'Disable')}</button><button class="btn small" onclick="resetSecureEmployeePassword('${esc(d.id)}')">${lang==='ar'?'تغيير كلمة المرور':'Change password'}</button></div></div>`}).join('')||'<p class="empty">لا توجد حسابات</p>';
+   root.innerHTML=snap.docs.filter(d=>d.data().archived!==true).map(d=>{const v=d.data();return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||'')}</b><p class="muted tiny">${esc(v.username||'')} • ${lang==='ar'?'الإقامة':'Iqama'}: ${esc(v.iqamaMasked||'****')} • ${lang==='ar'?'انتهاء':'Expiry'}: ${esc(v.iqamaExpiry||'')}</p><span class="badge ${v.active===false?'red':'green'}">${v.active===false?(lang==='ar'?'موقوف':'Disabled'):(lang==='ar'?'نشط':'Active')}</span></div><div class="row"><button class="btn secondary small" onclick="toggleSecureEmployee('${esc(d.id)}',${v.active===false?'true':'false'})">${v.active===false?(lang==='ar'?'تفعيل':'Enable'):(lang==='ar'?'إيقاف':'Disable')}</button><button class="btn small" onclick="resetSecureEmployeePassword('${esc(d.id)}')">${lang==='ar'?'تغيير كلمة المرور':'Change password'}</button></div></div>`}).join('')||'<p class="empty">لا توجد حسابات</p>';
   }catch(err){root.textContent=err.message}
  };
  $('#refreshSecureStaff').onclick=refresh;refresh();
@@ -939,7 +939,41 @@ const oldList=$('#clientsTable');if(oldList){const base=oldList.innerHTML;oldLis
 }
 if(tab==='staff'){
 const notice=document.createElement('p');notice.className='notice';notice.style.marginTop='12px';notice.textContent='اسم حساب الموظفة من 3 إلى 32 حرفًا إنجليزيًا (مثل sara)، وليس مطلوبًا 32 حرفًا. إيقاف الحساب يمنع دخول بوابة الموظفة، لكنه لا يحذف مستخدم Firebase Authentication.';$('#secureStaffForm')?.after(notice);
-const list=$('#secureStaffList');if(list){const observer=new MutationObserver(()=>{list.querySelectorAll('button[onclick^="toggleSecureEmployee"]').forEach(btn=>{const m=btn.getAttribute('onclick').match(/toggleSecureEmployee\('([^']+)'/);if(!m||btn.parentElement.querySelector('[data-retire-uid]'))return;const retire=document.createElement('button');retire.className='btn danger small';retire.textContent='إيقاف وإخفاء الحساب';retire.dataset.retireUid=m[1];retire.onclick=async()=>{if(!hasOwner()||!confirm('سيُوقف حساب الموظفة ويُخفى من القائمة النشطة، لكنه سيبقى في Firebase Authentication حتى تحذفيه من لوحة Firebase. متابعة؟'))return;try{await firestore.collection('employeeProfiles').doc(m[1]).update({active:false,archived:true,archivedAt:firebase.firestore.FieldValue.serverTimestamp()});const s=db.staff.find(x=>x.authUid===m[1]);if(s){s.active=false;persist();await publishPortalCatalog()}toast('تم إيقاف الحساب. لحذفه نهائيًا من Authentication استخدمي Firebase Console.');renderOwner('staff')}catch(e){toast(e.message)}};btn.parentElement.append(retire)})});observer.observe(list,{childList:true,subtree:true});}
+const list=$('#secureStaffList');
+if(list){
+ const observer=new MutationObserver(()=>{
+  list.querySelectorAll('button[onclick^="toggleSecureEmployee"]').forEach(btn=>{
+   const m=btn.getAttribute('onclick')?.match(/toggleSecureEmployee\('([^']+)'/);
+   if(!m||btn.parentElement.querySelector('[data-retire-uid]'))return;
+   const retire=document.createElement('button');retire.type='button';retire.className='btn danger small';
+   retire.textContent='حذف الموظفة من الصالون';retire.dataset.retireUid=m[1];
+   retire.onclick=async()=>{
+    if(!hasOwner()||!confirm('حذف الموظفة من قوائم الصالون وبوابة العميلات وتعطيل دخولها؟ حساب Firebase Authentication سيبقى حتى تحذفيه بنفسك. سجلات الحجوزات والفواتير ستبقى.'))return;
+    retire.disabled=true;
+    try{
+     const uid=m[1], profileRef=firestore.collection('employeeProfiles').doc(uid);
+     const profileSnapshot=await profileRef.get();
+     const profile=profileSnapshot.exists?profileSnapshot.data():{};
+     // Disable portal access first. Keep a minimal archived profile for safe recordkeeping.
+     await profileRef.set({active:false,archived:true,archivedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+     const before=db.staff.slice();
+     db.staff=db.staff.filter(s=>String(s.authUid||'')!==uid&&!(profile.staffId&&String(s.id)===String(profile.staffId)));
+     if(db.staff.length!==before.length){
+      try{await persist();await saveQueue;}catch(e){db.staff=before;throw e}
+     }
+     // Publishing uses the roster after deletion, including employees without a linked auth account.
+     const published=await publishPortalCatalog();
+     if(published===false)toast('تم إخفاء الحساب من الإدارة، لكن نشر الموظفات للعميلات يحتاج إعادة المحاولة من إدارة الخدمات.');
+     else toast('تم حذف الموظفة من قوائم الصالون والعميلات. احذفي حساب Authentication لاحقًا من Firebase.');
+     renderOwner('staff');
+    }catch(e){toast('تعذر حذف الموظفة: '+(e.message||e));retire.disabled=false}
+   };
+   btn.parentElement.append(retire);
+  });
+ });
+ observer.observe(list,{childList:true,subtree:true});
+}
+
 }
 };
 const oldTab=ownerTab;ownerTab=function(tab){if(tab==='marketing'&&hasOwner())renderOwner('marketing');else oldTab(tab)};
