@@ -406,7 +406,7 @@ function portalLogin(role,register=false){
  <div class="field full"><label>${t('password')}</label><input type="password" name="password" minlength="6" required autocomplete="${register?'new-password':'current-password'}"></div>
  <button class="btn full" type="submit">${register?t('createAccount'):t('login')}</button></form>
  ${client?`<button class="btn secondary" style="margin-top:12px" onclick="portalLogin('client',${!register})">${register?(ar?'لدي حساب بالفعل — تسجيل الدخول':'Already have an account? Log in'):(ar?'ليس لديك حساب؟ إنشاء حساب':'No account? Create one')}</button>`:''}
- <p class="muted tiny">${client?(ar?'يُستخدم رقم الجوال لتسجيل الدخول. رقم الجوال هنا اسم دخول فقط ولا يتم التحقق منه برسالة SMS. لا ترسلي كلمة المرور لأي شخص.':'Your phone number is used for sign-in. Never share your password.'):(ar?'تنشئ المالكة حساب الموظفة من لوحة الإدارة.':'The owner creates employee accounts from the dashboard.')}</p><p id="portalError" class="danger-text"></p></div>`;
+ <p class="muted tiny">${client?(ar?'يُستخدم رقم الجوال لتسجيل الدخول. رقم الجوال هنا اسم دخول فقط ولا يتم التحقق منه برسالة SMS. لا ترسلي كلمة المرور لأي شخص.':'Your phone number is used for sign-in. Never share your password.'):(ar?'تنشئ المالكة حساب الموظفة في Firebase Authentication ثم تربطه من لوحة الصالون بالإيميل.':'The owner creates employee accounts from the dashboard.')}</p><p id="portalError" class="danger-text"></p></div>`;
  $("#portalAuth").onsubmit=async e=>{
   e.preventDefault();loginInProgress=true;const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit]')||e.target.querySelector('button');if(btn){btn.disabled=true;btn.textContent=lang==='ar'?'جارٍ إنشاء الحساب أو الدخول…':'Please wait…';}
   try{
@@ -489,8 +489,7 @@ async function showPortalBookingsOwner(){try{const snap=await firestore.collecti
 async function confirmPortalBooking(id){try{await firestore.collection('portalBookings').doc(id).update({status:'confirmed'});await showPortalBookingsOwner()}catch(e){toast(e.message)}}
 async function cancelPortalBooking(id){if(!confirm('هل تريدين إلغاء هذا الحجز؟'))return;try{await firestore.collection('portalBookings').doc(id).update({status:'cancelled'});await showPortalBookingsOwner();toast('تم إلغاء الحجز')}catch(e){toast('تعذر الإلغاء: '+e.message)}}
 const legacyOwnerRender=renderOwner;
-renderOwner=function(tab=ownerActiveTab){legacyOwnerRender(tab);if(tab==='appointments'){const div=document.createElement('section');div.innerHTML='<div class="section-head"><h3>حجوزات بوابة العميلات</h3><button class="btn secondary small" onclick="showPortalBookingsOwner()">تحديث</button></div><div id="portalBookingsOwner"></div>';$("#app").append(div);showPortalBookingsOwner()}if(tab==='services'){const btn=document.createElement('button');btn.className='btn gold';btn.textContent='نشر الخدمات والموظفات لبوابة العميلات';btn.onclick=publishPortalCatalog;$("#app").append(btn)}if(tab==='staff'){const box=document.createElement('div');box.className='card';box.style.marginTop='12px';box.innerHTML='<h3>ربط حساب الموظفة</h3><p>أنشئي حساب الموظفة في Firebase Authentication بالبريد الإلكتروني وكلمة المرور، ثم انسخي UID وأدخليه هنا مرة واحدة. بعد الربط تدخل الموظفة بالإيميل وكلمة المرور. لا تكتبي كلمة المرور هنا.</p><select id="staffLinkId">'+db.staff.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')+'</select><input id="staffLinkUid" placeholder="Firebase UID" style="padding:10px;margin:8px"><button class="btn" onclick="linkEmployeeUid()">ربط الحساب</button>';$("#app").append(box)}};
-async function linkEmployeeUid(){const s=db.staff.find(x=>x.id===$("#staffLinkId").value),uid=$("#staffLinkUid").value.trim();if(!s||!uid){toast('أدخلي UID');return}try{await firestore.collection('employeeProfiles').doc(uid).set({uid,name:s.name,staffId:s.id,active:true},{merge:true});s.authUid=uid;persist();await publishPortalCatalog();renderOwner('staff');toast('تم ربط الموظفة')}catch(e){toast(e.message)}}
+renderOwner=function(tab=ownerActiveTab){legacyOwnerRender(tab);if(tab==='appointments'){const div=document.createElement('section');div.innerHTML='<div class="section-head"><h3>حجوزات بوابة العميلات</h3><button class="btn secondary small" onclick="showPortalBookingsOwner()">تحديث</button></div><div id="portalBookingsOwner"></div>';$("#app").append(div);showPortalBookingsOwner()}if(tab==='services'){const btn=document.createElement('button');btn.className='btn gold';btn.textContent='نشر الخدمات والموظفات لبوابة العميلات';btn.onclick=publishPortalCatalog;$("#app").append(btn)}};
 const priorClearSession=clearSession;
 clearSession=async function(){portalUser=null;portalRole='';await priorClearSession()};
 
@@ -548,55 +547,70 @@ async function loadStaffRequestsOwner(){const el=$('#cloudStaffRequests');if(!el
 const extensionRenderOwner=renderOwner;
 renderOwner=function(tab=ownerActiveTab){ensureExtensions();if(['leases','deposits','waitlist','loyaltyExt','audit','staffRequests','financeExt'].includes(tab)){extensionRenderOwner('dashboard');ownerActiveTab=tab;const tabs=[['leases','الإيجارات والعقود'],['deposits','العربونات'],['waitlist','قائمة الانتظار'],['loyaltyExt','النقاط والولاء'],['financeExt','الملخص المالي'],['staffRequests','طلبات الموظفات'],['audit','سجل النشاط']];$('#app').innerHTML=headerPanel('إدارة الصالون','وحدات إضافية مرتبطة ببيانات المالكة في Firebase')+nav(tabs,tab)+extensionPanel(tab)+`<div class="row" style="margin-top:15px"><button class="btn secondary" onclick="renderOwner('dashboard')">العودة للوحة الرئيسية</button><button class="btn danger" onclick="clearSession()">تسجيل الخروج</button></div>`;setupExtension(tab);return}extensionRenderOwner(tab);if(db.session?.type==='owner'){const strip=document.createElement('div');strip.className='card';strip.style.margin='14px 0';strip.innerHTML='<h3>وحدات الإدارة الإضافية</h3><div class="nav">'+[['leases','الإيجارات والعقود'],['deposits','العربونات'],['waitlist','قائمة الانتظار'],['loyaltyExt','النقاط والولاء'],['financeExt','الملخص المالي'],['staffRequests','طلبات الموظفات'],['audit','سجل النشاط']].map(([k,n])=>`<button onclick="renderOwner('${k}')">${n}</button>`).join('')+'</div>';$('#app').append(strip)}};
 
+/* Owner-only employee linking. Existing Firebase Auth accounts are found by email on a secure server. */
 const accountOwnerRender=renderOwner;
 renderOwner=function(tab=ownerActiveTab){
  accountOwnerRender(tab);
  if(tab!=='staff'||db.session?.type!=='owner')return;
  const panel=document.createElement('section');panel.className='card';panel.style.marginTop='16px';
- panel.innerHTML=`<h3>${lang==='ar'?'إنشاء حساب دخول للموظفة':'Create employee login'}</h3>
- <p class="notice">${lang==='ar'?'إنشاء حساب الموظفة يعمل على Spark من حساب المالكة. لا تُحفظ كلمة المرور في بيانات الصالون. تغيير كلمة مرور الموظفة من حساب المالكة يتطلب خادمًا آمنًا.':'Staff account creation works on Spark. Passwords are not stored in salon records; admin password resets need a secure server.'}</p>
- <form id="secureStaffForm" class="form-grid">
- <div class="field"><label>${lang==='ar'?'اسم الموظفة':'Employee name'}</label><input name="name" required maxlength="100"></div>
- <div class="field"><label>${lang==='ar'?'اسم الحساب (بالإنجليزية)':'Username (Latin)'}</label><input name="username" pattern="[A-Za-z0-9._-]{3,32}" required maxlength="32"></div>
- <div class="field"><label>${lang==='ar'?'رقم الإقامة':'Iqama number'}</label><input name="iqama" inputmode="numeric" pattern="[0-9]{10}" required maxlength="10"></div>
- <div class="field"><label>${lang==='ar'?'تاريخ انتهاء الإقامة':'Iqama expiry date'}</label><input name="iqamaExpiry" type="date" required></div>
- <div class="field full"><label>${lang==='ar'?'كلمة المرور':'Password'}</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div>
- <button class="btn full">${lang==='ar'?'إنشاء حساب الموظفة':'Create employee account'}</button></form>
- <div class="section-head"><h3>${lang==='ar'?'حسابات الموظفات':'Employee accounts'}</h3><button class="btn secondary small" id="refreshSecureStaff">${lang==='ar'?'تحديث':'Refresh'}</button></div><div id="secureStaffList" class="empty">${lang==='ar'?'جارٍ التحميل':'Loading'}</div>`;
+ const staffOptions=(db.staff||[]).filter(s=>s.active!==false).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+ panel.innerHTML=`
+ <h3>${lang==='ar'?'ربط حساب الموظفة بالإيميل':'Link employee by email'}</h3>
+ <p class="notice">${lang==='ar'?'أولًا: أنشئي حساب الموظفة بالبريد الإلكتروني وكلمة المرور في Firebase Authentication ← Users. ثانيًا: اكتبي البريد نفسه هنا واختاري الموظفة. الربط لا يطلب كلمة مرور ولا UID.':'First create the employee email/password account in Firebase Authentication, then link the same email here. No password or UID needed.'}</p>
+ <form id="staffEmailLinkForm" class="form-grid">
+ <div class="field full"><label>${lang==='ar'?'اختاري الموظفة من القائمة':'Select employee'}</label>
+ <select id="staffEmailExistingId" name="staffId"><option value="">${lang==='ar'?'موظفة جديدة — إضافة الاسم أدناه':'New employee — enter name below'}</option>${staffOptions}</select></div>
+ <div class="field full" id="staffEmailNewNameRow"><label>${lang==='ar'?'اسم الموظفة الجديدة':'New employee name'}</label><input id="staffEmailNewName" name="newName" maxlength="80" required placeholder="مثال: شيري"></div>
+ <div class="field full"><label>${lang==='ar'?'إيميل الموظفة المسجل في Firebase':'Employee email in Firebase'}</label><input name="email" type="email" required autocomplete="off" maxlength="254" placeholder="employee@example.com" dir="ltr"></div>
+ <div class="field full"><button class="btn full" type="submit">${lang==='ar'?'ربط الموظفة وتفعيل دخولها':'Link and enable employee login'}</button></div>
+ </form>
+ <p class="muted tiny">${lang==='ar'?'هذه العملية تبحث عن الحساب الموجود مسبقًا؛ لا تُنشئ بريدًا أو كلمة مرور جديدة، ولا ترسل كلمة المرور إلى الموقع. يتطلب الربط نشر وظيفة Firebase المرفقة مرة واحدة.':'This links an existing Firebase Authentication account. Deploy the included callable Firebase function once.'}</p>
+ <p id="staffEmailLinkStatus" role="status" aria-live="polite" class="muted tiny"></p>
+ <div class="section-head"><h3>${lang==='ar'?'حسابات الموظفات':'Employee accounts'}</h3><button class="btn secondary small" id="refreshSecureStaff">${lang==='ar'?'تحديث':'Refresh'}</button></div>
+ <div id="secureStaffList" class="empty">${lang==='ar'?'جارٍ التحميل':'Loading'}</div>`;
  $('#app').append(panel);
- const call=async()=>{throw Error('هذه الوظيفة تحتاج خادمًا آمنًا؛ استخدمي إنشاء الحساب على Spark أدناه')};
+ const chooser=$('#staffEmailExistingId'), newName=$('#staffEmailNewName'), newRow=$('#staffEmailNewNameRow');
+ const setNewMode=()=>{const isNew=!chooser.value;newRow.classList.toggle('hidden',!isNew);newName.required=isNew;};
+ chooser.addEventListener('change',setNewMode);setNewMode();
  const refresh=async()=>{
   const root=$('#secureStaffList');if(!root)return;
   try{
    const snap=await firestore.collection('employeeProfiles').get();
-   root.innerHTML=snap.docs.filter(d=>d.data().archived!==true).map(d=>{const v=d.data();return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||'')}</b><p class="muted tiny">${esc(v.username||'')} • ${lang==='ar'?'الإقامة':'Iqama'}: ${esc(v.iqamaMasked||'****')} • ${lang==='ar'?'انتهاء':'Expiry'}: ${esc(v.iqamaExpiry||'')}</p><span class="badge ${v.active===false?'red':'green'}">${v.active===false?(lang==='ar'?'موقوف':'Disabled'):(lang==='ar'?'نشط':'Active')}</span></div><div class="row"><button class="btn secondary small" onclick="toggleSecureEmployee('${esc(d.id)}',${v.active===false?'true':'false'})">${v.active===false?(lang==='ar'?'تفعيل':'Enable'):(lang==='ar'?'إيقاف':'Disable')}</button><button class="btn small" onclick="resetSecureEmployeePassword('${esc(d.id)}')">${lang==='ar'?'تغيير كلمة المرور':'Change password'}</button></div></div>`}).join('')||'<p class="empty">لا توجد حسابات</p>';
-  }catch(err){root.textContent=err.message}
+   root.innerHTML=snap.docs.filter(d=>d.data().archived!==true && d.data().active!==false).map(d=>{
+    const v=d.data();return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||'')}</b><p class="muted tiny">${esc(v.email||'')} • ${lang==='ar'?'حساب نشط':'Active account'}</p></div><div class="row"><span class="badge green">${lang==='ar'?'مرتبط':'Linked'}</span><button type="button" class="btn danger small" onclick="toggleSecureEmployee('${esc(d.id)}',false)">إيقاف</button></div></div>`;
+   }).join('')||'<p class="empty">لا توجد حسابات موظفات نشطة</p>';
+  }catch(err){root.textContent=err.message||String(err)}
  };
+ window.toggleSecureEmployee=async(uid,active)=>{if(!confirm('تأكيد تغيير حالة حساب الموظفة؟'))return;try{await firestore.collection('employeeProfiles').doc(uid).update({active});await refresh();toast('تم حفظ الحالة')}catch(err){toast(err.message||String(err))}};
  $('#refreshSecureStaff').onclick=refresh;refresh();
- $('#secureStaffForm').onsubmit=async e=>{
-  e.preventDefault();const f=new FormData(e.target),btn=e.target.querySelector('button');btn.disabled=true;
-  let secondary=null;
+ $('#staffEmailLinkForm').onsubmit=async event=>{
+  event.preventDefault();
+  const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),state=$('#staffEmailLinkStatus');
+  if(!button||button.disabled)return;
+  const data=new FormData(form);const email=String(data.get('email')||'').trim().toLowerCase();
+  const staffId=String(data.get('staffId')||'').trim();const newName=String(data.get('newName')||'').trim();
+  if(!staffId&&!newName){state.textContent='أدخلي اسم الموظفة الجديدة';return}
+  button.disabled=true;state.textContent='جارٍ التحقق من الحساب وربطه…';
   try{
-   if(auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')throw Error('سجّلي دخول المالكة أولًا');
-   const data={name:String(f.get('name')).trim(),username:String(f.get('username')).trim(),iqama:String(f.get('iqama')).trim(),iqamaExpiry:String(f.get('iqamaExpiry')),password:String(f.get('password'))};
-   const email=staffAuthEmail(data.username);
-   // A second Auth instance prevents signing the owner out when creating staff.
-   secondary=firebase.apps.find(a=>a.name==='staffCreator')||firebase.initializeApp(firebaseConfig,'staffCreator');
-   const secondaryAuth=secondary.auth();
-   await secondaryAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-   const credential=await secondaryAuth.createUserWithEmailAndPassword(email,data.password);
-   const employeeUid=credential.user.uid;
-   const matching=db.staff.find(x=>x.name.trim()===data.name);
-   const profile={uid:employeeUid,name:data.name,username:data.username,staffId:matching?.id||'',iqamaMasked:'******'+data.iqama.slice(-4),iqamaExpiry:data.iqamaExpiry,active:true,createdAt:firebase.firestore.FieldValue.serverTimestamp(),permissions:{allBookings:true,ownSalary:true,completeService:true,leaveRequest:true,ownSales:false,clientPhone:false},salaryVisible:false};
-   try{await firestore.collection('employeeProfiles').doc(employeeUid).set(profile)}catch(profileError){throw Error('تم إنشاء حساب الدخول، لكن تعذر حفظ ملف الموظفة: '+profileError.message+'؛ لا تعيدي استخدام نفس اسم الحساب')}
-   if(matching){matching.authUid=employeeUid;persist();await publishPortalCatalog()}
-   e.target.reset();toast('تم إنشاء حساب الموظفة على Spark');await refresh();
-  }catch(err){toast(err.code==='auth/email-already-in-use'?'اسم حساب الموظفة مستخدم مسبقًا':err.message)}
-  finally{if(secondary)try{await secondary.auth().signOut()}catch(_){}btn.disabled=false}
-
+   if(auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2'||db.session?.type!=='owner')throw Error('هذه العملية للمالكة فقط');
+   await saveQueue;
+   const call=firebase.app().functions('us-central1').httpsCallable('linkEmployeeByEmail');
+   const result=await call({email,staffId,newName:staffId?'':newName});
+   if(!result?.data?.ok)throw Error('لم يؤكد Firebase نجاح الربط');
+   const cloud=await salonDoc.get();
+   if(cloud.exists&&Array.isArray(cloud.data().staff))db.staff=cloud.data().staff;
+   state.textContent='تم ربط '+String(result.data.name||'الموظفة')+'، ويمكنها الدخول بإيميلها وكلمة مرورها من Firebase.';
+   toast('تم ربط الموظفة بالإيميل بنجاح');
+   renderOwner('staff');
+  }catch(error){
+   console.error('Email staff link error',error);
+   const code=String(error.code||'');
+   const msg=code.includes('not-found')||code.includes('unavailable')||code.includes('internal')
+     ? 'تعذر الاتصال بوظيفة ربط الموظفات. تأكدي من نشر Cloud Function باسم linkEmployeeByEmail على مشروع nailqualitysalon؛ رفع HTML وحده لا يكفي.'
+     : (error.message||'تعذر ربط الحساب');
+   state.textContent=msg;toast(msg);
+  }finally{if(button.isConnected)button.disabled=false}
  };
- window.toggleSecureEmployee=async(uid,active)=>{try{await firestore.collection('employeeProfiles').doc(uid).update({active});await refresh();toast(t('saved'))}catch(err){toast(err.message)}};
- window.resetSecureEmployeePassword=async(uid)=>{toast('تغيير كلمة مرور موظفة أخرى يحتاج خادمًا آمنًا. الموظفة تستطيع تغيير كلمة مرور حسابها بعد تسجيل الدخول.')} ;
 };
 
 const extensionRenderPortalClient=renderPortalClient;
@@ -938,7 +952,7 @@ $('#clientsTable')?.addEventListener('click',e=>{const btn=e.target.closest('[da
 const oldList=$('#clientsTable');if(oldList){const base=oldList.innerHTML;oldList.innerHTML=base+`<div class="card" style="margin-top:14px"><h3>موافقات رسائل العروض</h3>${db.clients.map(c=>`<div class="spread" style="padding:8px;border-bottom:1px solid var(--line)"><span>${esc(c.name)} — ${c.marketingConsent===true?'موافقة':'غير موافقة'}</span><button class="btn secondary small" data-consent-id="${esc(c.id)}">${c.marketingConsent===true?'إيقاف الرسائل':'تسجيل موافقتها'}</button></div>`).join('')}</div>`}
 }
 if(tab==='staff'){
-const notice=document.createElement('p');notice.className='notice';notice.style.marginTop='12px';notice.textContent='اسم حساب الموظفة من 3 إلى 32 حرفًا إنجليزيًا (مثل sara)، وليس مطلوبًا 32 حرفًا. إيقاف الحساب يمنع دخول بوابة الموظفة، لكنه لا يحذف مستخدم Firebase Authentication.';$('#secureStaffForm')?.after(notice);
+
 const list=$('#secureStaffList');
 if(list){
  const observer=new MutationObserver(()=>{
