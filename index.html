@@ -893,5 +893,78 @@ publishPortalCatalog=async function(){const ok=await oldPublish();if(!ok||!hasOw
 const oldClientPortal=renderPortalClient;renderPortalClient=function(){oldClientPortal();const percent=(portalCatalog.services||[]).find(x=>Number(x.discountPercent)>0)?.discountPercent;if(!percent)return;$('#app').querySelectorAll('.service .price').forEach(el=>{const card=el.closest('.service'),name=card?.querySelector('h3')?.textContent,svc=(portalCatalog.services||[]).find(s=>(lang==='en'?(s.nameEn||s.name):s.name)===name);if(svc&&Number(svc.originalPrice)>Number(svc.price)){el.insertAdjacentHTML('beforebegin',`<p class="muted tiny"><s>${money(svc.originalPrice)}</s> · خصم ${Number(svc.discountPercent)}%</p>`)}})};
 })();
 </script>
+<script>
+/* Booking bridge: save to Firestore first, then offer WhatsApp. */
+(function(){
+'use strict';
+const bookingCollection=firestore.collection('portalBookings');
+const adminPhone='966544267911';
+const safeStr=v=>String(v??'');
+function bookingWhatsApp(b,id){
+ const message=['🌸 طلب حجز جديد — صالون جودة الأظافر','رقم الطلب: '+id,'العميلة: '+b.clientName,'الجوال: '+b.clientPhone,'الخدمات: '+b.serviceName,'الموظفة: '+b.staffName,'التاريخ: '+b.date,'الوقت: '+b.time,'المكان: '+(b.location==='home'?'منزل':'الصالون'),'السعر المبدئي: '+b.price+' ريال','العربون: لم يُدفع بعد','الحالة: بانتظار تأكيد الإدارة'].join('\n');
+ return 'https://wa.me/'+adminPhone+'?text='+encodeURIComponent(message);
+}
+submitPortalBooking=async function(event){
+ event.preventDefault();
+ const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+ if(!auth.currentUser||portalRole!=='client'||!portalUser){toast('سجّلي دخول العميلة أولًا');return}
+ const data=new FormData(form),selected=data.getAll('services').map(String);
+ const services=(portalCatalog.services||[]).filter(x=>selected.includes(String(x.id))&&x.active!==false);
+ const staff=(portalCatalog.staff||[]).find(x=>String(x.id)===String(data.get('staff'))&&x.active!==false);
+ const date=safeStr(data.get('date')),time=safeStr(data.get('time')),location=safeStr(data.get('location')||'salon');
+ const address=safeStr(data.get('address')).trim().slice(0,200),notes=safeStr(data.get('notes')).trim().slice(0,300);
+ if(!services.length||services.length>10||!staff||!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<today()||!/^\d{2}:\d{2}$/.test(time)){toast('اختاري الخدمات والموظفة والتاريخ والوقت الصحيح');return}
+ if(location==='home'&&(!portalCatalog.settings?.homeServiceEnabled||!address)){toast('أدخلي عنوان الخدمة المنزلية');return}
+ const duration=services.reduce((n,x)=>n+(Number(x.duration)||30),0);
+ if(timeToMin(time)+duration>1440){toast('وقت الحجز يتجاوز نهاية اليوم');return}
+ const price=services.reduce((n,x)=>n+Math.max(0,Number(x.price)||0),0);
+ const record={clientUid:auth.currentUser.uid,clientName:safeStr(portalUser.name).slice(0,100),clientPhone:safeStr(portalUser.phone).slice(0,20),staffUid:safeStr(staff.authUid||staff.id),staffName:safeStr(staff.name),serviceIds:services.map(x=>safeStr(x.id)),serviceName:services.map(x=>safeStr(x.name)).join('، ').slice(0,500),price,duration,date,time,location,address,notes,redeemRequested:data.get('redeem')==='on',status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+ if(button)button.disabled=true;
+ try{
+  const ref=await bookingCollection.add(record);
+  try{await loadPortalBookings()}catch(err){console.warn('Booking saved, list refresh failed',err)}
+  salonClientPage='bookings';renderPortalClient();
+  const url=bookingWhatsApp(record,ref.id);
+  const notice=document.createElement('div');notice.className='card';notice.style.margin='12px 0';notice.innerHTML='<h3>✅ تم حفظ طلب الحجز لدى الإدارة</h3><p>رقم الطلب: '+esc(ref.id)+'</p><p>الحالة: بانتظار دفع العربون وتأكيد الصالون. يمكنك إرسال التفاصيل أيضًا عبر واتساب.</p>';
+  const link=document.createElement('a');link.className='btn success';link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='إرسال تفاصيل الحجز إلى واتساب الإدارة';notice.append(link);
+  const target=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');target.prepend(notice);
+  toast('تم حفظ الحجز في Firebase بنجاح');
+ }catch(err){console.error('Booking Firestore error',err);toast('لم يُحفظ الحجز: '+(err.code==='permission-denied'?'قواعد Firebase ترفض الطلب. تأكدي من نشر قواعد portalBookings.':err.message));}
+ finally{if(button&&button.isConnected)button.disabled=false}
+};
+function ownerBookingCard(b){
+ const id=esc(b.id),pending=b.status==='pending',closed=['cancelled','completed'].includes(b.status);
+ return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · العربون: ${b.depositStatus==='paid'?'مدفوع':'غير مدفوع'}</p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">${pending?'تأكيد بعد العربون':'تحديث تأكيد العربون'}</button><button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}</div></div>`;
+}
+showPortalBookingsOwner=async function(){
+ const host=document.querySelector('#portalBookingsOwner');if(!host)return;
+ host.innerHTML='<p class="muted">جارٍ تحميل طلبات العميلات من Firebase…</p>';
+ try{const snap=await bookingCollection.get();const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>safeStr(b.createdAt?.seconds||'').localeCompare(safeStr(a.createdAt?.seconds||'')));
+  host.innerHTML=rows.length?rows.map(ownerBookingCard).join(''):'<div class="empty">لا توجد طلبات حجز في Firebase حتى الآن.</div>';
+ }catch(err){host.textContent='تعذر تحميل الحجوزات: '+err.message}
+};
+window.ownerConfirmSavedBooking=async id=>{
+ if(!confirm('هل استلمتِ العربون وتريدين تأكيد الحجز؟'))return;
+ try{await bookingCollection.doc(id).update({status:'confirmed',depositStatus:'paid',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم تأكيد الحجز والعربون')}
+ catch(err){toast('تعذر التأكيد: '+err.message)}
+};
+window.ownerCancelSavedBooking=async id=>{
+ if(!confirm('هل تريدين إلغاء طلب الحجز؟'))return;
+ try{await bookingCollection.doc(id).update({status:'cancelled',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم إلغاء الطلب')}
+ catch(err){toast('تعذر الإلغاء: '+err.message)}
+};
+window.ownerEditSavedBooking=async id=>{
+ try{
+  const ref=bookingCollection.doc(id),snap=await ref.get();if(!snap.exists){toast('الحجز غير موجود');return}
+  const b=snap.data();const serviceName=prompt('الخدمة المطلوبة (اكتبي اسم الخدمة بعد التعديل)',b.serviceName||'');if(serviceName===null)return;
+  const staffName=prompt('اسم الموظفة',b.staffName||'');if(staffName===null)return;
+  const date=prompt('التاريخ YYYY-MM-DD',b.date||'');if(date===null)return;
+  const time=prompt('الوقت HH:MM',b.time||'');if(time===null)return;
+  if(!serviceName.trim()||!staffName.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time)){toast('راجعي الخدمة والموظفة والتاريخ والوقت');return}
+  await ref.update({serviceName:serviceName.trim().slice(0,500),staffName:staffName.trim().slice(0,100),date,time,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم تعديل الحجز');
+ }catch(err){toast('تعذر تعديل الحجز: '+err.message)}
+};
+})();
+</script>
 </body>
 </html>
