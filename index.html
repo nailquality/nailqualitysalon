@@ -821,8 +821,8 @@ renderPortalClient=function(){
  if(salonClientPage!=='home')app.insertBefore(panel,app.querySelector('button.btn.danger')||null);
  if(bookingForm){
   const old=bookingForm.querySelector('button[onclick*="wa.me"]');if(old)old.remove();
-  const send=document.createElement('button');send.type='submit';send.className='btn full';send.textContent=lang==='ar'?'إرسال طلب الحجز للصالون':'Submit booking to salon';
-  bookingForm.append(send);
+  const send=bookingForm.querySelector('button[type="submit"]');
+  if(send)send.textContent=lang==='ar'?'إرسال طلب الحجز للصالون':'Submit booking to salon';
   const note=bookingForm.querySelector('.notice');if(note)note.textContent='يُرسل طلب الحجز إلى إدارة الصالون ويظل بانتظار التأكيد أو الإلغاء. لا تُخصم النقاط إلا بعد موافقة الإدارة.';
   const check=bookingForm.querySelector('[name="redeem"]');if(check){const label=check.closest('label');if(label)label.innerHTML='<input type="checkbox" name="redeem"> نعم، أريد استخدام نقاطي في هذا الحجز';}
   bookingForm.onsubmit=submitPortalBooking;
@@ -886,8 +886,8 @@ renderPortalClient=function(){
  const draw=()=>{
   const query=holder.querySelector('input').value.trim().toLocaleLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');
   let visible=0;
-  for(const card of cards){const input=card.querySelector('input[name="services"]');const item=(portalCatalog.services||[]).find(s=>String(s.id)===String(input?.value));const words=[item?.name,item?.nameEn].filter(Boolean).join(' ').toLocaleLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');const match=Boolean(query)&&words.includes(query);card.classList.toggle('hidden',!match);if(match)visible++}
-  const selected=cards.filter(card=>card.querySelector('input[name="services"]')?.checked).length;holder.querySelector('#salonServiceSearchCount').textContent=!query?'اكتبي حرفًا أو جزءًا من اسم الخدمة لتظهر النتائج. الخدمات المختارة: '+selected:visible?'نتائج البحث: '+visible+' — الخدمات المختارة: '+selected:'لا توجد خدمات مطابقة، جربي كلمة أخرى. الخدمات المختارة: '+selected;
+  for(const card of cards){const input=card.querySelector('input[name^="serviceQty_"]');const item=(portalCatalog.services||[]).find(s=>String('serviceQty_'+s.id)===String(input?.name));const words=[item?.name,item?.nameEn].filter(Boolean).join(' ').toLocaleLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه');const match=!query||words.includes(query);card.classList.toggle('hidden',!match);if(match)visible++}
+  const selected=cards.reduce((sum,card)=>sum+Math.max(0,Number(card.querySelector('input[name^="serviceQty_"]')?.value||0)),0);holder.querySelector('#salonServiceSearchCount').textContent=!query?'اكتبي حرفًا أو جزءًا من اسم الخدمة لتظهر النتائج. الخدمات المختارة: '+selected:visible?'نتائج البحث: '+visible+' — الخدمات المختارة: '+selected:'لا توجد خدمات مطابقة، جربي كلمة أخرى. الخدمات المختارة: '+selected;
  };
  holder.querySelector('input').addEventListener('input',draw);
  grid.addEventListener('change',draw);draw();
@@ -1276,6 +1276,70 @@ document.addEventListener('submit',async e=>{
  form.querySelector('input[name="logoFile"]').value='';form.requestSubmit();
  }catch(err){toast('تعذر رفع الشعار: '+err.message)}
 },true);
+</script>
+
+<!-- Stabilization: make catalog publishing verifiable, client refreshable, and remove obsolete panels. -->
+<style>
+#salonClientRefreshCatalog{margin:10px 0;max-width:100%}
+#salonClientCatalogWarning{margin:12px 0}
+</style>
+<script>
+(function(){
+ 'use strict';
+ const publishBeforeVerify=publishPortalCatalog;
+ publishPortalCatalog=async function(){
+  if(typeof hasOwner!=='function'||!hasOwner()){toast('النشر متاح للمالكة فقط');return false}
+  const result=await publishBeforeVerify();
+  if(!result)return false;
+  try{
+   // Read back the public document, not just the local salon state.
+   const snap=await firestore.collection('portal').doc('catalog').get({source:'server'});
+   const data=snap.exists?snap.data():null;
+   const expected=(db.services||[]).filter(x=>x&&x.active!==false).length;
+   const actual=(data?.services||[]).filter(x=>x.active!==false).length;
+   if(!data||actual!==expected){toast('تنبيه: عدد الخدمات المنشورة لا يطابق الإدارة ('+actual+' من '+expected+'). أعيدي النشر أو افحصي الصلاحيات.');return false}
+   const staffCount=(data.staff||[]).filter(x=>x.active!==false).length;
+   if(!staffCount)toast('تم نشر الخدمات، لكن لا توجد موظفات نشطات. فعّلي موظفة حتى يمكن للعميلات الحجز.');
+   else toast('تأكد النشر في Firebase: '+actual+' خدمة و'+staffCount+' موظفة نشطة.');
+   return true;
+  }catch(err){console.error('Catalog readback failed',err);toast('تم إرسال النشر لكن تعذر التحقق منه: '+(err.message||err));return false}
+ };
+ const renderBeforeStabilize=renderPortalClient;
+ renderPortalClient=function(){
+  renderBeforeStabilize();
+  if(portalRole!=='client')return;
+  const form=document.querySelector('#portalBooking');if(!form)return;
+  // One booking button only, even when older extension scripts have run.
+  const submitButtons=[...form.querySelectorAll('button[type="submit"]')];
+  submitButtons.slice(1).forEach(x=>x.remove());
+  if(submitButtons[0])submitButtons[0].textContent='إرسال طلب الحجز';
+  const grid=form.querySelector('.service-grid');
+  if(grid){
+   const warning=document.createElement('p');warning.id='salonClientCatalogWarning';warning.className='notice';
+   const services=(portalCatalog.services||[]).filter(x=>x.active!==false);
+   const staff=(portalCatalog.staff||[]).filter(x=>x.active!==false);
+   if(!services.length){warning.textContent='لا توجد خدمات منشورة حاليًا. يرجى التواصل مع الصالون أو تحديث الخدمات.';grid.before(warning)}
+   else if(!staff.length){warning.textContent='الخدمات متوفرة لكن لا توجد موظفة متاحة للحجز. يرجى التواصل مع الصالون.';grid.before(warning)}
+  }
+  const refresh=document.createElement('button');refresh.id='salonClientRefreshCatalog';refresh.type='button';refresh.className='btn secondary';refresh.textContent='↻ تحديث الخدمات والموظفات';
+  refresh.onclick=async()=>{refresh.disabled=true;try{await loadPortalCatalog();renderPortalClient();toast('تم تحديث الخدمات من Firebase')}catch(e){toast('تعذر تحميل الخدمات: '+e.message)}finally{refresh.disabled=false}};
+  form.before(refresh);
+ };
+ const renderOwnerBeforeCleanup=renderOwner;
+ renderOwner=function(tab){
+  const result=renderOwnerBeforeCleanup.apply(this,arguments);
+  if(typeof hasOwner!=='function'||!hasOwner())return result;
+  const content=document.querySelector('#app .owner-content');if(!content)return result;
+  // Discounts belong to Offers, not Services; do not discard the settings.
+  if(tab==='services'){
+   [...content.querySelectorAll('.card')].forEach(card=>{
+    const heading=card.querySelector('h2,h3');
+    if(heading&&heading.textContent.trim()==='الخصم الجماعي على الخدمات')card.remove();
+   });
+  }
+  return result;
+ };
+})();
 </script>
 </body>
 </html>
