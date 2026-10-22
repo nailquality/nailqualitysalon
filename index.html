@@ -1340,6 +1340,89 @@ document.addEventListener('submit',async e=>{
   return result;
  };
 })();
+
+/* Unified searchable service picker and shopping basket. The original quantity
+   fields remain in the booking form, preserving the existing Firestore schema. */
+(function(){
+ const beforeBasketRender=renderPortalClient;
+ renderPortalClient=function(){
+  beforeBasketRender.apply(this,arguments);
+  if(portalRole!=='client')return;
+  const form=document.querySelector('#portalBooking');if(!form)return;
+  const grid=form.querySelector('.service-grid');if(!grid)return;
+  const all=(portalCatalog.services||[]).filter(x=>x.active!==false);
+  // Legacy extensions appended a second catalog after the booking form.
+  document.querySelectorAll('#app .card').forEach(card=>{
+   if(card!==form.closest('.card') && card.querySelector('#portalServiceCards'))card.remove();
+  });
+  const oldSearch=document.querySelector('#salonBookingServiceSearch')?.closest('.field');
+  if(oldSearch)oldSearch.remove();
+  grid.style.display='none';
+  for(const field of grid.querySelectorAll('input[name^="serviceQty_"]')){
+   field.max='10';field.min='0';field.value='0';
+  }
+  const area=document.createElement('div');area.className='field full';area.id='salonCartPicker';
+  area.innerHTML=`<label for="salonCartSearch">ابحثي عن الخدمة وأضيفيها للسلة</label>
+   <input type="search" id="salonCartSearch" autocomplete="off" placeholder="مثلاً: بدكير أو جل أو رموش" style="width:100%;padding:13px;border:1px solid var(--line);border-radius:12px">
+   <div id="salonCartResults" class="service-grid" style="margin-top:10px"></div>
+   <p id="salonCartSearchHint" class="muted tiny">اكتبي اسم الخدمة لتظهر الخيارات.</p>`;
+  grid.before(area);
+  const cart=document.createElement('div');cart.id='salonBookingCart';cart.className='field full card';
+  cart.style.margin='10px 0';
+  const summary=form.querySelector('#portalQuantitySummary');
+  (summary||form.querySelector('button[type="submit"]')).before(cart);
+  const search=area.querySelector('#salonCartSearch');
+  const results=area.querySelector('#salonCartResults');
+  const hint=area.querySelector('#salonCartSearchHint');
+  const normal=v=>String(v||'').toLocaleLowerCase().replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').trim();
+  const fieldOf=item=>Array.from(grid.querySelectorAll('input[name^="serviceQty_"]')).find(el=>el.name==='serviceQty_'+item.id);
+  const qty=item=>Math.max(0,Number(fieldOf(item)?.value||0));
+  const total=()=>all.reduce((n,x)=>n+qty(x),0);
+  const change=(item,delta)=>{
+   const el=fieldOf(item);if(!el)return;
+   const next=qty(item)+delta;
+   if(next<0||next>10||total()+delta>10){toast('الحد الأقصى 10 خدمات في الحجز الواحد');return}
+   el.value=String(next);el.dispatchEvent(new Event('input',{bubbles:true}));
+   drawResults();drawCart();
+  };
+  function drawResults(){
+   results.replaceChildren();const q=normal(search.value);
+   if(!q){hint.textContent='اكتبي اسم الخدمة لتظهر الخيارات.';return}
+   const matches=all.filter(x=>normal((x.name||'')+' '+(x.nameEn||'')).includes(q)).slice(0,15);
+   hint.textContent=matches.length?'اضغطي إضافة لإرسال الخدمة إلى سلة الحجز.':'لا توجد خدمات مطابقة.';
+   matches.forEach(item=>{
+    const line=document.createElement('div');line.className='service';line.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px';
+    const title=document.createElement('div');title.textContent=(lang==='en'?(item.nameEn||item.name):item.name)+' — '+money(item.price)+' ('+(Number(item.duration)||30)+' دقيقة)';
+    const add=document.createElement('button');add.type='button';add.className='btn';add.textContent='إضافة +';add.disabled=total()>=10;add.onclick=()=>change(item,1);
+    line.append(title,add);results.append(line);
+   });
+  }
+  function drawCart(){
+   cart.replaceChildren();const h=document.createElement('h3');h.textContent='🛍️ سلة خدمات الحجز';cart.append(h);
+   let price=0,duration=0;const selected=all.filter(x=>qty(x)>0);
+   if(!selected.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='السلة فارغة. ابحثي عن خدمة وأضيفيها.';cart.append(empty)}
+   selected.forEach(item=>{
+    const count=qty(item);price+=count*(Number(item.price)||0);duration+=count*(Number(item.duration)||30);
+    const row=document.createElement('div');row.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)';
+    const name=document.createElement('span');name.textContent=item.name+' — '+money((Number(item.price)||0)*count);
+    const controls=document.createElement('span');controls.style.cssText='display:flex;align-items:center;gap:10px';
+    const minus=document.createElement('button');minus.type='button';minus.className='btn secondary';minus.textContent='−';minus.onclick=()=>change(item,-1);
+    const n=document.createElement('strong');n.textContent=String(count);
+    const plus=document.createElement('button');plus.type='button';plus.className='btn secondary';plus.textContent='+';plus.disabled=total()>=10;plus.onclick=()=>change(item,1);
+    controls.append(minus,n,plus);row.append(name,controls);cart.append(row);
+   });
+   const foot=document.createElement('p');foot.style.fontWeight='bold';foot.textContent='عدد الخدمات: '+total()+' / 10 — الإجمالي: '+money(price)+' — المدة: '+duration+' دقيقة';cart.append(foot);
+   if(summary)summary.textContent='اختاري الموظفة والتاريخ والوقت بعد إضافة الخدمات إلى السلة.';
+  }
+  search.addEventListener('input',drawResults);
+  const oldSubmit=form.onsubmit;
+  form.onsubmit=function(e){
+   const n=total();if(n<1||n>10){e.preventDefault();toast('اختاري من 1 إلى 10 خدمات فقط');return false}
+   if(typeof oldSubmit==='function')return oldSubmit.call(this,e);
+  };
+  drawResults();drawCart();
+ };
+})();
 </script>
 </body>
 </html>
