@@ -59,14 +59,16 @@ const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMon
 const money=n=>new Intl.NumberFormat(lang==="ar"?"ar-SA":"en-SA",{style:"currency",currency:"SAR",maximumFractionDigits:2}).format(Number(n)||0);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function initialState(){return {settings:{salonName:"صالون جودة الأظافر",whatsapp:WA_NUMBER,redeemPoints:50,redeemRiyals:10,homeServiceEnabled:false},clients:[],staff:[],services:[{id:"svc-mani",name:"مانيكير",nameEn:"Manicure",price:65,duration:45,active:true,materials:[]},{id:"svc-pedi",name:"باديكير",nameEn:"Pedicure",price:85,duration:60,active:true,materials:[]},{id:"svc-gel",name:"تركيب جل",nameEn:"Gel extensions",price:150,duration:90,active:true,materials:[]}],bookings:[],blocks:[],inventory:[],invoices:[],expenses:[],breaks:[],redemptions:[],reviews:[],counter:1001,invoiceCounter:1,session:null}}
-function load(){try{const raw=localStorage.getItem(STORAGE_KEY);if(!raw)return initialState();const parsed=JSON.parse(raw);return {...initialState(),...parsed,settings:{...initialState().settings,...parsed.settings}}}catch(e){return initialState()}}
+// Security: do not hydrate private salon records from persistent browser storage.
+// Historical cache is removed after Firebase becomes available; cloud remains authoritative.
+function load(){return initialState()}
 let db=load();
 function persist(){
-  const cleanRecords = arr => (arr||[]).map(({password, ...record})=>record);
-  const localCopy={...db,clients:cleanRecords(db.clients),staff:cleanRecords(db.staff),session:null};
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(localCopy));
-  if(!firebaseReady || !auth.currentUser || auth.currentUser.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2") return;
-  const cloudData={...localCopy,updatedAt:new Date().toISOString(),schemaVersion:2};
+  if(!firebaseReady || !auth.currentUser || auth.currentUser.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){
+    console.warn("Blocked unauthenticated salon data write");return;
+  }
+  const cleanRecords=arr=>(arr||[]).map(({password,...record})=>record);
+  const cloudData={...db,clients:cleanRecords(db.clients),staff:cleanRecords(db.staff),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
   saveQueue=saveQueue.then(()=>salonDoc.set(cloudData,{merge:false})).catch(err=>{console.error("Firestore save failed",err);toast("تعذر حفظ البيانات في Firebase. تحققي من قواعد Firestore والاتصال.")});
 }
 function toast(msg){const root=$("#toastRoot");root.innerHTML=`<div class="toast">${esc(msg)}</div>`;setTimeout(()=>root.innerHTML="",2800)}
@@ -76,9 +78,9 @@ function statusBadge(s){let c=s==="completed"||s==="confirmed"?"green":s==="canc
 function activeServices(){return db.services.filter(s=>s.active!==false)}
 function activeStaff(){return db.staff.filter(s=>s.active!==false)}
 function currentUser(){if(!db.session)return null;if(db.session.type==="client")return db.clients.find(x=>x.id===db.session.id);if(db.session.type==="employee")return db.staff.find(x=>x.id===db.session.id);return db.session.type==="owner"?{id:"owner",name:db.settings.salonName}:null}
-function setSession(type,id){db.session={type,id};persist()}
+function setSession(type,id){throw Error("Legacy local sign-in is disabled. Use Firebase Authentication.")}
 async function clearSession(){
-  db.session=null;firebaseReady=false;
+  db.session=null;firebaseReady=false;db=initialState();portalUser=null;portalBookings=[];
   try{await auth.signOut()}catch(e){console.warn(e)}
   renderHome();
 }
@@ -92,22 +94,20 @@ function renderOwnerLogin(){
       const snap=await salonDoc.get();
       if(snap.exists){const remote=snap.data();const base=initialState();db={...base,...remote,settings:{...base.settings,...(remote.settings||{})},session:{type:"owner",id:credential.user.uid}};}
       else {db={...db,session:{type:"owner",id:credential.user.uid}};}
-      firebaseReady=true;localStorage.setItem(STORAGE_KEY,JSON.stringify({...db,session:null}));
+      firebaseReady=true;localStorage.removeItem(STORAGE_KEY);
       closeModal();renderOwner("dashboard");
-      if(!snap.exists){const cleanRecords=arr=>(arr||[]).map(({password,...record})=>record);await salonDoc.set({...db,clients:cleanRecords(db.clients),staff:cleanRecords(db.staff),session:null,schemaVersion:2,updatedAt:new Date().toISOString()});toast("تم ربط الحساب بقاعدة البيانات وحفظ البيانات المحلية إن وجدت.")}
-      else toast("تم تسجيل الدخول وحفظ البيانات عبر Firebase");
+             toast("تم تسجيل الدخول إلى Firebase");
     }catch(err){console.error(err);try{await auth.signOut()}catch(_){}firebaseReady=false;error.textContent=(err.code==="auth/invalid-credential"||err.code==="auth/wrong-password"||err.code==="auth/user-not-found")?"الإيميل أو كلمة المرور غير صحيحة.":(err.code==="permission-denied"||err.code==="firestore/permission-denied")?"الحساب غير مصرح له في قواعد Firestore. تأكدي من UID صاحبة الصالون في Rules.":"تعذر الدخول: "+(err.message||"تحققي من إعدادات Firebase");}
     finally{loginInProgress=false;btn.disabled=false;btn.textContent="تسجيل الدخول"}
   });
 }
 function showLogin(type="owner"){renderHome()}
-function showRegister(){closeModal();$("#modalRoot").innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-box"><div class="spread"><h2>${esc(t("clientRegister"))}</h2><button class="btn secondary small" onclick="closeModal()">✕</button></div><form id="registerForm" class="form-grid"><div class="field full"><label>${esc(t("name"))}</label><input name="name" required maxlength="80"></div><div class="field full"><label>${esc(t("phone"))}</label><input name="phone" required type="tel" maxlength="20"></div><div class="field full"><label>${esc(t("email"))}</label><input name="email" type="email"></div><div class="field full"><label>${esc(t("password"))}</label><input name="password" type="password" minlength="4" required></div><button class="btn full">${esc(t("createAccount"))}</button></form></div></div>`;
-$("#registerForm").addEventListener("submit",e=>{e.preventDefault();const f=new FormData(e.currentTarget),phone=String(f.get("phone")).trim();if(db.clients.some(c=>c.phone===phone)){toast(t("invalidLogin"));return}const c={id:uid("cl"),code:"#CLN-"+db.counter++,name:String(f.get("name")).trim(),phone,email:String(f.get("email")).trim(),password:String(f.get("password")),points:0,createdAt:new Date().toISOString()};db.clients.push(c);persist();setSession("client",c.id);closeModal();renderClient();toast(t("saved"))})}
+function showRegister(){portalLogin("client",true)}
 function closeModal(){$("#modalRoot").innerHTML=""}
 function headerPanel(title,subtitle=""){return `<div class="hero"><div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div><div class="hero-art">✿</div></div>`}
 function nav(items,active){return `<div class="nav no-print">${items.map(([id,label])=>`<button class="${id===active?"active":""}" onclick="ownerTab('${id}')">${esc(t(label))}</button>`).join("")}</div>`}
 let ownerActiveTab="dashboard";
-function renderOwner(tab=ownerActiveTab){if(db.session?.type!=="owner"){renderHome();return}ownerActiveTab=tab;$("#homeBtn").classList.remove("hidden");applyLang();const total=db.invoices.reduce((s,x)=>s+x.total,0),todayBookings=db.bookings.filter(b=>b.date===today()).length,low=db.inventory.filter(x=>Number(x.quantity)<=Number(x.minQuantity)).length;
+function renderOwner(tab=ownerActiveTab){if(db.session?.type!=="owner"||!firebaseReady||auth.currentUser?.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){renderHome();return}ownerActiveTab=tab;$("#homeBtn").classList.remove("hidden");applyLang();const total=db.invoices.reduce((s,x)=>s+x.total,0),todayBookings=db.bookings.filter(b=>b.date===today()).length,low=db.inventory.filter(x=>Number(x.quantity)<=Number(x.minQuantity)).length;
 const tabs=[["dashboard","dashboard"],["clients","العميلات"],["appointments","appointments"],["newbooking","حجز جديد"],["schedule","schedule"],["cashier","cashier"],["invoices","سجل الفواتير"],["inventory","inventory"],["staff","staff"],["services","servicesManage"],["expenses","expenses"],["reports","reports"],["assistant","مساعد المالكة"],["backup","backup"]];
 let body="";
 if(tab==="dashboard")body=`<div class="stats"><div class="stat"><span>${esc(t("revenue"))}</span><strong>${money(total)}</strong></div><div class="stat"><span>${esc(t("bookingsCount"))}</span><strong>${db.bookings.length}</strong></div><div class="stat"><span>${esc(t("bills"))}</span><strong>${db.invoices.length}</strong></div><div class="stat"><span>${esc(t("lowStock"))}</span><strong>${low}</strong></div></div><div class="section-head"><h3>${esc(t("quickActions"))}</h3></div><div class="grid"><button class="card portal" onclick="ownerTab('appointments')"><div class="portal-icon">📅</div><h3>${esc(t("appointments"))}</h3><p>${todayBookings} ${esc(t("today"))}</p></button><button class="card portal" onclick="ownerTab('newbooking')"><div class="portal-icon">🗓️</div><h3>تسجيل حجز جديد</h3><p>صفحة الحجوزات المستقلة</p></button><button class="card portal" onclick="ownerTab('cashier')"><div class="portal-icon">🧾</div><h3>${esc(t("cashier"))}</h3><p>${esc(t("addInvoice"))}</p></button><button class="card portal" onclick="ownerTab('schedule')"><div class="portal-icon">⏰</div><h3>${esc(t("schedule"))}</h3><p>${esc(t("closeDay"))}</p></button></div><div class="section-head"><h3>${esc(t("appointments"))}</h3><button class="btn secondary small" onclick="ownerTab('appointments')">${esc(t("actions"))}</button></div>${bookingTable(db.bookings.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5),true)}`;
@@ -118,14 +118,14 @@ else if(tab==="newbooking")body=ownerBookingPanel();
 else if(tab==="cashier")body=cashierPanel();
 else if(tab==="invoices")body=invoicesPanel();
 else if(tab==="inventory")body=inventoryPanel();
-else if(tab==="staff")body=staffPanel();
+else if(tab==="staff")body=`<div class="card"><h3>حسابات الموظفات الآمنة</h3><p>تُدار الحسابات عبر Firebase فقط، ولا تُنشأ كلمات مرور محلية.</p><p class="muted">استخدمي نموذج حسابات الموظفات الآمن الموجود أسفل هذه الصفحة.</p></div>`;
 else if(tab==="services")body=servicesPanel();
 else if(tab==="expenses")body=expensesPanel();
 else if(tab==="reports")body=reportsPanel();
 else if(tab==="assistant")body=ownerAssistantPanel();
 else if(tab==="backup")body=backupPanel();
 $("#app").innerHTML=headerPanel(t("ownerPortal"),`${esc(db.settings.salonName)} • ${esc(t("ownerOnly"))}`)+nav(tabs,tab)+body+`<div class="section-head"><button class="btn secondary" onclick="ownerSettings()">${esc(t("adminSettings"))}</button><button class="btn danger" onclick="clearSession()">${esc(t("logout"))}</button></div>`;
-if(tab==="staff")setupStaff();if(tab==="services")setupServices();if(tab==="newbooking")setupOwnerBooking();if(tab==="cashier")setupCashier();if(tab==="invoices")setupInvoiceFilters();if(tab==="clients")setupClients();if(tab==="schedule")refreshBlocksList();if(tab==="reports")drawReports();
+if(tab==="services")setupServices();if(tab==="newbooking")setupOwnerBooking();if(tab==="cashier")setupCashier();if(tab==="invoices")setupInvoiceFilters();if(tab==="clients")setupClients();if(tab==="schedule")refreshBlocksList();if(tab==="reports")drawReports();
 }
 function ownerTab(tab){renderOwner(tab)}
 function bookingTable(list,compact=false){if(!list.length)return `<div class="empty">${esc(t("noBookings"))}</div>`;return `<div class="table-wrap"><table><thead><tr><th>${esc(t("date"))}</th><th>${esc(t("time"))}</th><th>${esc(t("customer"))}</th><th>${esc(t("service"))}</th><th>${esc(t("employee"))}</th><th>${esc(t("status"))}</th>${compact?"":"<th>"+esc(t("actions"))+"</th>"}</tr></thead><tbody>${list.map(b=>`<tr><td>${esc(b.date)}</td><td>${esc(b.time)}</td><td>${esc(clientName(b.clientId)||b.customerName||"—")}<br><small>${esc(b.clientCode||"")}</small></td><td>${esc(b.serviceName||serviceName(b.serviceId))}<br><small>${b.serviceLocation==="home"?"خدمة منزلية":"في الصالون"}</small></td><td>${esc(staffName(b.staffId))}</td><td>${statusBadge(b.status)}</td>${compact?"":`<td><div class="row">${b.status==="pending"?`<button class="btn success small" onclick="changeBooking('${b.id}','confirmed')">${esc(t("markConfirmed"))}</button>`:""}${b.status==="confirmed"?`<button class="btn secondary small" onclick="changeBooking('${b.id}','inProgress')">${esc(t("startService"))}</button>`:""}${b.status==="inProgress"?`<button class="btn success small" onclick="changeBooking('${b.id}','completed')">${esc(t("complete"))}</button>`:""}${!["cancelled","completed","noShow"].includes(b.status)?`<button class="btn danger small" onclick="cancelBooking('${b.id}')">${esc(t("cancelBooking"))}</button>`:""}${b.status==="pending"||b.status==="confirmed"?`<button class="btn outline small" onclick="changeBooking('${b.id}','noShow')">${esc(t("markNoShow"))}</button>`:""}</div></td>`}</tr>`).join("")}</tbody></table></div>`}
@@ -199,7 +199,7 @@ function setupInventory(){const f=$("#inventoryForm");if(!f)return;f.addEventLis
 function adjustStock(id,delta){const i=db.inventory.find(x=>x.id===id);if(!i)return;i.quantity=Math.max(0,Number(i.quantity)+delta);persist();renderOwner("inventory")}
 function deleteInventory(id){if(!confirm(t("confirmDelete")))return;db.inventory=db.inventory.filter(x=>x.id!==id);persist();renderOwner("inventory")}
 function staffPanel(){return `<div class="card"><h3>${esc(t("staffTitle"))}</h3><form id="staffForm" class="form-grid"><div class="field"><label>${esc(t("staffName"))}</label><input name="name" required maxlength="80"></div><div class="field"><label>${esc(t("staffPhone"))}</label><input name="phone" required type="tel"></div><div class="field"><label>${esc(t("commission"))}</label><input name="commission" type="number" min="0" max="100" value="10" required></div><div class="field"><label>${esc(t("password"))}</label><input name="password" type="password" minlength="4" required></div><button class="btn full">${esc(t("addStaff"))}</button></form></div><div class="section-head"><h3>${esc(t("staff"))}</h3></div>${db.staff.length?`<div class="grid">${db.staff.map(s=>`<div class="card"><div class="spread"><h3>${esc(s.name)}</h3><span class="badge">${esc(s.code)}</span></div><p class="muted">${esc(s.phone)}</p><p>${esc(t("commission"))}: ${s.commission}%</p><p class="tiny muted">${esc(t("password"))}: ${"•".repeat(Math.min((s.password||"").length,12))}</p><div class="row"><button class="btn secondary small" onclick="toggleStaff('${s.id}')">${s.active===false?"تفعيل":"تعطيل"}</button><button class="btn danger small" onclick="deleteStaff('${s.id}')">${esc(t("delete"))}</button></div></div>`).join("")}</div>`:`<div class="empty">${esc(t("noData"))}</div>`}<div class="notice" style="margin-top:12px">${esc(t("demoNotice"))}</div>`}
-function setupStaff(){const f=$("#staffForm");if(!f)return;f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f);const s={id:uid("st"),code:"EMP-"+(1001+db.staff.length),name:String(fd.get("name")).trim(),phone:String(fd.get("phone")).trim(),commission:Number(fd.get("commission")),password:String(fd.get("password")),active:true};db.staff.push(s);persist();renderOwner("staff");toast(`${t("saved")} ${s.code}`)})}
+function setupStaff(){throw Error("Legacy staff password registration disabled")}
 function toggleStaff(id){const s=db.staff.find(x=>x.id===id);if(s)s.active=s.active===false;persist();renderOwner("staff")}
 function deleteStaff(id){const s=db.staff.find(x=>x.id===id);if(!s)return;if(!confirm(`حذف الموظفة ${s.name} من القائمة نهائيًا؟ ستبقى الحجوزات والفواتير السابقة محفوظة.`))return;db.staff=db.staff.filter(x=>x.id!==id);db.breaks=db.breaks.filter(x=>x.staffId!==id);persist();renderOwner("staff");toast("تم حذف الموظفة من القائمة") }
 function servicePicture(s){const url=String(s.imageUrl||'');return /^https:\/\/[^\s"'<>]+$/i.test(url)?`<img src="${esc(url)}" alt="${esc(s.name)}" loading="lazy" referrerpolicy="no-referrer" style="width:100%;height:150px;object-fit:cover;border-radius:12px;margin:8px 0">`:''}
@@ -295,7 +295,7 @@ function saveAssistantInvoices(){if(db.session?.type!=='owner')return;
 
 /* attach forms after owner panel rendering */
 const originalRenderOwner=renderOwner;
-renderOwner=function(tab=ownerActiveTab){originalRenderOwner(tab);if(tab==="inventory")setupInventory();if(tab==="staff")setupStaff();if(tab==="services")setupServices();if(tab==="expenses")setupExpenses()};
+renderOwner=function(tab=ownerActiveTab){originalRenderOwner(tab);if(tab==="inventory")setupInventory();if(tab==="services")setupServices();if(tab==="expenses")setupExpenses()};
 applyLang();renderHome();
 
 let portalRole="",portalUser=null,portalCatalog={services:[],staff:[],settings:{redeemPoints:50,redeemRiyals:10}},portalBookings=[];
@@ -593,12 +593,12 @@ renderOwner=function(tab=ownerActiveTab){
 
 auth.onAuthStateChanged(async user=>{
  if(loginInProgress)return;
- if(!user){firebaseReady=false;db.session=null;renderHome();return}
+ if(!user){firebaseReady=false;db.session=null;db=initialState();portalUser=null;portalBookings=[];renderHome();return}
  try{
   if(user.uid==="AvRinM2frzLkDWH1CsH7CnIhFnK2"){
-   const snap=await salonDoc.get();firebaseReady=true;
+   const snap=await salonDoc.get();firebaseReady=true;localStorage.removeItem(STORAGE_KEY);
    if(snap.exists){const remote=snap.data(),base=initialState();db={...base,...remote,settings:{...base.settings,...remote.settings},session:{type:"owner",id:user.uid}}}
-   else{db.session={type:"owner",id:user.uid};await salonDoc.set({...db,session:null})}
+   else{firebaseReady=false;db.session=null;toast("بيانات الصالون غير موجودة في Firebase؛ لن ننشئ بيانات فارغة تلقائيًا");renderHome();return}
    renderOwner("dashboard");return;
   }
   const client=await firestore.collection("clientProfiles").doc(user.uid).get();
