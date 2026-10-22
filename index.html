@@ -31,6 +31,7 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
 .owner-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:16px}.owner-kpi{border:1px solid #ebe9f0;border-radius:12px;padding:20px 16px;min-height:130px;background:linear-gradient(120deg,#fff,#fff4f8);display:flex;flex-direction:column;gap:12px}.owner-kpi:nth-child(2){background:linear-gradient(120deg,#fff,#f0f7ff)}.owner-kpi:nth-child(3){background:linear-gradient(120deg,#fff,#eef9f1)}.owner-kpi>span{font-size:12px;color:#646979}.owner-kpi strong{font-size:24px;color:#252b42}.owner-kpi small{font-size:10px;color:#8a90a0}.owner-dashboard-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.owner-panel{border:1px solid #e9e9f0;background:white;border-radius:12px;padding:16px;min-height:240px}.owner-panel h3{font-size:14px;margin:0 0 17px;display:flex;align-items:center;justify-content:space-between}.owner-panel h3 button{background:#f9f7fa;border:1px solid #eee;border-radius:6px;font-size:11px;padding:5px;color:#6d6774}.owner-shortcut-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.owner-shortcut-grid button{border:1px solid #f0eaf0;border-radius:9px;background:#faf8fc;min-height:69px;color:var(--owner-accent);font-size:21px}.owner-shortcut-grid span{display:block;font-size:11px;color:#343447;margin-top:3px}.owner-mini-list{display:grid;gap:10px}.owner-mini-list>div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #f2f2f5;padding-bottom:10px;font-size:12px}.owner-mini-list b{color:#3a8167}.owner-mini-list small{color:#8b7b8c}.owner-original-tools{margin-top:18px}.owner-original-tools>h3{font-size:14px}.owner-settings-row{display:flex;align-items:center;justify-content:flex-end;gap:14px;margin-top:22px;font-size:12px}.owner-settings-row label{display:flex;align-items:center;gap:8px}.owner-settings-row input{width:35px;height:30px;border:0;background:none}
 @media(max-width:1050px){.owner-dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.owner-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.owner-sidebar{width:190px}.owner-shell{grid-template-columns:190px minmax(0,1fr)}}
 @media(max-width:700px){.owner-shell{display:block}.owner-sidebar{height:auto;width:auto;position:static}.owner-brand{padding:12px}.owner-menu{display:flex;overflow-x:auto;white-space:nowrap;padding:8px}.owner-menu button{width:auto;flex:0 0 auto;padding:8px}.owner-side-bottom{display:none}.owner-top{height:52px;padding:0 12px}.owner-content{padding:12px}.owner-welcome{display:block}.owner-banner{min-width:0;margin-top:12px}.owner-kpis{gap:8px}.owner-kpi{padding:12px;min-height:115px}.owner-kpi strong{font-size:19px}.owner-dashboard-grid{grid-template-columns:1fr}}
+.owner-cloud-bookings-section{background:#fff5fa;border:1px solid #ebcbd9;border-radius:16px;padding:16px;margin-bottom:18px}.owner-cloud-bookings-section>.section-head{margin-top:0}
 </style>
 </head>
 <body>
@@ -934,18 +935,33 @@ submitPortalBooking=async function(event){
 };
 function ownerBookingCard(b){
  const id=esc(b.id),pending=b.status==='pending',closed=['cancelled','completed'].includes(b.status);
- return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · العربون: ${b.depositStatus==='paid'?'مدفوع':'غير مدفوع'}</p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">${pending?'تأكيد بعد العربون':'تحديث تأكيد العربون'}</button><button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}</div></div>`;
+ const confirmed=b.status==='confirmed'&&b.depositStatus==='paid';
+ const label=confirmed?'✅ مؤكد – العربون مدفوع':b.status==='cancelled'?'❌ ملغي':b.status==='pending'?'⏳ بانتظار دفع العربون والتأكيد':b.status==='confirmed'?'⚠️ مؤكد – العربون غير مسجل كمدفوع':safeStr(b.status||'pending');
+ return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b><span class="badge ${confirmed?'green':closed?'red':'amber'}">${esc(label)}</span></div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · العربون: <b>${b.depositStatus==='paid'?'مدفوع':'غير مدفوع'}</b></p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed&&(!confirmed)?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">تأكيد بعد العربون</button>`:''}${!closed?`<button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}</div></div>`;
 }
 showPortalBookingsOwner=async function(){
  const host=document.querySelector('#portalBookingsOwner');if(!host)return;
  host.innerHTML='<p class="muted">جارٍ تحميل طلبات العميلات من Firebase…</p>';
- try{const snap=await bookingCollection.get();const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>safeStr(b.createdAt?.seconds||'').localeCompare(safeStr(a.createdAt?.seconds||'')));
+ try{const snap=await bookingCollection.get({source:'server'});const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>safeStr(b.createdAt?.seconds||'').localeCompare(safeStr(a.createdAt?.seconds||'')));
   host.innerHTML=rows.length?rows.map(ownerBookingCard).join(''):'<div class="empty">لا توجد طلبات حجز في Firebase حتى الآن.</div>';
  }catch(err){host.textContent='تعذر تحميل الحجوزات: '+err.message}
 };
+// Place cloud bookings at the top of the owner appointments area, not below the sidebar.
+const ownerRenderForBookingPlacement=renderOwner;
+renderOwner=function(tab=ownerActiveTab){
+ ownerRenderForBookingPlacement(tab);
+ if(tab==='appointments'&&db.session?.type==='owner'){
+  const section=document.querySelector('#portalBookingsOwner')?.parentElement;
+  const main=document.querySelector('.owner-content');
+  if(section&&main){
+   section.classList.add('owner-cloud-bookings-section');
+   main.insertBefore(section,main.firstChild);
+  }
+ }
+};
 window.ownerConfirmSavedBooking=async id=>{
  if(!confirm('هل استلمتِ العربون وتريدين تأكيد الحجز؟'))return;
- try{await bookingCollection.doc(id).update({status:'confirmed',depositStatus:'paid',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم تأكيد الحجز والعربون')}
+ try{await bookingCollection.doc(id).update({status:'confirmed',depositStatus:'paid',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});const verified=await bookingCollection.doc(id).get({source:'server'});if(verified.data()?.status!=='confirmed'||verified.data()?.depositStatus!=='paid')throw Error('لم يتم التحقق من حفظ التأكيد');await showPortalBookingsOwner();toast('تم تأكيد الحجز والعربون وحفظه في Firebase')}
  catch(err){toast('تعذر التأكيد: '+err.message)}
 };
 window.ownerCancelSavedBooking=async id=>{
