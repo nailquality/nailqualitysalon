@@ -137,7 +137,7 @@ else if(tab==="newbooking")body=ownerBookingPanel();
 else if(tab==="cashier")body=cashierPanel();
 else if(tab==="invoices")body=invoicesPanel();
 else if(tab==="inventory")body=inventoryPanel();
-else if(tab==="staff")body=`<div class="card"><h3>الموظفات</h3><p>الحذف يعطل الحساب المرتبط ويخفي الموظفة من بوابة العميلات، دون حذف سجلات الحجوزات والفواتير.</p></div><div class="service-grid">${db.staff.map(x=>`<div class="card"><h3>${esc(x.name)}</h3><p>${esc(x.phone||"")}</p><button class="btn danger small" onclick="deleteStaff('${x.id}')">حذف الموظفة</button></div>`).join("")}</div>`;
+else if(tab==="staff")body=`<div class="card"><h3>الموظفات وحسابات الدخول</h3><p>تعديل الاسم والإيميل والجوال، وإيقاف الحساب أو تفعيله، من قسم «تعديل وإيقاف حساب الموظفة» أدناه. لإضافة موظفة، أنشئي الحساب في Authentication ثم اربطي UID والإيميل هنا. لا يلزم إدخال كلمة مرور في لوحة الصالون.</p></div><div class="service-grid">${db.staff.map(x=>`<div class="card"><h3>${esc(x.name)}</h3><span class="badge ${x.active===false?'red':'green'}">${x.active===false?'موقوفة':'نشطة'}</span><p>${esc(x.phone||"")}</p><button class="btn danger small" onclick="deleteStaff('${x.id}')">حذف من قوائم الصالون</button></div>`).join("")}</div>`;
 else if(tab==="services")body=servicesPanel();
 else if(tab==="expenses")body=expensesPanel();
 else if(tab==="reports")body=reportsPanel();
@@ -248,8 +248,8 @@ function inventoryPanel(){return `<div class="card"><h3>${esc(t("inventoryTitle"
 function setupInventory(){const f=$("#inventoryForm");if(!f)return;f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f);db.inventory.push({id:uid("itm"),name:String(fd.get("name")).trim(),quantity:Number(fd.get("quantity")),minQuantity:Number(fd.get("minQuantity")),unitCost:Number(fd.get("unitCost"))});persist();renderOwner("inventory");toast(t("saved"))})}
 function adjustStock(id,delta){const i=db.inventory.find(x=>x.id===id);if(!i)return;i.quantity=Math.max(0,Number(i.quantity)+delta);persist();renderOwner("inventory")}
 function deleteInventory(id){if(!confirm(t("confirmDelete")))return;db.inventory=db.inventory.filter(x=>x.id!==id);persist();renderOwner("inventory")}
-function staffPanel(){return `<div class="card"><h3>${esc(t("staffTitle"))}</h3><form id="staffForm" class="form-grid"><div class="field"><label>${esc(t("staffName"))}</label><input name="name" required maxlength="80"></div><div class="field"><label>${esc(t("staffPhone"))}</label><input name="phone" required type="tel"></div><div class="field"><label>${esc(t("commission"))}</label><input name="commission" type="number" min="0" max="100" value="10" required></div><div class="field"><label>${esc(t("password"))}</label><input name="password" type="password" minlength="4" required></div><button class="btn full">${esc(t("addStaff"))}</button></form></div><div class="section-head"><h3>${esc(t("staff"))}</h3></div>${db.staff.length?`<div class="grid">${db.staff.map(s=>`<div class="card"><div class="spread"><h3>${esc(s.name)}</h3><span class="badge">${esc(s.code)}</span></div><p class="muted">${esc(s.phone)}</p><p>${esc(t("commission"))}: ${s.commission}%</p><p class="tiny muted">${esc(t("password"))}: ${"•".repeat(Math.min((s.password||"").length,12))}</p><div class="row"><button class="btn secondary small" onclick="toggleStaff('${s.id}')">${s.active===false?"تفعيل":"تعطيل"}</button><button class="btn danger small" onclick="deleteStaff('${s.id}')">${esc(t("delete"))}</button></div></div>`).join("")}</div>`:`<div class="empty">${esc(t("noData"))}</div>`}<div class="notice" style="margin-top:12px">${esc(t("demoNotice"))}</div>`}
-function setupStaff(){throw Error("Legacy staff password registration disabled")}
+function staffPanel(){return `<section class="card"><h3>إدارة الموظفات</h3><p>لإنشاء حساب موظفة استخدمي Firebase Authentication، ثم اكتبي إيميلها وUID في قسم الربط. من نفس صفحة الموظفات يمكنك تعديل الحساب أو إيقافه أو إعادة تفعيله، بدون إدخال كلمة مرور في الموقع.</p></section>`;}
+function setupStaff(){/* Employee accounts are linked by owner through Authentication UID and email. */}
 function toggleStaff(id){const s=db.staff.find(x=>x.id===id);if(s)s.active=s.active===false;persist();renderOwner("staff")}
 async function deleteStaff(id){const employee=db.staff.find(x=>x.id===id);if(!employee)return;
  if(!confirm('حذف الموظفة «'+employee.name+'» من النظام وإخفاؤها عن العميلات؟ ستبقى الحجوزات والفواتير السابقة. احذفي حساب Authentication يدويًا لاحقًا.'))return;
@@ -401,7 +401,7 @@ function portalLogin(role,register=false){
  portalRole=role;applyLang();$("#homeBtn").classList.remove("hidden");
  const ar=lang==='ar',client=role==='client';
  $("#app").innerHTML=`<div class="card" style="max-width:560px;margin:auto"><h2>${register?(ar?'إنشاء حساب عميلة':'Create client account'):(client?t('clientLogin'):t('employeeLogin'))}</h2><form id="portalAuth" class="form-grid">
- ${register?`<div class="field full"><label>${ar?'الاسم الكامل':'Full name'}</label><input name="name" required maxlength="80" autocomplete="name"></div>`:''}
+ ${register?`<div class="field full"><label>الاسم بالعربي</label><input name="nameAr" dir="rtl" required maxlength="70" autocomplete="name" placeholder="مثال: سارة أحمد"></div><div class="field full"><label>الاسم بالإنجليزي</label><input name="nameEn" dir="ltr" required maxlength="70" placeholder="e.g. Sara Ahmed"></div>`:''}
  <div class="field full"><label>${client?(ar?'رقم الجوال':'Mobile number'):(ar?'البريد الإلكتروني':'Email')}</label><input name="identifier" required ${client?'type="tel" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx"':'type="email" autocomplete="username" maxlength="254" placeholder="employee@example.com"'}></div>
  <div class="field full"><label>${t('password')}</label><input type="password" name="password" minlength="6" required autocomplete="${register?'new-password':'current-password'}"></div>
  <button class="btn full" type="submit">${register?t('createAccount'):t('login')}</button></form>
@@ -417,12 +417,14 @@ function portalLogin(role,register=false){
    if(register){
     if(!client)throw Error('إنشاء حساب الموظفة متاح للمالكة فقط');
     const cr=await auth.createUserWithEmailAndPassword(email,password);user=cr.user;
-    const profile={uid:user.uid,name:String(f.get('name')).trim(),phone:'+'+normalizeSaudiPhone(identifier),email:user.email,points:0,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+    const nameAr=String(f.get('nameAr')||'').trim(),nameEn=String(f.get('nameEn')||'').trim();
+     if(!nameAr||!nameEn||nameAr.length>70||nameEn.length>70)throw Error('اكتبي اسم العميلة بالعربي والإنجليزي');
+     const profile={uid:user.uid,name:nameAr,nameAr,nameEn,phone:'+'+normalizeSaudiPhone(identifier),email:user.email,points:0,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
     await firestore.collection('clientProfiles').doc(user.uid).set(profile);portalUser=profile;
    }else{
     const cr=await auth.signInWithEmailAndPassword(email,password);user=cr.user;
     const path=client?'clientProfiles':'employeeProfiles',snap=await firestore.collection(path).doc(user.uid).get();
-    if(!snap.exists||snap.data().active!==true)throw Error(ar?'الحساب غير مفعل في هذه البوابة':'Account is not active in this portal');
+    if(!snap.exists||(!client&&(snap.data().active!==true||snap.data().archived===true)))throw Error(ar?'الحساب غير مفعل في هذه البوابة':'Account is not active in this portal');
     if(!client&&String(snap.data().email||'').trim().toLowerCase()!==String(user.email||'').trim().toLowerCase())throw Error('إيميل حساب الموظفة لا يطابق الإيميل المرتبط بـ UID في الصالون. راجعي بيانات الربط.');
     portalUser=snap.data();
    }
@@ -444,7 +446,7 @@ async function submitPortalBooking(e){e.preventDefault();const f=new FormData(e.
  const staffId=String(f.get('staff')||''),staff=(portalCatalog.staff||[]).find(s=>String(s.id)===staffId&&s.active!==false),date=String(f.get('date')||''),time=String(f.get('time')||''),location=String(f.get('location')||''),address=String(f.get('address')||'').trim();
  if(!services.length||!staff||!date||!time||date<today()||(location==='home'&&(portalCatalog.settings?.homeServiceEnabled!==true||!address))){toast('أكملي البيانات وحددي كمية الخدمات');return}
  const duration=services.reduce((n,s)=>n+(Number(s.duration)||30),0);if(timeToMin(time)+duration>1440){toast('المدة تتجاوز نهاية اليوم');return}
- const record={clientUid:auth.currentUser.uid,clientName:String(portalUser.name||''),clientPhone:String(portalUser.phone||''),staffUid:String(staff.authUid||staff.id),staffName:String(staff.name),serviceIds:services.map(s=>String(s.id)),serviceName:services.map(s=>String(s.name)).join('، '),price:services.reduce((n,s)=>n+Number(s.price||0),0),duration,date,time,location,address,notes:String(f.get('notes')||''),redeemRequested:!!f.get('redeem'),status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+ const record={clientUid:auth.currentUser.uid,clientName:String(portalUser.nameAr||portalUser.name||''),clientNameEn:String(portalUser.nameEn||''),clientPhone:String(portalUser.phone||''),staffUid:String(staff.authUid||staff.id),staffName:String(staff.name),serviceIds:services.map(s=>String(s.id)),serviceName:services.map(s=>String(s.name)).join('، '),price:services.reduce((n,s)=>n+Number(s.price||0),0),duration,date,time,location,address,notes:String(f.get('notes')||''),redeemRequested:!!f.get('redeem'),status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
  const btn=e.target.querySelector('button[type=submit]');if(btn)btn.disabled=true;
  try{await firestore.collection('portalBookings').add(record);await loadPortalBookings();renderPortalClient();toast('تم إرسال الحجز بنجاح؛ بانتظار التأكيد')}
  catch(err){toast('تعذر حفظ الحجز: '+err.message)}finally{if(btn&&btn.isConnected)btn.disabled=false}
@@ -703,7 +705,7 @@ renderOwner=function(tab=ownerActiveTab){
  const select=$('#permissionEmployee'),form=$('#employeePermissionsForm');
  let profiles=[];
  const renderSelected=()=>{const p=profiles.find(x=>x.uid===select.value);if(!p)return;const permissions=p.permissions||{};for(const key of ['allBookings','ownSalary','completeService','leaveRequest','ownSales','clientPhone'])form.elements[key].checked=permissions[key]===undefined?['allBookings','ownSalary','completeService','leaveRequest'].includes(key):permissions[key]===true;form.elements.salary.value=p.salaryVisible===true?Number(p.salary||0):''};
- firestore.collection('employeeProfiles').get().then(snap=>{profiles=snap.docs.map(x=>({uid:x.id,...x.data()}));select.innerHTML=profiles.map(p=>`<option value="${esc(p.uid)}">${esc(p.name||p.username||p.uid)}</option>`).join('');renderSelected()}).catch(e=>{$('#permissionFeedback').textContent=e.message});
+ firestore.collection('employeeProfiles').get().then(snap=>{profiles=snap.docs.filter(x=>x.data().archived!==true).map(x=>({uid:x.id,...x.data()}));select.innerHTML=profiles.map(p=>`<option value="${esc(p.uid)}">${esc(p.name||p.username||p.uid)}</option>`).join('');renderSelected()}).catch(e=>{$('#permissionFeedback').textContent=e.message});
  select.onchange=renderSelected;
  form.onsubmit=async e=>{e.preventDefault();if(!select.value)return;const permissions={};for(const key of ['allBookings','ownSalary','completeService','leaveRequest','ownSales','clientPhone'])permissions[key]=form.elements[key].checked;const salaryRaw=form.elements.salary.value;try{await firestore.collection('employeeProfiles').doc(select.value).update({permissions,salary:salaryRaw===''?0:Number(salaryRaw),salaryVisible:salaryRaw!==''});$('#permissionFeedback').textContent=lang==='ar'?'تم حفظ الصلاحيات':'Permissions saved';const p=profiles.find(x=>x.uid===select.value);if(p){p.permissions=permissions;p.salary=salaryRaw===''?0:Number(salaryRaw);p.salaryVisible=salaryRaw!==''}}catch(err){$('#permissionFeedback').textContent=err.message}};
 };
@@ -762,7 +764,7 @@ auth.onAuthStateChanged(async user=>{
   if(client.exists){portalUser=client.data();portalRole="client";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Bookings unavailable',err);portalBookings=[]}renderPortalClient();return}
   const employee=await firestore.collection("employeeProfiles").doc(user.uid).get();
   if(loginInProgress)return;
-  if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()===String(user.email||'').trim().toLowerCase()){portalUser=employee.data();portalRole="employee";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('دخول الموظفة ناجح، لكن جلب الحجوزات يحتاج تفعيل الوظائف السحابية')}renderPortalEmployee();return}
+  if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()===String(user.email||'').trim().toLowerCase()){portalUser=employee.data();portalRole="employee";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('تم الدخول، لكن تعذر جلب الحجوزات. تأكدي من نشر قواعد Firestore المرفقة.')}renderPortalEmployee();return}
   if(loginInProgress)return;
   if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()!==String(user.email||'').trim().toLowerCase()){
    toast('إيميل حساب Firebase لا يطابق الإيميل المرتبط بـ UID الموظفة. راجعي ربط الحساب من لوحة المالكة.');
@@ -1073,12 +1075,12 @@ submitPortalBooking=async function(event){
  const staff=(portalCatalog.staff||[]).find(x=>String(x.id)===String(data.get('staff'))&&x.active!==false);
  const date=safeStr(data.get('date')),time=safeStr(data.get('time')),location=safeStr(data.get('location')||'salon');
  const address=safeStr(data.get('address')).trim().slice(0,200),notes=safeStr(data.get('notes')).trim().slice(0,300);
- if(!services.length||!staff||!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<today()||!/^\d{2}:\d{2}$/.test(time)){toast('اختاري الخدمات والموظفة والتاريخ والوقت الصحيح');return}
+ if(!services.length||!staff||!staff.authUid||!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<today()||!/^\d{2}:\d{2}$/.test(time)){toast('اختاري خدمات وموظفة مربوطة بحساب Firebase والتاريخ والوقت الصحيح');return}
  if(location==='home'&&(!portalCatalog.settings?.homeServiceEnabled||!address)){toast('أدخلي عنوان الخدمة المنزلية');return}
  const duration=services.reduce((n,x)=>n+(Number(x.duration)||30),0);
  if(timeToMin(time)+duration>1440){toast('وقت الحجز يتجاوز نهاية اليوم');return}
  const price=services.reduce((n,x)=>n+Math.max(0,Number(x.price)||0),0);
- const record={clientUid:auth.currentUser.uid,clientName:safeStr(portalUser.name).slice(0,100),clientPhone:safeStr(portalUser.phone).slice(0,20),staffUid:safeStr(staff.authUid||staff.id),staffName:safeStr(staff.name),serviceIds:services.map(x=>safeStr(x.id)),serviceName:services.map(x=>safeStr(x.name)).join('، ').slice(0,500),price,duration,date,time,location,address,notes,redeemRequested:data.get('redeem')==='on',status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+ const record={clientUid:auth.currentUser.uid,clientName:safeStr(portalUser.nameAr||portalUser.name).slice(0,100),clientNameEn:safeStr(portalUser.nameEn||'').slice(0,70),clientPhone:safeStr(portalUser.phone).slice(0,20),staffUid:safeStr(staff.authUid||staff.id),staffName:safeStr(staff.name),serviceIds:services.map(x=>safeStr(x.id)),serviceName:services.map(x=>safeStr(x.name)).join('، ').slice(0,500),price,duration,date,time,location,address,notes,redeemRequested:data.get('redeem')==='on',status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
  if(button)button.disabled=true;
  try{
   const ref=await bookingCollection.add(record);
@@ -1522,6 +1524,251 @@ document.addEventListener('submit',async e=>{
   };
   drawResults();drawCart();
  };
+})();
+</script>
+<!-- Employee bookings + client bilingual registration + free staff account management (Spark). -->
+<style id="employee-booking-account-style">
+.employee-booking-card{margin:10px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.employee-booking-card p{margin:7px 0;overflow-wrap:anywhere}
+.employee-booking-card .row{gap:8px;flex-wrap:wrap}
+.employee-account-card{margin:10px 0;padding:14px;border:1px solid var(--line);border-radius:12px}
+.employee-account-card .form-grid{margin-top:12px}
+.employee-muted{color:var(--muted)}
+</style>
+<script>
+/* All bookings are read from portalBookings; employee UID is the sole scope. */
+(function(){
+'use strict';
+const bookingRef=firestore.collection('portalBookings');
+const profilesRef=firestore.collection('employeeProfiles');
+const ownerUid='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+let watchUid=null, stopWatch=null, bookingIssue='';
+const myUid=()=>auth.currentUser?.uid||'';
+const ownerVerified=()=>db.session?.type==='owner'&&firebaseReady&&myUid()===ownerUid;
+const employeeVerified=()=>portalRole==='employee'&&portalUser?.active===true&&myUid()!=='';
+const statusNames={pending:'بانتظار تأكيد المالكة',confirmed:'تم تأكيد الحجز',arrived:'وصلت العميلة',inProgress:'بدأت الخدمة',started:'بدأت الخدمة',completed:'تم الانتهاء',cancelled:'ملغي',noShow:'لم تحضر'};
+function stopEmployeeListener(){if(stopWatch){try{stopWatch()}catch(e){console.warn(e)}stopWatch=null}watchUid=null;}
+const legacyClear=clearSession;
+clearSession=async function(){stopEmployeeListener();return legacyClear()};
+loadPortalBookings=async function(){
+ const account=myUid();if(!account){portalBookings=[];return portalBookings}
+ if(portalRole!=='employee'&&portalRole!=='client'){portalBookings=[];return portalBookings}
+ const field=portalRole==='employee'?'staffUid':'clientUid';
+ const snap=await bookingRef.where(field,'==',account).get();
+ portalBookings=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+ bookingIssue='';return portalBookings;
+};
+function watchEmployeeBookings(){
+ const account=myUid();if(!employeeVerified()||!account)return;
+ if(watchUid===account&&stopWatch)return;
+ stopEmployeeListener();watchUid=account;
+ stopWatch=bookingRef.where('staffUid','==',account).onSnapshot(snapshot=>{
+  if(portalRole!=='employee'||myUid()!==account){stopEmployeeListener();return}
+  const list=snapshot.docs.map(doc=>({id:doc.id,...doc.data()}));
+  portalBookings=list;bookingIssue='';
+  const current=document.getElementById('employeeBookingBoard');
+  if(current&&document.activeElement?.closest('#employeeRequestForm'))return;
+  renderPortalEmployee();
+ },error=>{
+  bookingIssue=error.code==='permission-denied'?'يجب نشر قواعد Firestore المرفقة للسماح للموظفة بعرض حجوزاتها.':String(error.message||error);
+  const el=document.getElementById('employeeBookingError');if(el)el.textContent=bookingIssue;
+  stopEmployeeListener();
+ });
+}
+renderPortalEmployee=function(){
+ applyLang();document.querySelector('#homeBtn')?.classList.remove('hidden');
+ if(!employeeVerified()){
+  document.querySelector('#app').innerHTML='<div class="card"><h3>حساب الموظفة غير مفعل</h3><p>تأكدي من الربط بالإيميل وUID لدى المالكة.</p><button type="button" class="btn" id="employeeLogout">تسجيل الخروج</button></div>';
+  document.querySelector('#employeeLogout').onclick=clearSession;return;
+ }
+ const p=portalUser,rights=p.permissions||{},account=myUid();
+ const myBookings=(portalBookings||[]).filter(b=>String(b.staffUid||'')===account&&b.status!=='pending').sort((a,b)=>(String(a.date||'')+String(a.time||'')).localeCompare(String(b.date||'')+String(b.time||'')));
+ const todays=myBookings.filter(b=>b.date===today()&&!['cancelled','noShow'].includes(b.status));
+ const pending=myBookings.filter(b=>!['completed','cancelled','noShow'].includes(b.status)&&b.date!==today());
+ const history=myBookings.filter(b=>['completed','cancelled','noShow'].includes(b.status)&&b.date!==today()).slice(-40).reverse();
+ const card=b=>{
+  const stage=b.status||'pending',name=b.clientName||'غير مسجل',nameEn=b.clientNameEn||'',phone=b.clientPhone||'';
+  const next=stage==='confirmed'?'arrived':stage==='arrived'?'inProgress':stage==='inProgress'?'completed':null;
+  const label=next==='arrived'?'وصلت العميلة':next==='inProgress'?'بدء الخدمة':'تم الانتهاء من الخدمة';
+  return `<article class="employee-booking-card"><div class="spread"><strong>${esc(b.date||'')} — ${esc(b.time||'')}</strong><span class="badge ${stage==='completed'?'green':stage==='confirmed'?'green':''}">${esc(statusNames[stage]||stage)}</span></div>
+   <p><b>اسم العميلة بالعربي:</b> ${esc(name)}</p>
+   <p><b>اسم العميلة بالإنجليزي:</b> <span dir="ltr">${esc(nameEn||'غير مسجل للحجوزات القديمة')}</span></p>
+   <p><b>رقم الجوال:</b> <span dir="ltr">${esc(phone||'غير متوفر')}</span></p>
+   <p><b>الخدمات:</b> ${esc(b.serviceName||'—')}</p><p><b>المكان:</b> ${b.location==='home'?'خدمة منزلية':'داخل الصالون'}</p>
+   ${b.notes?`<p><b>ملاحظات:</b> ${esc(b.notes)}</p>`:''}
+   ${next?`<div class="row"><button type="button" class="btn ${next==='completed'?'success':''}" data-employee-booking="${esc(b.id)}" data-employee-next="${next}">${label}</button></div>`:''}</article>`;
+ };
+ document.querySelector('#app').innerHTML=`${headerPanel('بوابة الموظفة',p.name||'')}
+  <section id="employeeBookingBoard"><div class="stats"><div class="stat"><span>حجوزات اليوم</span><strong>${todays.length}</strong></div><div class="stat"><span>الحجوزات النشطة</span><strong>${myBookings.filter(b=>!['completed','cancelled','noShow'].includes(b.status)).length}</strong></div>${rights.ownSalary===true?`<div class="stat"><span>الراتب</span><strong>${p.salaryVisible===true?money(p.salary):'غير محدد'}</strong></div>`:''}</div>
+  <p class="notice ${bookingIssue?'bad':'good'}" id="employeeBookingError" role="status">${esc(bookingIssue||'تظهر الحجوزات تلقائيًا عند تأكيدها من المالكة.')}</p>
+  <div class="section-head"><h3>حجوزات اليوم</h3></div>${todays.map(card).join('')||'<p class="empty">لا توجد حجوزات لهذا اليوم</p>'}
+  <div class="section-head"><h3>الحجوزات القادمة والمعلقة</h3></div>${pending.map(card).join('')||'<p class="empty">لا توجد حجوزات قادمة أو معلقة</p>'}
+  <div class="section-head"><h3>الحجوزات السابقة المكتملة</h3></div>${history.map(card).join('')||'<p class="empty">لا توجد حجوزات مكتملة سابقة</p>'}
+  <div class="row"><button type="button" class="btn secondary" id="refreshEmployeeBookings">تحديث الحجوزات</button><button type="button" class="btn danger" id="employeeLogout">تسجيل الخروج</button></div>
+  ${rights.leaveRequest!==false?`<section class="card" style="margin-top:14px"><h3>طلب إجازة أو تبديل وردية</h3><form id="employeeRequestForm" class="form-grid"><div class="field"><label>نوع الطلب</label><select name="type"><option value="leave">إجازة</option><option value="shift">تبديل وردية</option></select></div><div class="field"><label>التاريخ</label><input name="date" type="date" min="${today()}" required></div><div class="field full"><label>ملاحظات</label><textarea name="notes" maxlength="300"></textarea></div><button type="submit" class="btn full">إرسال الطلب</button></form></section>`:''}
+  </section>`;
+ const root=document.querySelector('#employeeBookingBoard');
+ root.onclick=e=>{const b=e.target.closest('button[data-employee-next]');if(b)setEmployeeBookingStatus(b.dataset.employeeBooking,b.dataset.employeeNext,b)};
+ root.querySelector('#refreshEmployeeBookings').onclick=async()=>{try{await loadPortalBookings();renderPortalEmployee();toast('تم تحديث حجوزاتك')}catch(err){bookingIssue=err.code==='permission-denied'?'تحققي من نشر قواعد Firestore الجديدة':String(err.message||err);renderPortalEmployee()}};
+ root.querySelector('#employeeLogout').onclick=clearSession;
+ const f=root.querySelector('#employeeRequestForm');if(f)f.onsubmit=async e=>{
+  e.preventDefault();const d=new FormData(f),b=f.querySelector('button[type=submit]');b.disabled=true;
+  try{await firestore.collection('staffRequests').add({employeeUid:account,employeeName:String(p.name||''),type:String(d.get('type')),date:String(d.get('date')),notes:String(d.get('notes')||''),status:'pending',createdAt:firebase.firestore.FieldValue.serverTimestamp()});f.reset();toast('تم حفظ الطلب')}
+  catch(err){toast('تعذر إرسال الطلب: '+err.message)}finally{if(b.isConnected)b.disabled=false}
+ };
+ try{if(typeof syncSalonTheme==='function')syncSalonTheme()}catch(e){console.warn('Theme:',e)}
+ watchEmployeeBookings();
+};
+setEmployeeBookingStatus=async function(id,next,button){
+ if(!employeeVerified()||!['arrived','inProgress','completed'].includes(next))return;
+ const item=(portalBookings||[]).find(b=>String(b.id)===String(id)&&String(b.staffUid)===myUid());
+ const transitions={confirmed:'arrived',arrived:'inProgress',inProgress:'completed'};
+ if(!item||transitions[item.status]!==next){toast('تسلسل مراحل الخدمة غير صحيح؛ حدّثي حجوزاتك.');return}
+ if(next==='completed'&&!confirm('تأكيد انتهاء الخدمة؟'))return;
+ if(button)button.disabled=true;
+ try{await bookingRef.doc(id).update({status:next});await loadPortalBookings();renderPortalEmployee();toast('تم حفظ حالة الحجز')}
+ catch(err){toast('تعذر تحديث الحجز: '+(err.code==='permission-denied'?'تحتاجين نشر قواعد Firestore الجديدة.':err.message));if(button?.isConnected)button.disabled=false}
+};
+// The owner may confirm only appointments assigned to a Firebase-linked active employee.
+window.ownerConfirmSavedBooking=async function(id){
+ if(!ownerVerified())return;
+ try{
+  const ref=bookingRef.doc(id),snapshot=await ref.get();if(!snapshot.exists)throw Error('الحجز غير موجود');
+  const b=snapshot.data();
+  const staff=(db.staff||[]).find(s=>s.active!==false&&s.authUid&&(String(s.authUid)===String(b.staffUid)||String(s.id)===String(b.staffUid)));
+  if(!staff)throw Error('الموظفة غير مربوطة بحساب Firebase نشط. اربطي UID والإيميل أولًا، ثم أكدي الحجز.');
+  const p=await profilesRef.doc(staff.authUid).get();if(!p.exists||p.data().active!==true||p.data().archived===true)throw Error('حساب الموظفة موقوف أو غير مربوط. فعّليه من حسابات الموظفات.');
+  if(!confirm('هل استلمتِ العربون وتريدين تأكيد الحجز للموظفة '+staff.name+'؟'))return;
+  await ref.update({status:'confirmed',depositStatus:'paid',staffUid:staff.authUid,staffName:staff.name,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();
+  toast('تم تأكيد الحجز وأصبح ظاهرًا للموظفة');
+ }catch(err){toast('تعذر تأكيد الحجز: '+String(err.message||err))}
+};
+// Also fix the confirmation button in the main "الحجوزات والمواعيد" daily view.
+window.dailyPortalStatus=async function(id,status){
+ if(!ownerVerified())return;
+ try{
+  if(status==='confirmed'){
+   const ref=bookingRef.doc(id),snap=await ref.get();if(!snap.exists)throw Error('الحجز غير موجود');
+   const b=snap.data(),staff=(db.staff||[]).find(s=>s.active!==false&&s.authUid&&(String(s.id)===String(b.staffUid)||String(s.authUid)===String(b.staffUid)));
+   if(!staff)throw Error('يجب ربط حساب الموظفة بالإيميل وUID أولًا');
+   const prof=await profilesRef.doc(staff.authUid).get();
+   if(!prof.exists||prof.data().active!==true||prof.data().archived===true)throw Error('حساب الموظفة غير مفعل');
+   if(!confirm('تأكيد الحجز وإرساله إلى حساب الموظفة '+staff.name+'؟'))return;
+   await ref.update({status:'confirmed',staffUid:staff.authUid,staffName:staff.name,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  }else{
+   if(['completed','noShow'].includes(status)&&!confirm('تأكيد تغيير حالة الحجز؟'))return;
+   await bookingRef.doc(id).update({status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  }
+  if(typeof ownerTab==='function'&&ownerActiveTab==='appointments')ownerTab('appointments');
+  toast('تم حفظ تحديث الحجز، وسيظهر للموظفة إذا كان مؤكدًا');
+ }catch(e){toast('تعذر تحديث الحجز: '+String(e.message||e))}
+};
+window.confirmPortalBooking=window.ownerConfirmSavedBooking;
+// Staff changes from booking editing must also update staffUid (not only staffName).
+window.ownerEditSavedBooking=async function(id){
+ if(!ownerVerified())return;
+ try{
+  const ref=bookingRef.doc(id),snap=await ref.get();if(!snap.exists)throw Error('الحجز غير موجود');const b=snap.data();
+  const service=prompt('اسم الخدمة',b.serviceName||'');if(service===null)return;
+  const available=(db.staff||[]).filter(s=>s.active!==false&&s.authUid);
+  const staffName=prompt('اسم الموظفة (المربوط حسابها في Firebase):\n'+available.map(s=>'• '+s.name).join('\n'),b.staffName||'');if(staffName===null)return;
+  const matching=available.filter(s=>s.name.trim().toLowerCase()===staffName.trim().toLowerCase());
+  if(matching.length!==1)throw Error('اختاري اسم موظفة واحدة من القائمة، وتحققي من ربط UID لها');
+  const date=prompt('التاريخ YYYY-MM-DD',b.date||'');if(date===null)return;
+  const time=prompt('الوقت HH:MM',b.time||'');if(time===null)return;
+  if(!service.trim()||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||!/^[0-9]{2}:[0-9]{2}$/.test(time))throw Error('تحققي من الخدمة والتاريخ والوقت');
+  await ref.update({serviceName:service.trim().slice(0,500),staffName:matching[0].name,staffUid:matching[0].authUid,date,time,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();toast('تم تعديل الحجز وربطه بحساب الموظفة الصحيح');
+ }catch(err){toast('تعذر تعديل الحجز: '+String(err.message||err))}
+};
+// Edit, suspend/reactivate and retire employee accounts without deleting Authentication identities.
+const lastOwnerRender=renderOwner;
+renderOwner=function(tab=ownerActiveTab){
+ lastOwnerRender(tab);
+ if(tab!=='staff'||!ownerVerified())return;
+ const host=document.querySelector('#app .owner-content')||document.querySelector('#app');
+ const section=document.createElement('section');section.className='card';section.style.margin='14px 0';
+ section.innerHTML='<div class="spread"><h3>تعديل وإيقاف حساب الموظفة</h3><button type="button" class="btn secondary small" id="refreshEmployeeAccountPanel">تحديث</button></div><p class="muted tiny">التعديل والإيقاف مجانيان في Firestore. إيقاف الحساب يمنع دخول بوابة الموظفة ويخفيها عن حجز العميلات. حذف حساب Authentication النهائي يتم يدويًا من Firebase.</p><div id="employeeAccountEditorList">جارٍ تحميل الحسابات…</div>';
+ host.prepend(section);
+ const load=async()=>{
+  const root=section.querySelector('#employeeAccountEditorList');if(!root?.isConnected)return;
+  try{
+   const snapshot=await profilesRef.get();const profiles=snapshot.docs.filter(d=>d.data().archived!==true);
+   root.innerHTML=profiles.length?profiles.map(d=>{
+    const p=d.data(),s=(db.staff||[]).find(x=>x.authUid===d.id||x.id===p.staffId);
+    return `<div class="employee-account-card" data-account="${esc(d.id)}"><div class="spread"><div><b>${esc(p.name||s?.name||'موظفة')}</b><p class="muted tiny" dir="ltr">${esc(p.email||'')} | UID: ${esc(d.id)}</p></div><span class="badge ${p.active===true?'green':'red'}">${p.active===true?'مفعلة':'موقوفة'}</span></div>
+     <div class="row"><button type="button" class="btn secondary small" data-account-action="edit">تعديل الحساب</button><button type="button" class="btn ${p.active===true?'danger':'success'} small" data-account-action="toggle">${p.active===true?'إيقاف الحساب':'إعادة التفعيل'}</button><button type="button" class="btn danger small" data-account-action="retire">حذف من قوائم الصالون</button></div>
+     <form class="form-grid hidden" data-employee-edit><div class="field"><label>اسم الموظفة</label><input name="name" value="${esc(p.name||s?.name||'')}" maxlength="80" required></div><div class="field"><label>الإيميل المسجل في Authentication</label><input name="email" type="email" dir="ltr" value="${esc(p.email||'')}" required></div><div class="field"><label>رقم الجوال</label><input name="phone" type="tel" value="${esc(s?.phone||'')}" maxlength="20"></div><div class="row full"><button type="submit" class="btn">حفظ التعديل</button></div></form></div>`;
+   }).join(''):'<p class="empty">لا توجد حسابات موظفات مرتبطة</p>';
+  }catch(e){root.textContent='تعذر عرض الموظفات: '+(e.message||e)}
+ };
+ section.querySelector('#refreshEmployeeAccountPanel').onclick=load;
+ section.querySelector('#employeeAccountEditorList').addEventListener('click',event=>{
+  const button=event.target.closest('[data-account-action]');if(!button)return;
+  const card=button.closest('[data-account]');if(!card)return;
+  if(button.dataset.accountAction==='edit'){card.querySelector('form[data-employee-edit]')?.classList.toggle('hidden');return}
+  employeeAccountAction(card.dataset.account,button.dataset.accountAction,button,null);
+ });
+ section.querySelector('#employeeAccountEditorList').addEventListener('submit',event=>{
+  const form=event.target.closest('form[data-employee-edit]');if(!form)return;event.preventDefault();
+  const card=form.closest('[data-account]');employeeAccountAction(card.dataset.account,'save',form.querySelector('button[type=submit]'),new FormData(form));
+ });
+ load();
+};
+
+// Route the roster delete button through the same secure profile retirement path as the account editor.
+// Authentication users remain intact for the owner to delete manually from Firebase Console.
+window.deleteStaff=async function(staffId){
+ if(!ownerVerified())return;
+ const staff=(db.staff||[]).find(s=>String(s.id)===String(staffId));
+ if(!staff){toast('لم أجد الموظفة');return}
+ if(staff.authUid){await employeeAccountAction(String(staff.authUid),'retire',null,null);return}
+ if(!confirm('هذه الموظفة غير مرتبطة بحساب Firebase. هل تريدين إزالتها من قائمة الصالون والعميلات مع إبقاء السجلات القديمة؟'))return;
+ try{
+  await saveQueue;
+  const newStaff=db.staff.filter(s=>String(s.id)!==String(staffId));
+  const clean=a=>(a||[]).map(({password,...rest})=>rest);
+  const cloud={...db,clients:clean(db.clients),staff:clean(newStaff),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
+  const newPublicStaff=newStaff.filter(s=>s.active!==false&&s.authUid).map(s=>({id:String(s.id),authUid:String(s.authUid),name:String(s.name||''),active:true}));
+  const batch=firestore.batch();
+  batch.set(salonDoc,cloud);
+  batch.set(firestore.collection('portal').doc('catalog'),{staff:newPublicStaff},{merge:true});
+  await batch.commit();db.staff=newStaff;toast('حُذفت الموظفة من قوائم الصالون والعميلات');renderOwner('staff');
+ }catch(e){toast('تعذر إزالة الموظفة: '+String(e.message||e))}
+};
+async function employeeAccountAction(id,action,button,data){
+ if(!ownerVerified()||!['toggle','retire','save'].includes(action))return;
+ if(button)button.disabled=true;
+ try{
+  await saveQueue;
+  const ref=profilesRef.doc(id),snap=await ref.get();if(!snap.exists)throw Error('حساب الموظفة غير موجود');
+  const p=snap.data(),related=(db.staff||[]).find(x=>x.authUid===id||x.id===p.staffId);
+  let roster=(db.staff||[]).map(x=>({...x}));let changes={updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  if(action==='toggle'){
+   if(!confirm(p.active===true?'إيقاف دخول الموظفة وإخفاؤها من قائمة حجز العميلات؟':'إعادة تفعيل الحساب وإظهاره للعميلات؟'))return;
+   const active=p.active!==true;changes={...changes,active,archived:false};roster=roster.map(x=>x.authUid===id||x.id===p.staffId?{...x,active}:x);
+  }else if(action==='retire'){
+   if(!confirm('حذف الموظفة من قوائم الصالون والعميلات وتعطيل صلاحيتها؟ حساب Firebase Authentication يبقى ويمكنك حذفه بنفسك.'))return;
+   changes={...changes,active:false,archived:true,archivedAt:firebase.firestore.FieldValue.serverTimestamp()};
+   roster=roster.filter(x=>x.authUid!==id&&x.id!==p.staffId);
+  }else{
+   const name=String(data?.get('name')||'').trim(),email=String(data?.get('email')||'').trim().toLowerCase(),phone=String(data?.get('phone')||'').trim();
+   if(!name||name.length>80||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||phone.length>20)throw Error('راجعي الاسم والإيميل ورقم الجوال');
+   if(email!==String(p.email||'').trim().toLowerCase()&&!confirm('تغيير الإيميل هنا لا يغيره في Firebase Authentication. يجب تغييره هناك أيضًا قبل تسجيل الدخول. متابعة؟'))return;
+   const others=await profilesRef.get();if(others.docs.some(d=>d.id!==id&&d.data().archived!==true&&String(d.data().email||'').toLowerCase()===email))throw Error('الإيميل مرتبط بموظفة أخرى');
+   changes={...changes,name,email};roster=roster.map(x=>x.authUid===id||x.id===p.staffId?{...x,name,email,phone}:x);
+  }
+  if(action!=='retire'&&!related)throw Error('لم أجد الموظفة في قائمة الصالون؛ استخدمي ربط UID والإيميل أولًا');
+  const clean=a=>(a||[]).map(({password,...entry})=>entry);
+  const cloud={...db,staff:clean(roster),clients:clean(db.clients),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
+  const publicStaff=roster.filter(x=>x.active!==false&&!!x.authUid).map(x=>({id:String(x.id),authUid:String(x.authUid),name:String(x.name||''),active:true}));
+  const batch=firestore.batch();batch.set(salonDoc,cloud);batch.set(ref,changes,{merge:true});batch.set(firestore.collection('portal').doc('catalog'),{staff:publicStaff},{merge:true});
+  await batch.commit();db.staff=roster;
+  toast(action==='toggle'?(p.active===true?'تم إيقاف حساب الموظفة':'تمت إعادة تفعيل الحساب'):action==='save'?'تم تعديل الحساب':'تم حذف الموظفة من قوائم الصالون');
+  renderOwner('staff');
+ }catch(e){toast('تعذر تحديث الحساب: '+(e.message||e))}finally{if(button?.isConnected)button.disabled=false}
+}
 })();
 </script>
 </body>
