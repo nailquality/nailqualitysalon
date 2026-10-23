@@ -45,6 +45,32 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
 .salon-price-import summary{cursor:pointer;color:var(--plum);font-weight:700}
 @media(max-width:760px){.topbar .brand .logo.salon-logo-holder,.topbar .brand .logo{width:50px;height:50px}}
 </style>
+<style id="salon-logo-and-login-support-final">
+/* The transparent Quality Nails artwork lives only in the top-right header.
+   Portal choice cards keep their original icons; no pink image tiles. */
+.topbar .brand .logo,
+.topbar .brand .logo.salon-logo-holder {
+ width:76px!important;height:82px!important;min-width:76px!important;
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ background:none!important;border:none!important;box-shadow:none!important;
+ border-radius:0!important;padding:0!important;overflow:visible!important;
+}
+.topbar .brand .logo > img,.topbar .brand .logo .salon-unified-logo {
+ display:block!important;width:100%!important;height:100%!important;
+ object-fit:contain!important;object-position:center!important;
+ padding:0!important;background:none!important;border:none!important;
+ border-radius:0!important;box-shadow:none!important;filter:none!important;
+}
+/* Logos inside the owner sidebar also have no decorative pink tile. */
+.owner-sidebar .salon-side-logo,.owner-sidebar .salon-side-logo img {background:transparent!important;border:0!important;box-shadow:none!important}
+.salon-login-support{margin-top:14px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+ background:#fff9fb;color:var(--ink);font-size:13px;line-height:1.8}
+.salon-login-support strong{display:block;font-weight:700;margin-bottom:7px}
+.salon-login-support .row{gap:12px;align-items:center}
+.salon-support-link{font-size:15px;font-weight:750;letter-spacing:.3px;color:var(--plum);text-decoration:underline;text-underline-offset:3px}
+@media(max-width:760px){.topbar .brand .logo,.topbar .brand .logo.salon-logo-holder{
+ width:56px!important;height:65px!important;min-width:56px!important}}
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -422,14 +448,32 @@ function salonClientAuthMessage(error,usingEmail){
  const code=String(error?.code||'');
  if(['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-login-credentials'].includes(code)){
   return lang==='en'
-   ?(usingEmail?'The email and password did not match Firebase Authentication. Check the registered address or reset your password.':'The phone/password did not match. If your Firebase account uses an email, choose Email sign-in below. Do not create a duplicate account.')
-   :(usingEmail?'البريد وكلمة المرور غير متطابقين مع حساب Firebase. تحققي من البريد المسجل أو استخدمي استعادة كلمة المرور.':'رقم الجوال أو كلمة المرور غير متطابقين. إذا حسابك مسجل في Firebase ببريد إلكتروني، فعّلي «الدخول بالبريد». لا تنشئي حسابًا مكررًا.');
+   ?(usingEmail?'The email or password is incorrect. Please contact the salon if you need help.':'Unable to sign in with these details. Please contact the salon if you need help.')
+   :(usingEmail?'البريد أو كلمة المرور غير صحيحة. يرجى التواصل مع الصالون للمساعدة.':'تعذّر تسجيل الدخول بهذه البيانات. يرجى التواصل مع الصالون للمساعدة.');
  }
- if(code==='auth/too-many-requests')return lang==='en'?'Too many attempts; try again later.':'محاولات كثيرة. أعيدي المحاولة لاحقًا.';
+ if(code==='auth/too-many-requests')return lang==='en'?'Too many attempts; sign-in is temporarily blocked. Stop retrying and contact the salon if you need help.':'تم إيقاف محاولات الدخول مؤقتًا بسبب كثرة المحاولات. لا تكرري المحاولة الآن، ويرجى التواصل مع الصالون للمساعدة.';
  if(code==='auth/user-disabled')return lang==='en'?'Account disabled; contact the salon.':'هذا الحساب موقوف؛ تواصلي مع الصالون.';
  if(code==='auth/invalid-email')return lang==='en'?'Enter a valid email address.':'أدخلي بريدًا إلكترونيًا صحيحًا.';
  if(code==='permission-denied'||code==='firestore/permission-denied')return lang==='en'?'Could not read the client account; check Firestore permissions.':'تعذّر قراءة ملف العميلة؛ تحققي من صلاحيات Firestore.';
  return error?.message||String(error);
+}
+// Salon contact is distinct from the developer's contact shown in the footer.
+// The owner may change this number in Settings; the published catalog is used when already loaded.
+function salonContactDigits(){
+ const raw=String(portalCatalog?.settings?.whatsapp||db?.settings?.whatsapp||WA_NUMBER);
+ const digits=raw.replace(/\D/g,'');
+ if(/^05\d{8}$/.test(digits))return '966'+digits.slice(1);
+ if(/^5\d{8}$/.test(digits))return '966'+digits;
+ if(/^9665\d{8}$/.test(digits))return digits;
+ return String(WA_NUMBER).replace(/\D/g,'');
+}
+function salonContactDisplay(){
+ const digits=salonContactDigits();
+ return /^9665\d{8}$/.test(digits)?'+966 '+digits.slice(3,5)+' '+digits.slice(5,8)+' '+digits.slice(8):'+'+digits;
+}
+function salonLoginSupportMarkup(){
+ const ar=lang==='ar',number=salonContactDigits(),text=salonContactDisplay();
+ return `<div class="salon-login-support" id="salonLoginSupport" role="note"><strong>${ar?'هل تواجهين مشكلة في تسجيل الدخول؟ يرجى التواصل مع الصالون.':'Having trouble signing in? Please contact the salon.'}</strong><div class="row"><a class="salon-support-link" dir="ltr" href="tel:+${number}">${esc(text)}</a><a class="btn secondary small" target="_blank" rel="noopener noreferrer" href="https://wa.me/${number}">${ar?'واتساب الصالون':'Salon WhatsApp'}</a></div></div>`;
 }
 function portalLogin(role,register=false){
  portalRole=role;applyLang();$('#homeBtn').classList.remove('hidden');
@@ -441,9 +485,9 @@ function portalLogin(role,register=false){
  <div class="field full"><label id="salonIdentifierLabel">${client?(ar?'رقم الجوال':'Mobile number'):(ar?'البريد الإلكتروني':'Email')}</label><input id="salonPortalIdentifier" name="identifier" required ${client?'type="tel" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx"':'type="email" autocomplete="username" maxlength="254" placeholder="employee@example.com"'}></div>
  <div class="field full"><label>${t('password')}</label><input type="password" name="password" minlength="6" required autocomplete="${register?'new-password':'current-password'}"></div>
  <button class="btn full" type="submit">${register?t('createAccount'):t('login')}</button></form>
- ${client?`<div class="row" style="margin-top:12px"><button class="btn secondary small" onclick="portalLogin('client',${!register})">${register?(ar?'لدي حساب — تسجيل الدخول':'I have an account — log in'):(ar?'ليس لديك حساب؟ إنشاء حساب':'New client? Create account')}</button>${clientLogin?`<button class="btn outline small" id="salonClientResetPassword" type="button">${ar?'نسيت كلمة المرور؟':'Forgot password?'}</button>`:''}</div>`:''}
+ ${client?`<div class="row" style="margin-top:12px"><button class="btn secondary small" onclick="portalLogin('client',${!register})">${register?(ar?'لدي حساب — تسجيل الدخول':'I have an account — log in'):(ar?'ليس لديك حساب؟ إنشاء حساب':'New client? Create account')}</button></div>`:''}
  <p class="muted tiny">${client?(ar?'إذا سجلتِ سابقًا برقم الجوال، استخدمي الرقم وكلمة مرور الحساب نفسها. تسجيل الجوال هنا لا يرسل رمز SMS.':'If you originally registered by phone, use that phone and your original password. No SMS code is sent.'):(ar?'أنشأت المالكة حساب الموظفة في Firebase وربطته بالإيميل وUID.':'The owner links employee accounts using email and UID.')}</p>
- ${clientLogin?`<details class="salon-login-help"><summary>${ar?'عندي حساب وما يفتح — كيف أتأكد؟':'I have an account but cannot sign in'}</summary><p>${ar?'من Firebase Authentication ← Users تحققي من البريد المرتبط بالحساب. إذا كان بريدًا فعليًا، اختاري «الدخول بالبريد» أعلاه. أما الحساب المُنشأ بالجوال فيحتاج كلمة المرور الأصلية؛ لا تعيدي تسجيله حتى لا تتكرر الحسابات.':'In Firebase Authentication → Users, check the account email. For a real email, choose email sign-in. Phone-created accounts require their original password; do not duplicate them.'}</p></details>`:''}
+ ${!register?salonLoginSupportMarkup():''}
  <p id="portalError" role="alert" aria-live="polite" class="danger-text"></p></div>`;
  const form=$('#portalAuth'), emailToggle=$('#salonClientEmailMode'), identifier=form.elements.identifier;
  if(emailToggle)emailToggle.onchange=()=>{
@@ -454,21 +498,15 @@ function portalLogin(role,register=false){
    $('#salonIdentifierLabel').textContent=on?(ar?'البريد الإلكتروني المسجل في Firebase':'Email registered in Firebase'):(ar?'رقم الجوال':'Mobile number');
    $('#portalError').textContent='';
  };
- const reset=$('#salonClientResetPassword');
- if(reset)reset.onclick=async()=>{
-  const value=String(identifier.value||'').trim().toLowerCase();
-  const error=$('#portalError');
-  if(!emailToggle.checked||!/^\S+@\S+\.\S+$/.test(value)){
-   error.textContent=ar?'اختاري «الدخول بالبريد» واكتبي بريدًا حقيقيًا لاستعادة كلمة المرور. حسابات الجوال القديمة ذات البريد الداخلي لا تستقبل رسائل الاستعادة.':'Select email sign-in and enter a real email. Phone-only internal aliases cannot receive password reset email.';return;
-  }
-  if(value.endsWith('@users.nailqualitysalon.app')){
-   error.textContent=ar?'هذا البريد داخلي ولا يستقبل الرسائل. تواصلي مع إدارة الصالون لمساعدة الحساب، ولا تنشئي حسابًا آخر.':'This internal sign-in alias cannot receive email. Contact the salon for account help.';return;
-  }
-  reset.disabled=true;
-  try{await auth.sendPasswordResetEmail(value);error.textContent=ar?'إذا كان هذا البريد مسجلًا وقابلًا لاستقبال الرسائل، ستصلك رسالة لاستعادة كلمة المرور.':'If registered, a password reset email will arrive.'}
-  catch(e){error.textContent=salonClientAuthMessage(e,true)}
-  finally{reset.disabled=false}
- };
+ // Read the public catalog's published WhatsApp contact, if available.
+ // A network failure must never prevent showing the login form.
+ if(!register)firestore.collection('portal').doc('catalog').get().then(snap=>{
+   const number=String(snap.data()?.settings?.whatsapp||'').trim();
+   if(!snap.exists||!number||!/^\+?[0-9 ()-]{9,22}$/.test(number))return;
+   portalCatalog.settings={...(portalCatalog.settings||{}),whatsapp:number};
+   const help=document.getElementById('salonLoginSupport');
+   if(help)help.outerHTML=salonLoginSupportMarkup();
+ }).catch(()=>{});
  form.onsubmit=async e=>{
   e.preventDefault();loginInProgress=true;
   const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit]');
@@ -2001,8 +2039,9 @@ function showBrand(){
     const match=(card.getAttribute('onclick')||'').match(/portalLogin\('([^']+)'\)/);
     const type=match?.[1]||((card.getAttribute('onclick')||'').includes('renderOwnerLogin')?'owner':null);
     const icon=card.querySelector('.portal-icon');
-    if(icon && icon.classList.contains('salon-logo-holder')){
-      icon.textContent=iconByPortal[type]||'💗';
+    if(icon){
+      const expected=iconByPortal[type]||'💗';
+      if(icon.textContent.trim()!==expected || icon.querySelector('img'))icon.textContent=expected;
       icon.classList.remove('salon-logo-holder');
     }
   });
