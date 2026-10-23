@@ -497,6 +497,80 @@ function normalizeSaudiPhone(raw){
  throw Error(lang==='ar'?'أدخلي رقم جوال سعودي صحيح':'Enter a valid Saudi mobile number');
 }
 function clientAuthEmail(phone){return 'client'+normalizeSaudiPhone(phone)+'@users.nailqualitysalon.app'}
+// Recover a profile for an already-authenticated phone-based client.
+// The Firebase Authentication account stays untouched; never delete it to fix a missing profile.
+function salonClientPhoneFromAuthEmail(email){
+ const match=/^client(9665\d{8})@users\.nailqualitysalon\.app$/i.exec(String(email||''));
+ return match?'0'+match[1].slice(3):null;
+}
+function salonClientProfilePayload(user,phone,nameAr,nameEn){
+ return {
+  uid:user.uid,name:nameAr,nameAr,nameEn,phone:'+'+normalizeSaudiPhone(phone),
+  email:user.email,points:0,createdAt:firebase.firestore.FieldValue.serverTimestamp()
+ };
+}
+async function salonEnterClientProfile(profile){
+ portalUser=profile;
+ portalRole='client';
+ try{await loadPortalCatalog()}catch(err){
+  console.warn('Catalog unavailable',err);
+  portalCatalog={services:[],staff:[],settings:{homeServiceEnabled:false}};
+  toast(lang==='ar'?'تم الدخول لكن تعذّر تحميل الخدمات':'Signed in; services unavailable');
+ }
+ try{await loadPortalBookings()}catch(err){
+  console.warn('Bookings unavailable',err);portalBookings=[];
+  toast(lang==='ar'?'تم الدخول لكن تعذّر تحميل الحجوزات':'Signed in; bookings unavailable');
+ }
+ renderPortalClient();
+}
+function salonShowClientProfileRecovery(user,defaults={}){
+ const phone=salonClientPhoneFromAuthEmail(user?.email);
+ if(!phone||auth.currentUser?.uid!==user.uid){
+  toast(lang==='ar'?'لا يمكن إكمال هذا الحساب؛ تواصلي مع الصالون.':'Cannot complete this account; contact the salon.');
+  return;
+ }
+ portalRole='client';portalUser=null;
+ applyLang();$('#homeBtn').classList.remove('hidden');
+ const ar=lang==='ar';
+ const nameAr=esc(String(defaults.nameAr||'')),nameEn=esc(String(defaults.nameEn||''));
+ $('#app').innerHTML=`<section class="card" style="max-width:560px;margin:auto">
+  <h2>${ar?'إكمال بيانات حساب العميلة':'Complete client profile'}</h2>
+  <p class="notice">${ar?'حساب الدخول موجود بالفعل، لكن بيانات العميلة لم تكتمل في قاعدة البيانات. لا تحذفي الحساب ولا تنشئي حسابًا جديدًا؛ أكملي البيانات هنا.':'Your sign-in account exists but the client profile is incomplete. Do not delete it or create another account; complete your details here.'}</p>
+  <form id="salonClientRecoveryForm" class="form-grid">
+   <div class="field full"><label>${ar?'الاسم بالعربي':'Arabic name'}</label><input name="nameAr" dir="rtl" required maxlength="70" value="${nameAr}"></div>
+   <div class="field full"><label>${ar?'الاسم بالإنجليزي':'English name'}</label><input name="nameEn" dir="ltr" required maxlength="70" value="${nameEn}"></div>
+   <div class="field full"><label>${ar?'رقم الجوال المرتبط بالحساب':'Account mobile number'}</label><input name="phone" readonly dir="ltr" value="${phone}"></div>
+   <button class="btn full" type="submit">${ar?'حفظ البيانات والدخول':'Save profile and sign in'}</button>
+  </form>
+  <p class="danger-text" id="salonRecoveryError" role="alert" aria-live="polite"></p>
+  ${salonLoginSupportMarkup()}
+  <button class="btn secondary small" style="margin-top:10px" type="button" id="salonRecoverySignOut">${ar?'الخروج والعودة للدخول':'Sign out and return'}</button>
+ </section>`;
+ $('#salonRecoverySignOut').onclick=async()=>{try{await auth.signOut()}catch(e){console.warn(e)}portalLogin('client')};
+ $('#salonClientRecoveryForm').onsubmit=async(event)=>{
+  event.preventDefault();
+  const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+  if(button.disabled)return;
+  const fd=new FormData(form),arName=String(fd.get('nameAr')||'').trim(),enName=String(fd.get('nameEn')||'').trim();
+  if(!arName||!enName){$('#salonRecoveryError').textContent=ar?'أكملي الاسمين':'Enter both names';return}
+  button.disabled=true;loginInProgress=true;
+  try{
+   if(auth.currentUser?.uid!==user.uid||salonClientPhoneFromAuthEmail(user.email)!==phone)throw Error(ar?'تغيّرت جلسة الحساب، أعيدي تسجيل الدخول.':'Your session changed; sign in again.');
+   const ref=firestore.collection('clientProfiles').doc(user.uid);
+   // Read first: never overwrite existing points or bookings-linked details.
+   const existing=await ref.get();
+   if(!existing.exists)await ref.set(salonClientProfilePayload(user,phone,arName,enName));
+   const verified=await ref.get();
+   if(!verified.exists)throw Error(ar?'لم يتم حفظ ملف العميلة. يرجى التواصل مع الصالون.':'Client profile could not be saved. Contact the salon.');
+   await salonEnterClientProfile(verified.data());
+  }catch(error){
+   const node=$('#salonRecoveryError');
+   if(node)node.textContent=(error?.code==='permission-denied'||error?.code==='firestore/permission-denied')
+    ?(ar?'تعذّر إكمال الملف بسبب صلاحيات Firestore. يرجى التواصل مع الصالون ولا تحذفي حسابك.':'Firestore denied saving your profile. Please contact the salon; do not delete your account.')
+    :salonClientAuthMessage(error,false);
+  }finally{loginInProgress=false;if(button.isConnected)button.disabled=false}
+ };
+}
 function staffAuthEmail(username){
  const u=String(username||'').trim().toLowerCase();
  if(!/^[a-z0-9._-]{3,32}$/.test(u))throw Error(lang==='ar'?'اسم الحساب 3-32 حرفًا إنجليزيًا أو رقمًا':'Username must be 3-32 Latin letters, digits or ._-');
@@ -511,6 +585,7 @@ function salonClientAuthMessage(error,usingEmail){
    ?(usingEmail?'The email or password is incorrect. Please contact the salon if you need help.':'Unable to sign in with these details. Please contact the salon if you need help.')
    :(usingEmail?'البريد أو كلمة المرور غير صحيحة. يرجى التواصل مع الصالون للمساعدة.':'تعذّر تسجيل الدخول بهذه البيانات. يرجى التواصل مع الصالون للمساعدة.');
  }
+ if(code==='auth/email-already-in-use'||code==='salon/account-already-exists')return lang==='en'?'This mobile number already has an account. Sign in using your existing password; if you need help, contact the salon.':'رقم الجوال مسجل بحساب موجود. استخدمي تسجيل الدخول بكلمة مرور الحساب، وإذا واجهتك مشكلة تواصلي مع الصالون.';
  if(code==='auth/too-many-requests')return lang==='en'?'Too many attempts; sign-in is temporarily blocked. Stop retrying and contact the salon if you need help.':'تم إيقاف محاولات الدخول مؤقتًا بسبب كثرة المحاولات. لا تكرري المحاولة الآن، ويرجى التواصل مع الصالون للمساعدة.';
  if(code==='auth/user-disabled')return lang==='en'?'Account disabled; contact the salon.':'هذا الحساب موقوف؛ تواصلي مع الصالون.';
  if(code==='auth/invalid-email')return lang==='en'?'Enter a valid email address.':'أدخلي بريدًا إلكترونيًا صحيحًا.';
@@ -573,13 +648,40 @@ function portalLogin(role,register=false){
     if(!client)throw Error('إنشاء حساب الموظفة متاح للمالكة فقط');
     const nameAr=String(f.get('nameAr')||'').trim(),nameEn=String(f.get('nameEn')||'').trim();
     if(!nameAr||!nameEn||nameAr.length>70||nameEn.length>70)throw Error(ar?'اكتبي اسم العميلة بالعربي والإنجليزي':'Enter names in Arabic and English');
-    const cr=await auth.createUserWithEmailAndPassword(email,password);user=cr.user;
-    const profile={uid:user.uid,name:nameAr,nameAr,nameEn,phone:'+'+normalizeSaudiPhone(id),email:user.email,points:0,createdAt:firebase.firestore.FieldValue.serverTimestamp()};
-    await firestore.collection('clientProfiles').doc(user.uid).set(profile);portalUser=profile;
+    // If Authentication already knows this number, reuse the original UID after
+    // validating the password; do not create a duplicate or erase client history.
+    try{
+     const credential=await auth.createUserWithEmailAndPassword(email,password);
+     user=credential.user;
+    }catch(authError){
+     if(authError?.code!=='auth/email-already-in-use')throw authError;
+     try{user=(await auth.signInWithEmailAndPassword(email,password)).user}
+     catch(e){const duplicate=new Error(ar?'رقم الجوال مسجل بالفعل. اختاري تسجيل الدخول بكلمة مرور الحساب السابقة، أو تواصلي مع الصالون.':'Mobile already registered. Sign in with your existing password or contact the salon.');duplicate.code='salon/account-already-exists';throw duplicate}
+    }
+    const ref=firestore.collection('clientProfiles').doc(user.uid);
+    let snap=await ref.get();
+    if(!snap.exists){
+     try{await ref.set(salonClientProfilePayload(user,id,nameAr,nameEn))}
+     catch(saveError){
+      console.error('Firebase Auth account exists but profile save failed',saveError);
+      salonShowClientProfileRecovery(user,{nameAr,nameEn});
+      const message=$('#salonRecoveryError');
+      if(message)message.textContent=(saveError?.code==='permission-denied'||saveError?.code==='firestore/permission-denied')
+       ?(ar?'تم تسجيل الدخول لكن تعذر حفظ ملف العميلة بسبب صلاحيات Firestore. تواصلي مع الصالون ولا تحذفي الحساب.':'Signed in, but Firestore denied saving the client profile. Contact the salon; do not delete the account.')
+       :(ar?'تم إنشاء حساب الدخول لكن بيانات العميلة لم تُحفظ. أعيدي محاولة إكمالها هنا بدون إنشاء حساب جديد.':'Your login was created but your client profile was not saved. Complete the profile here without creating a new account.');
+      return;
+     }
+     snap=await ref.get();
+     if(!snap.exists){salonShowClientProfileRecovery(user,{nameAr,nameEn});return}
+    }
+    portalUser=snap.data();
    }else{
     const cr=await auth.signInWithEmailAndPassword(email,password);user=cr.user;
     const path=client?'clientProfiles':'employeeProfiles',snap=await firestore.collection(path).doc(user.uid).get();
-    if(!snap.exists)throw Error(client?(ar?'تم التعرف على حساب الدخول لكن ملف العميلة غير موجود في Firestore. تواصلي مع الصالون ولا تنشئي حسابًا جديدًا.':'Authentication succeeded, but no matching client profile was found. Contact the salon.'):(ar?'لم يُربط هذا الحساب بملف موظفة في الصالون.':'No linked employee profile found.'));
+    if(!snap.exists){
+     if(client){salonShowClientProfileRecovery(user);return}
+     throw Error(ar?'لم يُربط هذا الحساب بملف موظفة في الصالون.':'No linked employee profile found.');
+    }
     if(!client&&(snap.data().active!==true||snap.data().archived===true))throw Error(ar?'حساب الموظفة موقوف':'Employee account is inactive');
     if(!client&&String(snap.data().email||'').trim().toLowerCase()!==String(user.email||'').trim().toLowerCase())throw Error(ar?'إيميل الموظفة لا يطابق حساب Firebase المرتبط بالـUID':'Employee email does not match the linked UID');
     portalUser=snap.data();
@@ -928,6 +1030,12 @@ auth.onAuthStateChanged(async user=>{
   const client=await firestore.collection("clientProfiles").doc(user.uid).get();
   if(loginInProgress)return;
   if(client.exists){portalUser=client.data();portalRole="client";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Bookings unavailable',err);portalBookings=[]}renderPortalClient();return}
+  // Auth account may have survived a failed Firestore profile write.
+  // Let its real owner finish the profile instead of creating another Auth user.
+  if(salonClientPhoneFromAuthEmail(user.email)){
+   salonShowClientProfileRecovery(user);
+   return;
+  }
   const employee=await firestore.collection("employeeProfiles").doc(user.uid).get();
   if(loginInProgress)return;
   if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()===String(user.email||'').trim().toLowerCase()){portalUser=employee.data();portalRole="employee";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('تم الدخول، لكن تعذر جلب الحجوزات. تأكدي من نشر قواعد Firestore المرفقة.')}renderPortalEmployee();return}
@@ -2305,6 +2413,40 @@ publishPortalCatalog=async function(){
  }catch(err){console.error('Catalog publishing failed:',err);toast('تعذر تأكيد نشر الخدمات: '+(err.message||err));return false}
 };
 
+</script>
+
+<script id="salon-offers-visible-access">
+/* Visible entry points for scheduled promotions on desktop and mobile. */
+(function(){
+  const entryIndex=OWNER_MENU.findIndex(row=>row[0]==='offers');
+  if(entryIndex>=0){
+    const [entry]=OWNER_MENU.splice(entryIndex,1);
+    const cashierIndex=OWNER_MENU.findIndex(row=>row[0]==='cashier');
+    OWNER_MENU.splice(cashierIndex>=0?cashierIndex+1:0,0,entry);
+  }
+  const renderBeforeOffersShortcut=renderOwner;
+  renderOwner=function(tab=ownerActiveTab){
+    const result=renderBeforeOffersShortcut.apply(this,arguments);
+    if(tab==='services' && db.session?.type==='owner'){
+      const content=document.querySelector('#app .owner-content');
+      if(content && !content.querySelector('#salonOffersShortcut')){
+        const shortcut=document.createElement('div');
+        shortcut.id='salonOffersShortcut';
+        shortcut.setAttribute('role','group');
+        shortcut.setAttribute('aria-label','العروض والخصومات');
+        shortcut.style.cssText='display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:#fff6fa;border:1px solid #eac1d6;border-radius:14px;padding:14px 16px;margin:0 0 16px;color:#412c3a';
+        const description=document.createElement('span');
+        description.textContent='خصومات الخدمات المؤقتة: اختاري الخدمات والنسبة ومدة العرض.';
+        const open=document.createElement('button');
+        open.type='button';open.className='btn';open.textContent='فتح العروض والخصومات';
+        open.onclick=function(){ownerTab('offers')};
+        shortcut.append(description,open);
+        content.prepend(shortcut);
+      }
+    }
+    return result;
+  };
+})();
 </script>
 </body>
 </html>
