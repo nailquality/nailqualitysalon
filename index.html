@@ -305,7 +305,14 @@ function restoreBackup(){const file=$("#restoreFile").files[0];if(!file){toast(t
 function resetLocalData(){if(!confirm(t("resetWarn")))return;localStorage.removeItem(STORAGE_KEY);db=initialState();persist();localStorage.removeItem("qns_owner_pin");clearSession()}
 function ownerSettings(){if(db.session?.type!=="owner"){toast(t("noPermission"));return}$("#modalRoot").innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-box"><div class="spread"><h2>${esc(t("adminSettings"))}</h2><button class="btn secondary small" onclick="closeModal()">✕</button></div><form id="settingsForm" class="form-grid"><div class="field full"><label>${esc(t("businessName"))}</label><input name="salonName" value="${esc(db.settings.salonName)}" required></div><div class="field full"><label>WhatsApp</label><input name="whatsapp" value="${esc(db.settings.whatsapp||WA_NUMBER)}" required></div><div class="field full"><label class="checkline"><input type="checkbox" name="homeServiceEnabled" ${db.settings.homeServiceEnabled===true?"checked":""}> تفعيل خيار الخدمة المنزلية في واجهة العميلة</label><small>الخدمة المنزلية مخفية عن العميلات افتراضيًا إلى أن تفعّليها. داخل الصالون متاح دائمًا.</small></div><button class="btn full">${esc(t("saveSettings"))}</button></form></div></div>`;$("#settingsForm").addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(e.currentTarget);db.settings.salonName=String(fd.get("salonName")).trim();db.settings.whatsapp=String(fd.get("whatsapp")).replace(/\D/g,"");db.settings.homeServiceEnabled=fd.get("homeServiceEnabled")==="on";persist();closeModal();renderOwner(ownerActiveTab);toast(t("saved"))})}
 function renderApp(){if(!db.session){renderHome();return}if(db.session.type==="owner")renderOwner(ownerActiveTab);else if(db.session.type==="client")renderClient();else if(db.session.type==="employee")renderEmployee();else renderHome()}
-$("#langBtn").addEventListener("click",()=>{lang=lang==="ar"?"en":"ar";localStorage.setItem("qns_lang",lang);renderApp()});
+$("#langBtn").addEventListener("click",()=>{
+ lang=lang==="ar"?"en":"ar";
+ localStorage.setItem("qns_lang",lang);
+ if(db.session?.type==="owner")renderApp();
+ else if(auth.currentUser&&portalUser&&portalRole==="employee")renderPortalEmployee();
+ else if(auth.currentUser&&portalUser&&portalRole==="client")renderPortalClient();
+ else renderApp();
+});
 $("#homeBtn").addEventListener("click",()=>{clearSession()});
 
 /* مساعد المالكة المحلي: تحليل بيانات فعلية وإدخال فواتير نصية بمراجعة بشرية. */
@@ -839,7 +846,7 @@ function addCatalogPublishShortcut(){
  box.append(button);document.querySelector('#app').prepend(box);
 }
 const salonOriginalRenderOwner=renderOwner;
-renderOwner=function(tab=ownerActiveTab){salonOriginalRenderOwner(tab);if(db.session?.type==='owner'){if(tab==='dashboard'||tab==='services')addCatalogPublishShortcut();const b=document.createElement('button');b.className='btn secondary';b.style.margin='12px 0';b.textContent='🎨 تخصيص التصميم';b.onclick=openSalonThemeSettings;document.querySelector('#app').append(b)}syncSalonTheme()};
+renderOwner=function(tab=ownerActiveTab){salonOriginalRenderOwner(tab);if(db.session?.type==='owner'){if(tab==='dashboard')addCatalogPublishShortcut();const b=document.createElement('button');b.className='btn secondary';b.style.margin='12px 0';b.textContent='🎨 تخصيص التصميم';b.onclick=openSalonThemeSettings;document.querySelector('#app').append(b)}syncSalonTheme()};
 const salonOriginalRenderHome=renderHome;
 renderHome=function(){salonOriginalRenderHome();syncSalonTheme()};
 const salonOriginalPortalClient=renderPortalClient;
@@ -965,13 +972,21 @@ let salonPublishedStaffSignature=JSON.stringify((db.staff||[]).map(s=>[s.id,s.na
 let salonStaffPublishTimer=null;
 const salonStaffOriginalPersist=persist;
 persist=function(){
- salonStaffOriginalPersist();
- if(db.session?.type!=='owner'||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')return;
+ // Preserve the real Firestore write result for package/service/account editors.
+ // The old wrapper discarded the Promise and falsely reported failed saves.
+ const saveResult=salonStaffOriginalPersist();
+ if(db.session?.type!=='owner'||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')return saveResult;
  const signature=JSON.stringify((db.staff||[]).map(s=>[s.id,s.name,s.active!==false,s.authUid||'']));
- if(signature===salonPublishedStaffSignature)return;
+ if(signature===salonPublishedStaffSignature)return saveResult;
  salonPublishedStaffSignature=signature;
  if(salonStaffPublishTimer)clearTimeout(salonStaffPublishTimer);
- salonStaffPublishTimer=setTimeout(async()=>{const ok=await publishPortalCatalog();if(!ok)toast('تعذر تحديث الموظفات للعميلات؛ استخدمي زر نشر الخدمات والموظفات')},800);
+ salonStaffPublishTimer=setTimeout(async()=>{
+  const saved=await saveResult;
+  if(saved===false){toast('تعذر حفظ الموظفات؛ لن ننشر بيانات غير محفوظة');return}
+  const ok=await publishPortalCatalog();
+  if(!ok)toast('تعذر تحديث الموظفات للعميلات؛ استخدمي زر نشر الخدمات والموظفات');
+ },800);
+ return saveResult;
 };
 </script>
 
@@ -1577,8 +1592,20 @@ function watchEmployeeBookings(){
 }
 renderPortalEmployee=function(){
  applyLang();document.querySelector('#homeBtn')?.classList.remove('hidden');
+ const en=lang==='en';
+ const tr=(ar,eng)=>en?eng:ar;
+ const statusWords={
+  pending:tr('بانتظار تأكيد المالكة','Awaiting owner confirmation'),
+  confirmed:tr('تم تأكيد الحجز','Booking confirmed'),
+  arrived:tr('وصلت العميلة','Client arrived'),
+  inProgress:tr('بدأت الخدمة','Service started'),
+  started:tr('بدأت الخدمة','Service started'),
+  completed:tr('تم الانتهاء','Service completed'),
+  cancelled:tr('ملغي','Cancelled'),
+  noShow:tr('لم تحضر','No-show')
+ };
  if(!employeeVerified()){
-  document.querySelector('#app').innerHTML='<div class="card"><h3>حساب الموظفة غير مفعل</h3><p>تأكدي من الربط بالإيميل وUID لدى المالكة.</p><button type="button" class="btn" id="employeeLogout">تسجيل الخروج</button></div>';
+  document.querySelector('#app').innerHTML=`<div class="card"><h3>${tr('حساب الموظفة غير مفعل','Employee account inactive')}</h3><p>${tr('تأكدي من الربط بالإيميل وUID لدى المالكة.','Ask the owner to verify your email and UID link.')}</p><button type="button" class="btn" id="employeeLogout">${t('logout')}</button></div>`;
   document.querySelector('#employeeLogout').onclick=clearSession;return;
  }
  const p=portalUser,rights=p.permissions||{},account=myUid();
@@ -1586,35 +1613,45 @@ renderPortalEmployee=function(){
  const todays=myBookings.filter(b=>b.date===today()&&!['cancelled','noShow'].includes(b.status));
  const pending=myBookings.filter(b=>!['completed','cancelled','noShow'].includes(b.status)&&b.date!==today());
  const history=myBookings.filter(b=>['completed','cancelled','noShow'].includes(b.status)&&b.date!==today()).slice(-40).reverse();
+ const serviceLabel=b=>{
+  const ids=Array.isArray(b.serviceIds)?b.serviceIds:[];
+  if(en&&ids.length){
+   const catalog=portalCatalog.services||[];
+   const translated=ids.map(id=>catalog.find(s=>String(s.id)===String(id)));
+   if(translated.every(Boolean))return translated.map(s=>s.nameEn||s.name).join(', ');
+  }
+  return b.serviceName||'—';
+ };
  const card=b=>{
-  const stage=b.status||'pending',name=b.clientName||'غير مسجل',nameEn=b.clientNameEn||'',phone=b.clientPhone||'';
+  const stage=b.status||'pending',name=b.clientName||tr('غير مسجل','Not recorded'),nameEn=b.clientNameEn||'',phone=b.clientPhone||'';
   const next=stage==='confirmed'?'arrived':stage==='arrived'?'inProgress':stage==='inProgress'?'completed':null;
-  const label=next==='arrived'?'وصلت العميلة':next==='inProgress'?'بدء الخدمة':'تم الانتهاء من الخدمة';
-  return `<article class="employee-booking-card"><div class="spread"><strong>${esc(b.date||'')} — ${esc(b.time||'')}</strong><span class="badge ${stage==='completed'?'green':stage==='confirmed'?'green':''}">${esc(statusNames[stage]||stage)}</span></div>
-   <p><b>اسم العميلة بالعربي:</b> ${esc(name)}</p>
-   <p><b>اسم العميلة بالإنجليزي:</b> <span dir="ltr">${esc(nameEn||'غير مسجل للحجوزات القديمة')}</span></p>
-   <p><b>رقم الجوال:</b> <span dir="ltr">${esc(phone||'غير متوفر')}</span></p>
-   <p><b>الخدمات:</b> ${esc(b.serviceName||'—')}</p><p><b>المكان:</b> ${b.location==='home'?'خدمة منزلية':'داخل الصالون'}</p>
-   ${b.notes?`<p><b>ملاحظات:</b> ${esc(b.notes)}</p>`:''}
+  const label=next==='arrived'?tr('وصلت العميلة','Client arrived'):next==='inProgress'?tr('بدء الخدمة','Start service'):tr('تم الانتهاء من الخدمة','Complete service');
+  return `<article class="employee-booking-card"><div class="spread"><strong>${esc(b.date||'')} — ${esc(b.time||'')}</strong><span class="badge ${stage==='completed'?'green':stage==='confirmed'?'green':''}">${esc(statusWords[stage]||stage)}</span></div>
+   <p><b>${tr('اسم العميلة بالعربي:','Client name (Arabic):')}</b> ${esc(name)}</p>
+   <p><b>${tr('اسم العميلة بالإنجليزي:','Client name (English):')}</b> <span dir="ltr">${esc(nameEn||tr('غير مسجل للحجوزات القديمة','Not recorded for this booking'))}</span></p>
+   <p><b>${tr('رقم الجوال:','Mobile number:')}</b> <span dir="ltr">${esc(phone||tr('غير متوفر','Not available'))}</span></p>
+   <p><b>${tr('الخدمات:','Services:')}</b> ${esc(serviceLabel(b))}</p><p><b>${tr('المكان:','Location:')}</b> ${tr(b.location==='home'?'خدمة منزلية':'داخل الصالون',b.location==='home'?'Home service':'At the salon')}</p>
+   ${b.notes?`<p><b>${tr('ملاحظات:','Notes:')}</b> ${esc(b.notes)}</p>`:''}
    ${next?`<div class="row"><button type="button" class="btn ${next==='completed'?'success':''}" data-employee-booking="${esc(b.id)}" data-employee-next="${next}">${label}</button></div>`:''}</article>`;
  };
- document.querySelector('#app').innerHTML=`${headerPanel('بوابة الموظفة',p.name||'')}
-  <section id="employeeBookingBoard"><div class="stats"><div class="stat"><span>حجوزات اليوم</span><strong>${todays.length}</strong></div><div class="stat"><span>الحجوزات النشطة</span><strong>${myBookings.filter(b=>!['completed','cancelled','noShow'].includes(b.status)).length}</strong></div>${rights.ownSalary===true?`<div class="stat"><span>الراتب</span><strong>${p.salaryVisible===true?money(p.salary):'غير محدد'}</strong></div>`:''}</div>
-  <p class="notice ${bookingIssue?'bad':'good'}" id="employeeBookingError" role="status">${esc(bookingIssue||'تظهر الحجوزات تلقائيًا عند تأكيدها من المالكة.')}</p>
-  <div class="section-head"><h3>حجوزات اليوم</h3></div>${todays.map(card).join('')||'<p class="empty">لا توجد حجوزات لهذا اليوم</p>'}
-  <div class="section-head"><h3>الحجوزات القادمة والمعلقة</h3></div>${pending.map(card).join('')||'<p class="empty">لا توجد حجوزات قادمة أو معلقة</p>'}
-  <div class="section-head"><h3>الحجوزات السابقة المكتملة</h3></div>${history.map(card).join('')||'<p class="empty">لا توجد حجوزات مكتملة سابقة</p>'}
-  <div class="row"><button type="button" class="btn secondary" id="refreshEmployeeBookings">تحديث الحجوزات</button><button type="button" class="btn danger" id="employeeLogout">تسجيل الخروج</button></div>
-  ${rights.leaveRequest!==false?`<section class="card" style="margin-top:14px"><h3>طلب إجازة أو تبديل وردية</h3><form id="employeeRequestForm" class="form-grid"><div class="field"><label>نوع الطلب</label><select name="type"><option value="leave">إجازة</option><option value="shift">تبديل وردية</option></select></div><div class="field"><label>التاريخ</label><input name="date" type="date" min="${today()}" required></div><div class="field full"><label>ملاحظات</label><textarea name="notes" maxlength="300"></textarea></div><button type="submit" class="btn full">إرسال الطلب</button></form></section>`:''}
+ const notice=bookingIssue?(en&&bookingIssue.includes('قواعد Firestore')?'Please publish the Firestore rules allowing employees to view their assigned bookings.':bookingIssue):tr('تظهر الحجوزات تلقائيًا عند تأكيدها من المالكة.','Bookings appear automatically when confirmed by the owner.');
+ document.querySelector('#app').innerHTML=`${headerPanel(t('employeePortal'),p.name||'')}
+  <section id="employeeBookingBoard"><div class="stats"><div class="stat"><span>${tr('حجوزات اليوم',"Today's bookings")}</span><strong>${todays.length}</strong></div><div class="stat"><span>${tr('الحجوزات النشطة','Active bookings')}</span><strong>${myBookings.filter(b=>!['completed','cancelled','noShow'].includes(b.status)).length}</strong></div>${rights.ownSalary===true?`<div class="stat"><span>${tr('الراتب','Salary')}</span><strong>${p.salaryVisible===true?money(p.salary):tr('غير محدد','Not set')}</strong></div>`:''}</div>
+  <p class="notice ${bookingIssue?'bad':'good'}" id="employeeBookingError" role="status">${esc(notice)}</p>
+  <div class="section-head"><h3>${tr('حجوزات اليوم',"Today's bookings")}</h3></div>${todays.map(card).join('')||`<p class="empty">${tr('لا توجد حجوزات لهذا اليوم','No bookings for today')}</p>`}
+  <div class="section-head"><h3>${tr('الحجوزات القادمة والمعلقة','Upcoming and pending bookings')}</h3></div>${pending.map(card).join('')||`<p class="empty">${tr('لا توجد حجوزات قادمة أو معلقة','No upcoming or pending bookings')}</p>`}
+  <div class="section-head"><h3>${tr('الحجوزات السابقة المكتملة','Previous completed bookings')}</h3></div>${history.map(card).join('')||`<p class="empty">${tr('لا توجد حجوزات مكتملة سابقة','No previous completed bookings')}</p>`}
+  <div class="row"><button type="button" class="btn secondary" id="refreshEmployeeBookings">${tr('تحديث الحجوزات','Refresh bookings')}</button><button type="button" class="btn danger" id="employeeLogout">${t('logout')}</button></div>
+  ${rights.leaveRequest!==false?`<section class="card" style="margin-top:14px"><h3>${tr('طلب إجازة أو تبديل وردية','Leave or shift-change request')}</h3><form id="employeeRequestForm" class="form-grid"><div class="field"><label>${tr('نوع الطلب','Request type')}</label><select name="type"><option value="leave">${tr('إجازة','Leave')}</option><option value="shift">${tr('تبديل وردية','Shift change')}</option></select></div><div class="field"><label>${t('date')}</label><input name="date" type="date" min="${today()}" required></div><div class="field full"><label>${t('notes')}</label><textarea name="notes" maxlength="300"></textarea></div><button type="submit" class="btn full">${tr('إرسال الطلب','Submit request')}</button></form></section>`:''}
   </section>`;
  const root=document.querySelector('#employeeBookingBoard');
- root.onclick=e=>{const b=e.target.closest('button[data-employee-next]');if(b)setEmployeeBookingStatus(b.dataset.employeeBooking,b.dataset.employeeNext,b)};
- root.querySelector('#refreshEmployeeBookings').onclick=async()=>{try{await loadPortalBookings();renderPortalEmployee();toast('تم تحديث حجوزاتك')}catch(err){bookingIssue=err.code==='permission-denied'?'تحققي من نشر قواعد Firestore الجديدة':String(err.message||err);renderPortalEmployee()}};
+ root.onclick=e=>{const btn=e.target.closest('button[data-employee-next]');if(btn)setEmployeeBookingStatus(btn.dataset.employeeBooking,btn.dataset.employeeNext,btn)};
+ root.querySelector('#refreshEmployeeBookings').onclick=async()=>{try{await loadPortalBookings();renderPortalEmployee();toast(tr('تم تحديث حجوزاتك','Bookings refreshed'))}catch(err){bookingIssue=err.code==='permission-denied'?tr('تحققي من نشر قواعد Firestore الجديدة','Check the new Firestore rules'):String(err.message||err);renderPortalEmployee()}};
  root.querySelector('#employeeLogout').onclick=clearSession;
  const f=root.querySelector('#employeeRequestForm');if(f)f.onsubmit=async e=>{
-  e.preventDefault();const d=new FormData(f),b=f.querySelector('button[type=submit]');b.disabled=true;
-  try{await firestore.collection('staffRequests').add({employeeUid:account,employeeName:String(p.name||''),type:String(d.get('type')),date:String(d.get('date')),notes:String(d.get('notes')||''),status:'pending',createdAt:firebase.firestore.FieldValue.serverTimestamp()});f.reset();toast('تم حفظ الطلب')}
-  catch(err){toast('تعذر إرسال الطلب: '+err.message)}finally{if(b.isConnected)b.disabled=false}
+  e.preventDefault();const d=new FormData(f),btn=f.querySelector('button[type=submit]');btn.disabled=true;
+  try{await firestore.collection('staffRequests').add({employeeUid:account,employeeName:String(p.name||''),type:String(d.get('type')),date:String(d.get('date')),notes:String(d.get('notes')||''),status:'pending',createdAt:firebase.firestore.FieldValue.serverTimestamp()});f.reset();toast(tr('تم حفظ الطلب','Request submitted'))}
+  catch(err){toast(tr('تعذر إرسال الطلب: ','Could not submit request: ')+err.message)}finally{if(btn.isConnected)btn.disabled=false}
  };
  try{if(typeof syncSalonTheme==='function')syncSalonTheme()}catch(e){console.warn('Theme:',e)}
  watchEmployeeBookings();
@@ -1623,11 +1660,11 @@ setEmployeeBookingStatus=async function(id,next,button){
  if(!employeeVerified()||!['arrived','inProgress','completed'].includes(next))return;
  const item=(portalBookings||[]).find(b=>String(b.id)===String(id)&&String(b.staffUid)===myUid());
  const transitions={confirmed:'arrived',arrived:'inProgress',inProgress:'completed'};
- if(!item||transitions[item.status]!==next){toast('تسلسل مراحل الخدمة غير صحيح؛ حدّثي حجوزاتك.');return}
- if(next==='completed'&&!confirm('تأكيد انتهاء الخدمة؟'))return;
+ if(!item||transitions[item.status]!==next){toast(lang==='en'?'Invalid status sequence. Refresh your bookings.':'تسلسل مراحل الخدمة غير صحيح؛ حدّثي حجوزاتك.');return}
+ if(next==='completed'&&!confirm(lang==='en'?'Confirm service completion?':'تأكيد انتهاء الخدمة؟'))return;
  if(button)button.disabled=true;
- try{await bookingRef.doc(id).update({status:next});await loadPortalBookings();renderPortalEmployee();toast('تم حفظ حالة الحجز')}
- catch(err){toast('تعذر تحديث الحجز: '+(err.code==='permission-denied'?'تحتاجين نشر قواعد Firestore الجديدة.':err.message));if(button?.isConnected)button.disabled=false}
+ try{await bookingRef.doc(id).update({status:next});await loadPortalBookings();renderPortalEmployee();toast(lang==='en'?'Booking status saved':'تم حفظ حالة الحجز')}
+ catch(err){toast((lang==='en'?'Could not update booking: ':'تعذر تحديث الحجز: ')+(err.code==='permission-denied'?(lang==='en'?'Publish the updated Firestore rules.':'تحتاجين نشر قواعد Firestore الجديدة.'):err.message));if(button?.isConnected)button.disabled=false}
 };
 // The owner may confirm only appointments assigned to a Firebase-linked active employee.
 window.ownerConfirmSavedBooking=async function(id){
@@ -1770,6 +1807,146 @@ async function employeeAccountAction(id,action,button,data){
  }catch(e){toast('تعذر تحديث الحساب: '+(e.message||e))}finally{if(button?.isConnected)button.disabled=false}
 }
 })();
+</script>
+<style>
+/* Unified salon logos and owner-managed booking packages */
+.brand .logo.salon-logo-holder{background:rgba(255,255,255,.14);padding:3px;overflow:hidden}
+.salon-unified-logo{width:100%;height:100%;max-width:100%;object-fit:contain;display:block}
+.hero-art.salon-logo-holder{width:112px;height:112px;min-width:85px;display:grid;place-items:center;filter:none}
+.hero-art .salon-unified-logo{width:112px;height:112px;max-width:100%;filter:drop-shadow(0 5px 12px #813c5a21)}
+.portal-icon.salon-logo-holder{padding:4px;background:#f8e6ef}
+.portal-icon .salon-unified-logo{width:100%;height:100%;object-fit:contain}
+.salon-package-services{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:350px;overflow-y:auto;padding:7px;border:1px solid var(--line);border-radius:12px}
+.salon-package-service{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
+.salon-package-service small{display:block;color:var(--muted);margin-top:5px;font-size:11px}
+.salon-package-service input{width:68px;min-width:58px;padding:7px;border:1px solid var(--line);border-radius:8px;text-align:center}
+.salon-package-list,.salon-public-packages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:15px}
+.salon-package-tile,.salon-public-package{background:linear-gradient(125deg,var(--bundle-color),#fff 75%);border:1px solid var(--bundle-color);padding:16px;border-radius:16px;min-width:0}
+.salon-package-tile h3,.salon-public-package h3{margin:0 0 8px}
+.salon-package-tile p,.salon-public-package p{overflow-wrap:anywhere}
+.salon-package-line{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.salon-package-tile .row{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+.salon-package-tile .row button{font-size:12px}
+@media(max-width:700px){.salon-package-services,.salon-package-list,.salon-public-packages{grid-template-columns:1fr}.hero-art.salon-logo-holder,.hero-art .salon-unified-logo{width:75px;height:75px}}
+
+</style>
+<script>
+/* Unified packages manager, no duplicated owner subnavigation, and a consistent brand. */
+(function(){
+'use strict';
+const OWNER_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+const isOwner=()=>db.session?.type==='owner'&&auth.currentUser?.uid===OWNER_UID&&firebaseReady;
+const validHex=s=>/^#[0-9a-fA-F]{6}$/.test(String(s||''))?String(s):'#d787ad';
+const packages=()=>Array.isArray(db.packages)?db.packages:(db.packages=[]);
+const labels=(ar,en)=>lang==='en'?en:ar;
+const baseService=id=>(db.services||[]).find(s=>String(s.id)===String(id));
+const cleanName=x=>String(x||'').trim().slice(0,75);
+const packageServiceId=id=>'bundle_'+String(id).replace(/[^a-zA-Z0-9_-]/g,'');
+function contents(b){return (b.items||[]).map(i=>{
+ const s=baseService(i.serviceId);return s?{...i,name:s.name||'',nameEn:s.nameEn||s.name||'',price:Number(s.price)||0,duration:Number(s.duration)||30}:null;
+}).filter(Boolean)}
+function calculated(b){const rows=contents(b);return {rows,duration:rows.reduce((n,x)=>n+Math.max(1,Number(x.quantity)||1)*x.duration,0),retail:rows.reduce((n,x)=>n+Math.max(1,Number(x.quantity)||1)*x.price,0)}}
+function publicPackage(b){const x=calculated(b),included=x.rows.map(r=>`${r.name} ×${r.quantity}`).join('، ');
+ return {id:packageServiceId(b.id),name:(/^باقة\s/.test(b.nameAr)?b.nameAr:'باقة '+b.nameAr)+(included?' | '+included:''),nameEn:(b.nameEn||b.nameAr)+(x.rows.length?' | '+x.rows.map(r=>`${r.nameEn} x${r.quantity}`).join(', '):''),price:Number(b.price),duration:Math.max(1,x.duration),active:b.active!==false,isPackage:true,packageId:b.id,packageColor:validHex(b.color),packageDetails:included,packageDescription:b.description||'',loyaltyPoints:0,imageUrl:''};}
+function packageForm(b){const editing=Boolean(b);const current=b||{nameAr:'',nameEn:'',description:'',price:'',color:'#d787ad',active:true,items:[]};
+ const all=(db.services||[]).filter(s=>s.active!==false||current.items.some(i=>String(i.serviceId)===String(s.id)));
+ return `<section class="card salon-package-editor"><h2>${editing?'تعديل الباقة':'إنشاء باقة جديدة'}</h2>
+ <form id="salonPackageForm" class="form-grid">
+ <div class="field"><label>اسم الباقة بالعربي</label><input name="nameAr" maxlength="65" value="${esc(current.nameAr)}" required placeholder="مثال: باقة العناية الملكية"></div>
+ <div class="field"><label>اسم الباقة بالإنجليزي</label><input name="nameEn" maxlength="65" value="${esc(current.nameEn||'')}" required placeholder="Royal Care Package"></div>
+ <div class="field full"><label>وصف الباقة (اختياري)</label><textarea name="description" maxlength="350">${esc(current.description||'')}</textarea></div>
+ <div class="field"><label>سعر الباقة النهائي (ر.س)</label><input type="number" name="price" min="0" max="100000" step="0.01" required value="${esc(String(current.price??''))}"></div>
+ <div class="field"><label>لون بطاقة الباقة</label><input type="color" name="color" value="${validHex(current.color)}" style="width:100%;height:44px;cursor:pointer"></div>
+ <div class="field full"><label class="checkline"><input name="active" type="checkbox" ${current.active!==false?'checked':''}> نشطة وتظهر للعميلات</label></div>
+ <div class="field full"><h3>الخدمات داخل الباقة</h3><p class="muted tiny">حددي عدد كل خدمة داخل الباقة (من 0 إلى 10)، والسعر النهائي تختارينه أنتِ.</p>
+ <div class="salon-package-services">${all.map(s=>{
+ const it=(current.items||[]).find(x=>String(x.serviceId)===String(s.id));
+ return `<label class="salon-package-service"><span><b>${esc(s.name)}</b><small>${money(s.price)} · ${Number(s.duration)||30} دقيقة${s.active===false?' · خدمة مخفية':''}</small></span><input data-salon-service="${esc(s.id)}" type="number" min="0" max="10" step="1" value="${it?.quantity||0}" aria-label="عدد ${esc(s.name)}"></label>`}).join('')}</div>
+ <p id="salonPackagePreview" class="muted tiny"></p></div>
+ <div class="field full"><div class="row"><button type="submit" class="btn" id="salonPackageSave">${editing?'حفظ تعديلات الباقة':'إضافة الباقة ونشرها'}</button>${editing?'<button type="button" class="btn secondary" onclick="salonResetPackageEditor()">إلغاء التعديل</button>':''}</div></div>
+ </form></section>`}
+function packageList(){const all=packages();return `<section class="card"><h2>باقات الصالون (${all.length})</h2><p class="muted">كل باقة مستقلة عن الخدمات العادية، ويمكن تعديل سعرها ولونها أو إخفاؤها أو حذفها. حذف الباقة لا يحذف الحجوزات والفواتير القديمة.</p>
+ <div class="salon-package-list">${all.length?all.map(b=>{const x=calculated(b);return `<article class="salon-package-tile" style="--bundle-color:${validHex(b.color)}"><div class="salon-package-line"><strong>${esc(b.nameAr)}</strong><span>${b.active!==false?'نشطة':'مخفية'}</span></div><small>${esc(b.nameEn||'')}</small><p>${esc(b.description||'')}</p><p>${esc(x.rows.map(i=>`${i.name} × ${i.quantity}`).join(' + ')||'الخدمات غير متوفرة')}</p><div class="salon-package-line"><b>${money(Number(b.price)||0)}</b><small>${x.duration} دقيقة · مجموع الخدمات منفردة: ${money(x.retail)}</small></div>
+ <div class="row"><button class="btn secondary small" type="button" onclick="salonEditPackage('${esc(b.id)}')">تعديل</button><button class="btn secondary small" type="button" onclick="salonTogglePackage('${esc(b.id)}')">${b.active!==false?'إخفاء':'إظهار'}</button><button class="btn danger small" type="button" onclick="salonDeletePackage('${esc(b.id)}')">حذف</button></div></article>`}).join(''):'<p class="muted">ما فيه باقات حاليًا. أضيفي أول باقة من النموذج.</p>'}</div></section>`}
+let editingId=null;
+function renderPackages(){const host=document.querySelector('#app');if(!host)return;const item=packages().find(b=>b.id===editingId)||null;ownerActiveTab='packages';host.innerHTML=ownerLayout('packages',`<div class="section-head"><h2>إدارة الباقات</h2></div>${packageForm(item)}${packageList()}`);changeOwnerAccent(ownerThemeColor());bindPackageForm();showBrand();}
+function bindPackageForm(){const f=document.querySelector('#salonPackageForm');if(!f)return;
+ const preview=()=>{let total=0,time=0,count=0;f.querySelectorAll('[data-salon-service]').forEach(el=>{const s=baseService(el.dataset.salonService),q=Number(el.value)||0;if(s&&q>0){count+=q;total+=q*(Number(s.price)||0);time+=q*(Number(s.duration)||30)}});const p=f.querySelector('#salonPackagePreview');if(p)p.textContent=`عدد الخدمات داخل الباقة: ${count} · مجموع الأسعار المنفردة: ${money(total)} · المدة: ${time} دقيقة`};
+ f.querySelectorAll('[data-salon-service]').forEach(el=>el.addEventListener('input',preview));preview();
+ f.addEventListener('submit',async e=>{e.preventDefault();if(!isOwner()){toast('غير مصرح');return}
+ const form=new FormData(f),nameAr=cleanName(form.get('nameAr')),nameEn=cleanName(form.get('nameEn')),price=Number(form.get('price'));
+ const items=[];for(const el of f.querySelectorAll('[data-salon-service]')){const q=Number(el.value);if(!Number.isInteger(q)||q<0||q>10){toast('العدد لكل خدمة يجب أن يكون بين 0 و10');return}if(q>0)items.push({serviceId:el.dataset.salonService,quantity:q})}
+ if(!nameAr||!nameEn||nameAr.length>65||nameEn.length>65||!Number.isFinite(price)||price<0||price>100000||!items.length){toast('راجعي اسم الباقة والسعر واختاري خدمة واحدة على الأقل');return}
+ const button=f.querySelector('#salonPackageSave');button.disabled=true;
+ const before=JSON.parse(JSON.stringify(packages()));const id=editingId||uid('pkg');const obj={id,nameAr,nameEn,description:String(form.get('description')||'').trim().slice(0,350),price,color:validHex(form.get('color')),active:form.has('active'),items,updatedAt:new Date().toISOString()};
+ if(editingId){const i=db.packages.findIndex(x=>x.id===editingId);if(i<0){toast('الباقة غير موجودة');button.disabled=false;return}db.packages[i]={...db.packages[i],...obj}}else db.packages.push({...obj,createdAt:new Date().toISOString()});
+ try{const ok=await persist();if(!ok)throw Error('تعذر حفظ بيانات الباقة في Firebase');editingId=null;renderPackages();const published=await publishPortalCatalog();toast(published?'تم حفظ الباقة ونشرها للعميلات':'تم حفظ الباقة ولكن تعذر نشرها للعميلات؛ استخدمي زر إعادة النشر');}
+ catch(err){db.packages=before;renderPackages();toast('تعذر الحفظ: '+(err.message||err))}
+ });}
+window.salonEditPackage=id=>{if(!isOwner())return;editingId=id;renderPackages();document.querySelector('.salon-package-editor')?.scrollIntoView({behavior:'smooth',block:'start'})};
+window.salonResetPackageEditor=()=>{editingId=null;renderPackages()};
+async function updatePackages(change){if(!isOwner())return;const before=JSON.parse(JSON.stringify(packages()));change();const ok=await persist();if(!ok){db.packages=before;renderPackages();toast('تعذر حفظ التغيير');return}renderPackages();const published=await publishPortalCatalog();toast(published?'تم تحديث الباقات لدى العميلات':'تم حفظ الباقات لكن فشل النشر للعميلات')}
+window.salonTogglePackage=async id=>{const p=packages().find(x=>x.id===id);if(!p)return;await updatePackages(()=>p.active=p.active===false)};
+window.salonDeletePackage=async id=>{const p=packages().find(x=>x.id===id);if(!p||!confirm(`حذف باقة «${p.nameAr}» من الإدارة وبوابة العميلات؟ ستبقى الحجوزات والفواتير القديمة محفوظة.`))return;await updatePackages(()=>{db.packages=db.packages.filter(x=>x.id!==id);if(editingId===id)editingId=null})};
+// Keep only one destination for each owner page, and keep backup inside Settings.
+const present=OWNER_MENU.findIndex(x=>x[0]==='packages');if(present<0){const at=OWNER_MENU.findIndex(x=>x[0]==='services');OWNER_MENU.splice(at<0?OWNER_MENU.length:at+1,0,['packages','الباقات','▣'])}
+for(let i=OWNER_MENU.length-1;i>=0;i--){if(OWNER_MENU[i][0]==='backup'||OWNER_MENU.findIndex(x=>x[0]===OWNER_MENU[i][0])!==i)OWNER_MENU.splice(i,1)}
+function removeDuplicateNavigation(){if(!isOwner())return;const content=document.querySelector('.owner-content');if(!content)return;
+ const known=new Set(OWNER_MENU.map(x=>x[0]));
+ content.querySelectorAll('.nav').forEach(nav=>{const btns=[...nav.querySelectorAll(':scope > button')];if(btns.length>=2&&btns.every(b=>{const id=(b.getAttribute('onclick')||'').match(/ownerTab\(['"]([^'"]+)/)?.[1];return id&&known.has(id)}))nav.remove()});
+ const seen=new Set();content.querySelectorAll(':scope > .card').forEach(card=>{const h=card.querySelector(':scope > h2,:scope > h3');if(!h)return;const key=h.textContent.trim()+'|'+card.querySelectorAll('input,select,textarea').length;if(seen.has(key)&&card.querySelectorAll('input,select,textarea').length===0)card.remove();else seen.add(key)})}
+// Publish package offers as catalog-compatible, uniquely identified bookable services.
+const previousPublish=publishPortalCatalog;
+publishPortalCatalog=async function(){const base=await previousPublish.apply(this,arguments);if(!base||!isOwner())return base;
+ try{const doc=firestore.collection('portal').doc('catalog'),snap=await doc.get();if(!snap.exists)throw Error('كتالوج الخدمات غير موجود');const old=snap.data().services||[];
+ const withoutBundles=old.filter(s=>!s.isPackage&&!String(s.id||'').startsWith('bundle_'));
+ const activePackages=packages().filter(b=>b.active!==false&&calculated(b).rows.length>0).map(publicPackage);
+ await doc.set({services:[...withoutBundles,...activePackages],packages:activePackages.map(x=>({id:x.packageId,serviceId:x.id,name:x.name,nameEn:x.nameEn,price:x.price,color:x.packageColor,description:x.packageDescription,details:x.packageDetails,duration:x.duration}))},{merge:true});
+ const verified=await doc.get({source:'server'}), actual=(verified.data()?.packages||[]).length;
+ if(actual!==activePackages.length)throw Error('عدد الباقات المنشورة لا يطابق المحفوظ');return true;
+ }catch(err){console.error('Package publishing failed',err);toast('تعذر نشر الباقات: '+(err.message||err));return false}
+};
+const renderOwnerBeforePackages=renderOwner;
+renderOwner=function(tab=ownerActiveTab){if(tab==='packages'){if(!isOwner()){renderHome();return}renderPackages();return}
+ const out=renderOwnerBeforePackages.apply(this,arguments);removeDuplicateNavigation();showBrand();return out};
+// Brand asset is the approved transparent salon logo; theme uploads can override it.
+function logoUrl(){const v=String(salonTheme?.logo||'');return /^(https:\/\/|data:image\/)/i.test(v)?v:SALON_DEFAULT_LOGO}
+function imgHtml(extra=''){return `<img class="salon-unified-logo" alt="Quality Nails Salon" src="${esc(logoUrl())}" ${extra}>`}
+function showBrand(){
+ const src=logoUrl();
+ document.querySelectorAll('.brand .logo,.hero-art,.grid > button.portal .portal-icon').forEach(el=>{
+  const img=el.querySelector('img.salon-unified-logo');if(img){if(img.getAttribute('src')!==src)img.src=src;return}
+  el.innerHTML=imgHtml();el.classList.add('salon-logo-holder');
+ });
+ const sidebar=document.querySelector('.salon-side-logo img');if(sidebar&&sidebar.getAttribute('src')!==src)sidebar.src=src;
+ const root=document.querySelector('#app');
+ if(portalRole==='employee'&&root&&!root.querySelector('.hero-art')&&!root.querySelector('.salon-employee-brand')&&document.querySelector('.brand')){
+  // Portal header is always visible; no second logo block is necessary.
+ }
+}
+const beforeHome=renderHome;renderHome=function(){const value=beforeHome.apply(this,arguments);showBrand();return value};
+const beforeLogin=renderOwnerLogin;renderOwnerLogin=function(){const value=beforeLogin.apply(this,arguments);showBrand();return value};
+const beforePortalLogin=portalLogin;portalLogin=function(){const value=beforePortalLogin.apply(this,arguments);showBrand();return value};
+const beforeClient=renderPortalClient;renderPortalClient=function(){const v=beforeClient.apply(this,arguments);showBrand();renderPackageShowcase();return v};
+const beforeEmployee=renderPortalEmployee;renderPortalEmployee=function(){const v=beforeEmployee.apply(this,arguments);showBrand();return v};
+const beforeApplyTheme=applySalonTheme;applySalonTheme=function(){const v=beforeApplyTheme.apply(this,arguments);showBrand();return v};
+function renderPackageShowcase(){if(portalRole!=='client')return;const form=document.querySelector('#portalBooking');if(!form)return;
+ const active=(portalCatalog.services||[]).filter(s=>s.active!==false&&s.isPackage===true);if(!active.length)return;
+ const panel=document.createElement('section');panel.id='salonPublicPackages';panel.className='card';
+ panel.innerHTML=`<h3>${labels('باقات الصالون','Salon Packages')}</h3><div class="salon-public-packages">${active.map(b=>`<article class="salon-public-package" style="--bundle-color:${validHex(b.packageColor)}"><h3>${esc(lang==='en'?b.nameEn:b.name)}</h3><p>${esc(b.packageDescription||b.packageDetails||'')}</p><b>${money(b.price)}</b><p><button type="button" class="btn small" data-add-bundle="${esc(b.id)}">${labels('إضافة الباقة للسلة','Add package to cart')}</button></p></article>`).join('')}</div>`;
+ const anchor=form.closest('.card');anchor?.before(panel);
+ panel.querySelectorAll('[data-add-bundle]').forEach(btn=>btn.addEventListener('click',()=>{
+ const id=btn.dataset.addBundle,b=active.find(s=>s.id===id);if(!b)return;
+ const search=document.querySelector('#salonCartSearch');if(!search){toast('افتحي سلة الحجز أولًا');return}
+ search.value=lang==='en'?(b.nameEn||b.name):b.name;
+ search.dispatchEvent(new Event('input',{bubbles:true}));
+ const result=document.querySelector('#salonCartResults .service button');if(!result){toast('تعذر العثور على الباقة في السلة');return}
+ result.click();document.querySelector('#salonBookingCart')?.scrollIntoView({behavior:'smooth',block:'center'});
+ }));
+}
+showBrand();
+})();
+
 </script>
 </body>
 </html>
