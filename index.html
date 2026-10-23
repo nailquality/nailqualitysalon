@@ -888,15 +888,15 @@ renderOwner=function(tab=ownerActiveTab){
     const current=profiles.docs.find(x=>x.id===authUid);
     if(current?.exists){
      const v=current.data();
-     if(v.staffId&&v.staffId!==staffId)throw Error('هذا UID مرتبط بموظفة أخرى.');
-     if(v.email&&String(v.email).toLowerCase()!==email)throw Error('هذا UID محفوظ بإيميل مختلف. راجعي الحساب في Firebase.');
+     if(v.staffId&&v.staffId!==staffId&&v.archived!==true&&v.active!==false)throw Error('هذا UID مرتبط بحساب موظفة نشطة أخرى؛ استخدمي تعديل الموظفة بدل الربط الجديد.');
+     if(v.email&&String(v.email).toLowerCase()!==email)throw Error('إيميل هذا UID مختلف عن إيميل الملف السابق. تأكدي من الإيميل في Firebase Authentication قبل الربط.');
     }
     // Wait for any owner edits in progress, then atomically save profile,
     // salon staff and the public staff list without passwords.
     await saveQueue;
     if(auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')throw Error('انتهت جلسة المالكة');
     const staffRecord=old?{...old,authUid,email,active:true}:
-      {id:uid('staff'),name:newName,phone:'',commission:0,active:true,authUid,email};
+      {id:(current?.data()?.archived===true&&current.data().staffId&&!db.staff.some(s=>String(s.id)===String(current.data().staffId)))?current.data().staffId:uid('staff'),name:newName,phone:'',commission:0,active:true,authUid,email};
     const nextStaff=old?db.staff.map(x=>x.id===old.id?staffRecord:x):[...db.staff,staffRecord];
     const cleanRecords=a=>(a||[]).map(({password,...rest})=>rest);
     const cloudData={...db,clients:cleanRecords(db.clients),staff:cleanRecords(nextStaff),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
@@ -2751,6 +2751,141 @@ publishPortalCatalog=async function(){
     }
     if(count){const note=document.createElement('p');note.className='salon-conflict-warning';note.textContent='⚠️ '+count+' طلبات متداخلة في مواعيد الموظفات. لا يُؤكَّد أي طلب تلقائيًا، ويمكنك تأكيدها جميعًا بقرارك.';host.prepend(note)}
    }catch(err){console.warn('Could not display conflict hints:',err)}
+ };
+})();
+</script>
+
+<script id="salon-staff-restore-and-skills-20261023">
+/* Owner employee recovery/editing: use both the salon roster and Firebase employeeProfiles.
+ * Never delete Auth users or client/booking data. All writes are owner-only. */
+(function(){
+ 'use strict';
+ const OWNER_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+ const allowed=()=>db.session?.type==='owner'&&firebaseReady===true&&auth.currentUser?.uid===OWNER_UID;
+ const cleanRoster=()=>Array.isArray(db.staff)?db.staff:[];
+ const staffProfiles=firestore.collection('employeeProfiles');
+ const shortId=id=>String(id||'').slice(0,14);
+ let currentlySaving=false;
+ function profileForStaff(s,profiles){return profiles.find(p=>p.uid===s.authUid||p.staffId===s.id)}
+ function panel(){
+  const section=document.createElement('section');section.className='card';section.id='salonStaffRepairManager';
+  section.style.cssText='border:2px solid #d6a2bc;margin:0 0 16px;padding:16px';
+  section.innerHTML=`<div class="spread"><div><h3 style="margin:0">إدارة الموظفات — تعديل، استعادة، وتحديد الخدمات</h3><p class="muted tiny">اختاري الموظفة وعدّلي الاسم والجوال والخدمات التي تستطيع تنفيذها. الحساب المحذوف من قوائم الصالون يمكن استعادته إذا كان حسابه ما زال موجودًا في Firebase Authentication.</p></div><button class="btn secondary small" id="salonStaffManagerReload" type="button">تحديث قائمة الموظفات</button></div><div id="salonStaffManagerStatus" role="status" aria-live="polite"></div><div id="salonStaffManagerCards">جارٍ تحميل الموظفات من Firebase…</div>`;
+  const status=section.querySelector('#salonStaffManagerStatus');
+  const body=section.querySelector('#salonStaffManagerCards');
+  const setStatus=(message,isError=false)=>{if(!section.isConnected)return;status.textContent=message;status.style.color=isError?'#a72639':'#386c47';};
+  const safe=v=>esc(v==null?'':String(v));
+  const profiles=[];
+  let current=[];
+  function entriesFrom(profiles){
+    const used=new Set(),entries=[];
+    for(const p of profiles){
+      const s=cleanRoster().find(x=>String(x.authUid||'')===p.uid||String(x.id)===String(p.staffId||''));
+      if(s)used.add(String(s.id));
+      entries.push({key:p.uid,profile:p,staff:s||null});
+    }
+    for(const s of cleanRoster())if(!used.has(String(s.id))){entries.push({key:'roster:'+s.id,profile:null,staff:s});}
+    return entries.sort((a,b)=>{
+      const ac=(a.profile?.archived===true)?2:(a.staff?.active===false||a.profile?.active===false)?1:0;
+      const bc=(b.profile?.archived===true)?2:(b.staff?.active===false||b.profile?.active===false)?1:0;
+      return ac-bc||String(a.profile?.name||a.staff?.name||'').localeCompare(String(b.profile?.name||b.staff?.name||''),'ar');
+    });
+  }
+  function draw(){
+    current=entriesFrom(profiles);
+    if(!current.length){body.innerHTML='<div class="notice">لا توجد موظفات في قائمة الصالون أو ملفات الموظفات في Firebase. استخدمي قسم ربط UID والإيميل لإضافة موظفة.</div>';return}
+    body.innerHTML=`<p class="muted tiny">الموظفات الموجودة: ${current.filter(x=>x.staff&&x.staff.active!==false&&x.profile?.archived!==true).length} نشطة · ${current.filter(x=>x.profile?.archived===true).length} مؤرشفة</p>`+current.map((entry,index)=>{
+      const p=entry.profile,s=entry.staff;
+      const archived=p?.archived===true;
+      const inactive=p?.active===false||s?.active===false;
+      const name=p?.name||s?.name||'موظفة';
+      const statusText=archived?'محذوفة من القوائم':inactive?'موقوفة':'نشطة';
+      return `<div class="employee-account-card" data-salon-staff-index="${index}" style="margin:12px 0;padding:13px;border:1px solid #ead2df;border-radius:12px"><div class="spread"><div><b>${safe(name)}</b> <span class="badge ${archived||inactive?'red':'green'}">${statusText}</span><p class="muted tiny" dir="ltr">${safe(p?.email||s?.email||'غير مرتبطة بإيميل')} ${p?(' | UID: '+safe(shortId(p.uid))+'…'):''}</p></div><div class="row"><button type="button" class="btn secondary small" data-staff-manage-action="edit">تعديل الموظفة وخدماتها</button>${archived?'<button type="button" class="btn small" data-staff-manage-action="restore">استعادة الموظفة</button>':inactive?'<button type="button" class="btn small" data-staff-manage-action="activate">إعادة تفعيل الموظفة</button>':''}</div></div>
+      <form class="form-grid hidden" data-staff-editor="1" style="margin-top:12px"><div class="field"><label>اسم الموظفة</label><input name="name" value="${safe(name)}" maxlength="80" required></div><div class="field"><label>رقم الجوال</label><input name="phone" value="${safe(s?.phone||'')}" maxlength="20"></div><div class="field full"><label>البريد المرتبط بـFirebase (للعرض فقط)</label><input dir="ltr" value="${safe(p?.email||s?.email||'')}" readonly></div>
+      <div class="field full"><b>الخدمات التي تستطيع تنفيذها</b><p class="muted tiny">الخدمة المحددة ✓ تظهر هذه الموظفة عند اختيارها في الحجز. يمكنك تحديد جميع الخدمات أو إلغاء تحديدها ثم الحفظ.</p><div class="row" style="margin:8px 0"><button type="button" class="btn secondary small" data-staff-manage-action="all">تحديد كل الخدمات</button><button type="button" class="btn secondary small" data-staff-manage-action="none">إلغاء تحديد الكل</button></div><div class="salon-skill-list">${(db.services||[]).filter(x=>x&&x.active!==false).map(svc=>`<label class="salon-skill-option"><input type="checkbox" name="skills" value="${safe(svc.id)}" ${!Array.isArray(s?.allowedServiceIds)||s.allowedServiceIds.map(String).includes(String(svc.id))?'checked':''}><span>${safe(svc.name)}</span></label>`).join('')||'<p class="muted">لا توجد خدمات نشطة، افتحي إدارة الخدمات.</p>'}</div></div>
+      <div class="field full"><button type="submit" class="btn">حفظ تعديل الموظفة والخدمات</button></div></form></div>`;
+    }).join('');
+  }
+  async function load(){
+    if(!allowed())return;
+    body.textContent='جارٍ تحميل ملفات الموظفات…';
+    try{
+      const snapshot=await staffProfiles.get({source:'server'});
+      profiles.splice(0,profiles.length,...snapshot.docs.map(d=>({uid:d.id,...d.data()})));
+      draw();setStatus('تم تحديث قائمة الموظفات من Firebase.');
+    }catch(err){
+      profiles.splice(0);draw();setStatus('تعذر قراءة ملفات الموظفات من Firebase: '+String(err.message||err)+' — تظهر حاليًا بيانات الصالون فقط.',true);
+    }
+  }
+  async function save(entry,form,restore=false){
+    if(!allowed()||currentlySaving)return;
+    const profile=entry.profile,s=entry.staff;
+    if(profile?.archived===true&&!restore){setStatus('هذه الموظفة مؤرشفة. اضغطي استعادة الموظفة أولًا ثم عدّلي خدماتها.',true);return}
+    if(!profile&&!s){setStatus('ملف الموظفة غير موجود',true);return}
+    const name=String(form?.elements.namedItem('name')?.value||profile?.name||s?.name||'').trim();
+    const phone=String(form?.elements.namedItem('phone')?.value||s?.phone||'').trim();
+    if(!name||name.length>80||phone.length>20){setStatus('راجعي الاسم ورقم الجوال',true);return}
+    const selected=form?[...form.querySelectorAll('input[name="skills"]:checked')].map(el=>String(el.value)):
+      Array.isArray(s?.allowedServiceIds)?s.allowedServiceIds.map(String):null;
+    if(restore&&!confirm('هل تريدين استعادة '+name+' وربط ملفها القديم بنفس UID؟ يجب أن يظل حساب Authentication موجودًا بهذا UID وإيميله صحيحًا.'))return;
+    const profileUid=profile?.uid||String(s?.authUid||'');
+    if(profileUid===OWNER_UID){setStatus('لا يمكن تعديل حساب المالكة من إدارة الموظفات',true);return}
+    const already=(cleanRoster()).find(x=>String(x.authUid||'')===profileUid&&x!==s);
+    if(already){setStatus('يوجد سجل آخر لنفس UID في قائمة الموظفات. لا يمكن إنشاء ربط مكرر؛ تواصلي بالدعم لتنظيف السجل المكرر.',true);return}
+    currentlySaving=true;setStatus('جارٍ حفظ بيانات الموظفة والخدمات في Firebase…');
+    try{
+      await saveQueue;
+      if(!allowed())throw Error('انتهت جلسة المالكة');
+      let recordId=s?.id||profile?.staffId||uid('staff');
+      if(cleanRoster().some(x=>String(x.id)===String(recordId)&&x!==s))recordId=uid('staff');
+      const isActive=restore?true:((s?.active!==false)&&(profile?.active!==false));
+      const row={...(s||{}),id:recordId,name,phone,authUid:profileUid||s?.authUid||'',email:profile?.email||s?.email||'',active:isActive,allowedServiceIds:selected};
+      const next=s?cleanRoster().map(x=>x===s?row:x):[...cleanRoster(),row];
+      const clean=array=>(array||[]).map(({password,...rest})=>rest);
+      const payload={...db,staff:clean(next),clients:clean(db.clients),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
+      const batch=firestore.batch();batch.set(salonDoc,payload);
+      if(profile){
+        batch.set(staffProfiles.doc(profile.uid),{staffId:recordId,name,active:isActive,archived:restore?false:profile.archived===true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      }
+      await batch.commit();db.staff=next;
+      // Never overwrite a service list with an empty catalog here; publisher uses the complete db.
+      const published=await publishPortalCatalog();
+      setStatus(published?'تم حفظ الموظفة وخدماتها وتحديثها في بوابة العميلات.':'تم حفظ الموظفة في Firebase، لكن نشر الخدمات للعميلات لم يكتمل. افتحي إدارة الخدمات واضغطي نشر الخدمات.',!published);
+      if(restore)toast('تمت استعادة الموظفة في قائمة الصالون');
+      await load();
+    }catch(err){console.error('Employee editor save',err);setStatus('تعذر حفظ بيانات الموظفة: '+String(err.message||err),true);}
+    finally{currentlySaving=false}
+  }
+  section.querySelector('#salonStaffManagerReload').onclick=load;
+  body.addEventListener('click',async e=>{
+    const button=e.target.closest('button[data-staff-manage-action]');if(!button||currentlySaving)return;
+    const card=button.closest('[data-salon-staff-index]');if(!card)return;
+    const entry=current[Number(card.dataset.salonStaffIndex)];if(!entry)return;
+    const action=button.dataset.staffManageAction;
+    const form=card.querySelector('form[data-staff-editor]');
+    if(action==='edit'){form.classList.toggle('hidden');return}
+    if(action==='all'||action==='none'){form.querySelectorAll('input[name="skills"]').forEach(input=>{input.checked=action==='all'});return}
+    if(action==='restore'||action==='activate'){
+      form.classList.remove('hidden');
+      await save(entry,form,true);
+    }
+  });
+  body.addEventListener('submit',async e=>{
+    const form=e.target.closest('form[data-staff-editor]');if(!form)return;
+    e.preventDefault();e.stopPropagation();
+    const card=form.closest('[data-salon-staff-index]');
+    const entry=current[Number(card.dataset.salonStaffIndex)];if(entry)await save(entry,form,false);
+  });
+  load();return section;
+ }
+ const previous=renderOwner;
+ renderOwner=function(tab=ownerActiveTab){
+   const result=previous.apply(this,arguments);
+   if(tab==='staff'&&allowed()){
+     const host=document.querySelector('#app .owner-content')||document.querySelector('#app');
+     if(host&&!document.getElementById('salonStaffRepairManager'))host.prepend(panel());
+   }
+   return result;
  };
 })();
 </script>
