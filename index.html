@@ -406,7 +406,7 @@ function portalLogin(role,register=false){
  <div class="field full"><label>${t('password')}</label><input type="password" name="password" minlength="6" required autocomplete="${register?'new-password':'current-password'}"></div>
  <button class="btn full" type="submit">${register?t('createAccount'):t('login')}</button></form>
  ${client?`<button class="btn secondary" style="margin-top:12px" onclick="portalLogin('client',${!register})">${register?(ar?'لدي حساب بالفعل — تسجيل الدخول':'Already have an account? Log in'):(ar?'ليس لديك حساب؟ إنشاء حساب':'No account? Create one')}</button>`:''}
- <p class="muted tiny">${client?(ar?'يُستخدم رقم الجوال لتسجيل الدخول. رقم الجوال هنا اسم دخول فقط ولا يتم التحقق منه برسالة SMS. لا ترسلي كلمة المرور لأي شخص.':'Your phone number is used for sign-in. Never share your password.'):(ar?'تنشئ المالكة حساب الموظفة في Firebase Authentication ثم تربطه من لوحة الصالون بالإيميل.':'The owner creates employee accounts from the dashboard.')}</p><p id="portalError" class="danger-text"></p></div>`;
+ <p class="muted tiny">${client?(ar?'يُستخدم رقم الجوال لتسجيل الدخول. رقم الجوال هنا اسم دخول فقط ولا يتم التحقق منه برسالة SMS. لا ترسلي كلمة المرور لأي شخص.':'Your phone number is used for sign-in. Never share your password.'):(ar?'تنشئ المالكة الحساب في Firebase Authentication ثم تربطه في لوحة الصالون بإيميله وUID.':'The owner creates employee accounts from the dashboard.')}</p><p id="portalError" class="danger-text"></p></div>`;
  $("#portalAuth").onsubmit=async e=>{
   e.preventDefault();loginInProgress=true;const f=new FormData(e.target),btn=e.target.querySelector('button[type=submit]')||e.target.querySelector('button');if(btn){btn.disabled=true;btn.textContent=lang==='ar'?'جارٍ إنشاء الحساب أو الدخول…':'Please wait…';}
   try{
@@ -422,7 +422,8 @@ function portalLogin(role,register=false){
    }else{
     const cr=await auth.signInWithEmailAndPassword(email,password);user=cr.user;
     const path=client?'clientProfiles':'employeeProfiles',snap=await firestore.collection(path).doc(user.uid).get();
-    if(!snap.exists||snap.data().active===false)throw Error(ar?'الحساب غير مفعل في هذه البوابة':'Account is not active in this portal');
+    if(!snap.exists||snap.data().active!==true)throw Error(ar?'الحساب غير مفعل في هذه البوابة':'Account is not active in this portal');
+    if(!client&&String(snap.data().email||'').trim().toLowerCase()!==String(user.email||'').trim().toLowerCase())throw Error('إيميل حساب الموظفة لا يطابق الإيميل المرتبط بـ UID في الصالون. راجعي بيانات الربط.');
     portalUser=snap.data();
    }
    portalRole=role;try{await loadPortalCatalog()}catch(catalogError){console.warn('Catalog unavailable',catalogError);portalCatalog={services:[],staff:[],settings:{homeServiceEnabled:false}};toast('تم الدخول لكن تعذر تحميل الخدمات')}try{await loadPortalBookings()}catch(bookingErr){console.warn('Bookings unavailable',bookingErr);portalBookings=[];toast(ar?'تم الدخول، لكن عرض الحجوزات غير متاح حاليًا':'Signed in; bookings unavailable')}client?renderPortalClient():renderPortalEmployee();
@@ -547,70 +548,117 @@ async function loadStaffRequestsOwner(){const el=$('#cloudStaffRequests');if(!el
 const extensionRenderOwner=renderOwner;
 renderOwner=function(tab=ownerActiveTab){ensureExtensions();if(['leases','deposits','waitlist','loyaltyExt','audit','staffRequests','financeExt'].includes(tab)){extensionRenderOwner('dashboard');ownerActiveTab=tab;const tabs=[['leases','الإيجارات والعقود'],['deposits','العربونات'],['waitlist','قائمة الانتظار'],['loyaltyExt','النقاط والولاء'],['financeExt','الملخص المالي'],['staffRequests','طلبات الموظفات'],['audit','سجل النشاط']];$('#app').innerHTML=headerPanel('إدارة الصالون','وحدات إضافية مرتبطة ببيانات المالكة في Firebase')+nav(tabs,tab)+extensionPanel(tab)+`<div class="row" style="margin-top:15px"><button class="btn secondary" onclick="renderOwner('dashboard')">العودة للوحة الرئيسية</button><button class="btn danger" onclick="clearSession()">تسجيل الخروج</button></div>`;setupExtension(tab);return}extensionRenderOwner(tab);if(db.session?.type==='owner'){const strip=document.createElement('div');strip.className='card';strip.style.margin='14px 0';strip.innerHTML='<h3>وحدات الإدارة الإضافية</h3><div class="nav">'+[['leases','الإيجارات والعقود'],['deposits','العربونات'],['waitlist','قائمة الانتظار'],['loyaltyExt','النقاط والولاء'],['financeExt','الملخص المالي'],['staffRequests','طلبات الموظفات'],['audit','سجل النشاط']].map(([k,n])=>`<button onclick="renderOwner('${k}')">${n}</button>`).join('')+'</div>';$('#app').append(strip)}};
 
-/* Owner-only employee linking. Existing Firebase Auth accounts are found by email on a secure server. */
+/* Free Spark plan: owner manually copies UID and email from Firebase Authentication.
+   Browsers cannot search other Firebase Authentication accounts; the UID/email pair
+   is checked against the signed-in employee on each employee login. */
 const accountOwnerRender=renderOwner;
 renderOwner=function(tab=ownerActiveTab){
- accountOwnerRender(tab);
- if(tab!=='staff'||db.session?.type!=='owner')return;
- const panel=document.createElement('section');panel.className='card';panel.style.marginTop='16px';
- const staffOptions=(db.staff||[]).filter(s=>s.active!==false).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
- panel.innerHTML=`
- <h3>${lang==='ar'?'ربط حساب الموظفة بالإيميل':'Link employee by email'}</h3>
- <p class="notice">${lang==='ar'?'أولًا: أنشئي حساب الموظفة بالبريد الإلكتروني وكلمة المرور في Firebase Authentication ← Users. ثانيًا: اكتبي البريد نفسه هنا واختاري الموظفة. الربط لا يطلب كلمة مرور ولا UID.':'First create the employee email/password account in Firebase Authentication, then link the same email here. No password or UID needed.'}</p>
- <form id="staffEmailLinkForm" class="form-grid">
- <div class="field full"><label>${lang==='ar'?'اختاري الموظفة من القائمة':'Select employee'}</label>
- <select id="staffEmailExistingId" name="staffId"><option value="">${lang==='ar'?'موظفة جديدة — إضافة الاسم أدناه':'New employee — enter name below'}</option>${staffOptions}</select></div>
- <div class="field full" id="staffEmailNewNameRow"><label>${lang==='ar'?'اسم الموظفة الجديدة':'New employee name'}</label><input id="staffEmailNewName" name="newName" maxlength="80" required placeholder="مثال: شيري"></div>
- <div class="field full"><label>${lang==='ar'?'إيميل الموظفة المسجل في Firebase':'Employee email in Firebase'}</label><input name="email" type="email" required autocomplete="off" maxlength="254" placeholder="employee@example.com" dir="ltr"></div>
- <div class="field full"><button class="btn full" type="submit">${lang==='ar'?'ربط الموظفة وتفعيل دخولها':'Link and enable employee login'}</button></div>
- </form>
- <p class="muted tiny">${lang==='ar'?'هذه العملية تبحث عن الحساب الموجود مسبقًا؛ لا تُنشئ بريدًا أو كلمة مرور جديدة، ولا ترسل كلمة المرور إلى الموقع. يتطلب الربط نشر وظيفة Firebase المرفقة مرة واحدة.':'This links an existing Firebase Authentication account. Deploy the included callable Firebase function once.'}</p>
- <p id="staffEmailLinkStatus" role="status" aria-live="polite" class="muted tiny"></p>
- <div class="section-head"><h3>${lang==='ar'?'حسابات الموظفات':'Employee accounts'}</h3><button class="btn secondary small" id="refreshSecureStaff">${lang==='ar'?'تحديث':'Refresh'}</button></div>
- <div id="secureStaffList" class="empty">${lang==='ar'?'جارٍ التحميل':'Loading'}</div>`;
- $('#app').append(panel);
- const chooser=$('#staffEmailExistingId'), newName=$('#staffEmailNewName'), newRow=$('#staffEmailNewNameRow');
- const setNewMode=()=>{const isNew=!chooser.value;newRow.classList.toggle('hidden',!isNew);newName.required=isNew;};
- chooser.addEventListener('change',setNewMode);setNewMode();
- const refresh=async()=>{
-  const root=$('#secureStaffList');if(!root)return;
-  try{
-   const snap=await firestore.collection('employeeProfiles').get();
-   root.innerHTML=snap.docs.filter(d=>d.data().archived!==true && d.data().active!==false).map(d=>{
-    const v=d.data();return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||'')}</b><p class="muted tiny">${esc(v.email||'')} • ${lang==='ar'?'حساب نشط':'Active account'}</p></div><div class="row"><span class="badge green">${lang==='ar'?'مرتبط':'Linked'}</span><button type="button" class="btn danger small" onclick="toggleSecureEmployee('${esc(d.id)}',false)">إيقاف</button></div></div>`;
-   }).join('')||'<p class="empty">لا توجد حسابات موظفات نشطة</p>';
-  }catch(err){root.textContent=err.message||String(err)}
- };
- window.toggleSecureEmployee=async(uid,active)=>{if(!confirm('تأكيد تغيير حالة حساب الموظفة؟'))return;try{await firestore.collection('employeeProfiles').doc(uid).update({active});await refresh();toast('تم حفظ الحالة')}catch(err){toast(err.message||String(err))}};
- $('#refreshSecureStaff').onclick=refresh;refresh();
- $('#staffEmailLinkForm').onsubmit=async event=>{
-  event.preventDefault();
-  const form=event.currentTarget,button=form.querySelector('button[type="submit"]'),state=$('#staffEmailLinkStatus');
-  if(!button||button.disabled)return;
-  const data=new FormData(form);const email=String(data.get('email')||'').trim().toLowerCase();
-  const staffId=String(data.get('staffId')||'').trim();const newName=String(data.get('newName')||'').trim();
-  if(!staffId&&!newName){state.textContent='أدخلي اسم الموظفة الجديدة';return}
-  button.disabled=true;state.textContent='جارٍ التحقق من الحساب وربطه…';
-  try{
-   if(auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2'||db.session?.type!=='owner')throw Error('هذه العملية للمالكة فقط');
-   await saveQueue;
-   const call=firebase.app().functions('us-central1').httpsCallable('linkEmployeeByEmail');
-   const result=await call({email,staffId,newName:staffId?'':newName});
-   if(!result?.data?.ok)throw Error('لم يؤكد Firebase نجاح الربط');
-   const cloud=await salonDoc.get();
-   if(cloud.exists&&Array.isArray(cloud.data().staff))db.staff=cloud.data().staff;
-   state.textContent='تم ربط '+String(result.data.name||'الموظفة')+'، ويمكنها الدخول بإيميلها وكلمة مرورها من Firebase.';
-   toast('تم ربط الموظفة بالإيميل بنجاح');
-   renderOwner('staff');
-  }catch(error){
-   console.error('Email staff link error',error);
-   const code=String(error.code||'');
-   const msg=code.includes('not-found')||code.includes('unavailable')||code.includes('internal')
-     ? 'تعذر الاتصال بوظيفة ربط الموظفات. تأكدي من نشر Cloud Function باسم linkEmployeeByEmail على مشروع nailqualitysalon؛ رفع HTML وحده لا يكفي.'
-     : (error.message||'تعذر ربط الحساب');
-   state.textContent=msg;toast(msg);
-  }finally{if(button.isConnected)button.disabled=false}
- };
+  accountOwnerRender(tab);
+  if(tab!=='staff'||db.session?.type!=='owner'||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')return;
+  const mount=document.querySelector('#app .owner-content')||document.querySelector('#app');
+  const panel=document.createElement('section');panel.className='card';panel.style.margin='12px 0 18px';
+  const staffOptions=(db.staff||[]).filter(s=>s.active!==false).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  panel.innerHTML=`
+  <h3>${lang==='ar'?'ربط حساب الموظفة (UID + الإيميل)':'Link employee account (UID + email)'}</h3>
+  <p class="notice">${lang==='ar'?'الطريقة المجانية: من Firebase Console ← Authentication ← Users، أنشئي حساب الموظفة بإيميلها وكلمة مرورها. انسخي UID والإيميل كما يظهران هناك، ثم اربطيهما هنا. لا تكتبي كلمة مرور الموظفة في لوحة الصالون، ولا تحتاجين Cloud Functions أو خطة Blaze.':'Free plan: create the employee in Firebase Authentication → Users, then copy the UID and email here. No Cloud Functions or Blaze needed.'}</p>
+  <form id="staffManualLinkForm" class="form-grid">
+   <div class="field full"><label for="staffManualExistingId">${lang==='ar'?'اختاري الموظفة':'Select employee'}</label>
+    <select id="staffManualExistingId" name="staffId"><option value="">${lang==='ar'?'موظفة جديدة — أدخلي اسمها أدناه':'New employee — enter name below'}</option>${staffOptions}</select></div>
+   <div class="field full" id="staffManualNewNameRow"><label for="staffManualNewName">${lang==='ar'?'اسم الموظفة الجديدة':'New employee name'}</label><input id="staffManualNewName" name="newName" maxlength="80" placeholder="مثال: شيري"></div>
+   <div class="field"><label for="staffManualEmail">${lang==='ar'?'إيميل الموظفة في Firebase':'Employee email in Firebase'}</label><input id="staffManualEmail" name="email" type="email" maxlength="254" required autocomplete="off" placeholder="employee@example.com" dir="ltr"></div>
+   <div class="field"><label for="staffManualUid">${lang==='ar'?'UID الموظفة في Firebase':'Employee UID in Firebase'}</label><input id="staffManualUid" name="authUid" type="text" maxlength="128" required autocomplete="off" spellcheck="false" placeholder="انسخي UID كما هو" dir="ltr"></div>
+   <div class="field full"><button class="btn full" type="submit">${lang==='ar'?'ربط الحساب وتفعيل دخول الموظفة':'Link and activate employee'}</button></div>
+  </form>
+  <p class="muted tiny">${lang==='ar'?'لن يحذف الربط حسابًا من Authentication، ولن يحفظ كلمة المرور. لا يستطيع الموقع التحقق من وجود UID أثناء الربط؛ عند دخول الموظفة يتحقق من تطابق UID والإيميل مع حساب Firebase الفعلي.':'The website cannot check another Auth account at linking time. It verifies UID and email when the employee logs in.'}</p>
+  <p id="staffManualLinkStatus" class="muted tiny" role="status" aria-live="polite"></p>
+  <div class="section-head"><h3>${lang==='ar'?'حسابات الموظفات المرتبطة':'Linked employee accounts'}</h3><button type="button" class="btn secondary small" id="refreshSecureStaff">${lang==='ar'?'تحديث':'Refresh'}</button></div>
+  <div id="secureStaffList" class="empty">${lang==='ar'?'جارٍ التحميل':'Loading'}</div>`;
+  // The old staff form required a local password; it is not used by Firebase login.
+  const legacyForm=mount.querySelector('#staffForm');
+  if(legacyForm)legacyForm.closest('.card')?.remove();
+  mount.prepend(panel);
+  const chooser=panel.querySelector('#staffManualExistingId');
+  const newName=panel.querySelector('#staffManualNewName');
+  const newRow=panel.querySelector('#staffManualNewNameRow');
+  const setMode=()=>{const fresh=!chooser.value;newRow.classList.toggle('hidden',!fresh);newName.required=fresh;};
+  chooser.addEventListener('change',setMode);setMode();
+  const refresh=async()=>{
+   const root=panel.querySelector('#secureStaffList');if(!root||!root.isConnected)return;
+   try{
+    const snap=await firestore.collection('employeeProfiles').get();
+    const visible=snap.docs.filter(d=>d.data().active===true&&d.data().archived!==true);
+    root.innerHTML=visible.map(d=>{
+     const v=d.data();const related=(db.staff||[]).find(x=>x.authUid===d.id);
+     return `<div class="card spread" style="margin-bottom:8px"><div><b>${esc(v.name||related?.name||'موظفة')}</b><p class="muted tiny" dir="ltr">${esc(v.email||'')} · UID: ${esc(d.id)}</p></div><span class="badge green">${lang==='ar'?'مرتبط':'Linked'}</span></div>`;
+    }).join('')||'<p class="empty">لا توجد حسابات موظفات مرتبطة ونشطة</p>';
+   }catch(err){root.textContent='تعذر عرض الحسابات: '+(err.message||String(err))}
+  };
+  panel.querySelector('#refreshSecureStaff').onclick=refresh;refresh();
+  panel.querySelector('#staffManualLinkForm').onsubmit=async event=>{
+   event.preventDefault();
+   const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+   const status=panel.querySelector('#staffManualLinkStatus');
+   if(button.disabled)return;
+   const fd=new FormData(form);
+   const email=String(fd.get('email')||'').trim().toLowerCase();
+   const authUid=String(fd.get('authUid')||'').trim();
+   const staffId=String(fd.get('staffId')||'').trim();
+   const newName=String(fd.get('newName')||'').trim();
+   const old=(db.staff||[]).find(x=>x.id===staffId);
+   if((!staffId&&!newName)||newName.length>80){status.textContent='أدخلي اسم الموظفة الجديدة';return}
+   if(staffId&&!old){status.textContent='الموظفة المختارة غير موجودة';return}
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){status.textContent='أدخلي إيميلًا صحيحًا';return}
+   if(!/^[A-Za-z0-9_-]{6,128}$/.test(authUid)){status.textContent='انسخي UID كاملًا وصحيحًا من Firebase Authentication';return}
+   if(authUid==='AvRinM2frzLkDWH1CsH7CnIhFnK2'){status.textContent='لا يمكن ربط حساب المالكة كموظفة';return}
+   button.disabled=true;status.textContent='جارٍ حفظ الربط في Firebase…';
+   try{
+    if(auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2'||db.session?.type!=='owner')throw Error('الربط متاح للمالكة فقط');
+    if((db.staff||[]).some(x=>x.id!==staffId&&x.active!==false&&(x.authUid===authUid||String(x.email||'').toLowerCase()===email)))throw Error('UID أو الإيميل مرتبط مسبقًا بموظفة أخرى.');
+    if(old?.authUid&&old.authUid!==authUid)throw Error('الموظفة مرتبطة مسبقًا بـ UID مختلف. عطّلي الربط القديم قبل تغييره.');
+    const profiles=await firestore.collection('employeeProfiles').get();
+    if(profiles.docs.some(x=>x.id!==authUid&&x.data().active===true&&String(x.data().email||'').toLowerCase()===email))throw Error('الإيميل مرتبط بحساب موظفة نشط آخر.');
+    const docRef=firestore.collection('employeeProfiles').doc(authUid);
+    const current=profiles.docs.find(x=>x.id===authUid);
+    if(current?.exists){
+     const v=current.data();
+     if(v.staffId&&v.staffId!==staffId)throw Error('هذا UID مرتبط بموظفة أخرى.');
+     if(v.email&&String(v.email).toLowerCase()!==email)throw Error('هذا UID محفوظ بإيميل مختلف. راجعي الحساب في Firebase.');
+    }
+    // Wait for any owner edits in progress, then atomically save profile,
+    // salon staff and the public staff list without passwords.
+    await saveQueue;
+    if(auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2')throw Error('انتهت جلسة المالكة');
+    const staffRecord=old?{...old,authUid,email,active:true}:
+      {id:uid('staff'),name:newName,phone:'',commission:0,active:true,authUid,email};
+    const nextStaff=old?db.staff.map(x=>x.id===old.id?staffRecord:x):[...db.staff,staffRecord];
+    const cleanRecords=a=>(a||[]).map(({password,...rest})=>rest);
+    const cloudData={...db,clients:cleanRecords(db.clients),staff:cleanRecords(nextStaff),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
+    const cleanText=x=>x==null?'':String(x),num=x=>Number.isFinite(Number(x))?Number(x):0;
+    const catalog={
+      services:(db.services||[]).filter(Boolean).map(s=>({id:cleanText(s.id),name:cleanText(s.name),nameEn:cleanText(s.nameEn),price:num(s.price),duration:num(s.duration)||30,active:s.active!==false,loyaltyPoints:num(s.loyaltyPoints),imageUrl:cleanText(s.imageUrl||s.image||'')})),
+      staff:nextStaff.filter(Boolean).map(s=>({id:cleanText(s.id),name:cleanText(s.name),active:s.active!==false,authUid:cleanText(s.authUid)})),
+      settings:{redeemPoints:num(db.settings?.redeemPoints)||50,redeemRiyals:num(db.settings?.redeemRiyals)||10,homeServiceEnabled:db.settings?.homeServiceEnabled===true},
+      publishedAt:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    const permissions=current?.data()?.permissions||{allBookings:false,ownSalary:false,completeService:false,leaveRequest:true,ownSales:false,clientPhone:false};
+    const employeeData={uid:authUid,staffId:staffRecord.id,name:staffRecord.name,email,active:true,archived:false,permissions,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(!current?.exists)employeeData.createdAt=firebase.firestore.FieldValue.serverTimestamp();
+    const batch=firestore.batch();
+    batch.set(salonDoc,cloudData);
+    batch.set(docRef,employeeData,{merge:true});
+    batch.set(firestore.collection('portal').doc('catalog'),catalog);
+    await batch.commit();
+    db.staff=nextStaff;
+    status.textContent='تم حفظ ربط الموظفة في Firebase. يمكنها الآن الدخول بإيميلها وكلمة مرورها.';
+    toast('تم ربط الموظفة بالـ UID والإيميل بنجاح');
+    renderOwner('staff');
+   }catch(error){
+    console.error('Manual staff link failed',error);
+    const msg=String(error.message||'تعذر ربط الحساب');
+    if(status.isConnected)status.textContent='تعذر الربط: '+msg;
+    toast('تعذر ربط الموظفة: '+msg);
+   }finally{if(button.isConnected)button.disabled=false}
+  };
 };
 
 const extensionRenderPortalClient=renderPortalClient;
@@ -714,8 +762,12 @@ auth.onAuthStateChanged(async user=>{
   if(client.exists){portalUser=client.data();portalRole="client";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Bookings unavailable',err);portalBookings=[]}renderPortalClient();return}
   const employee=await firestore.collection("employeeProfiles").doc(user.uid).get();
   if(loginInProgress)return;
-  if(employee.exists&&employee.data().active===true){portalUser=employee.data();portalRole="employee";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('دخول الموظفة ناجح، لكن جلب الحجوزات يحتاج تفعيل الوظائف السحابية')}renderPortalEmployee();return}
+  if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()===String(user.email||'').trim().toLowerCase()){portalUser=employee.data();portalRole="employee";await loadPortalCatalog();try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('دخول الموظفة ناجح، لكن جلب الحجوزات يحتاج تفعيل الوظائف السحابية')}renderPortalEmployee();return}
   if(loginInProgress)return;
+  if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()!==String(user.email||'').trim().toLowerCase()){
+   toast('إيميل حساب Firebase لا يطابق الإيميل المرتبط بـ UID الموظفة. راجعي ربط الحساب من لوحة المالكة.');
+   renderHome();return;
+  }
   // A newly created Auth account may precede its Firestore profile. Do not sign it out automatically.
   toast("لم يُعثر على ملف الحساب بعد. أعيدي المحاولة بعد قليل أو سجّلي الدخول من جديد.");
  }catch(e){console.error(e);if(loginInProgress)return;toast("تعذر تحميل الحساب. راجعي قواعد Firestore: "+e.message);if(!portalUser)renderHome()}
