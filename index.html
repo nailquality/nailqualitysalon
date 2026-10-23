@@ -102,8 +102,8 @@ let saveQueue = Promise.resolve();
 let cashierCart = [];
 const WA_NUMBER="966544267911";
 const translations={
- ar:{brand:"صالون جودة الأظافر",tagline:"الجمال يبدأ من هنا",home:"الرئيسية",footer:"نظام إدارة صالون جودة الأظافر • إصدار ملف واحد",switchLang:"English",welcomeTitle:"كل تفاصيل صالونك، في مكان واحد",welcomeDesc:"نظام لإدارة الحجوزات والموظفات والفواتير والمخزون ونقاط الولاء.",clientPortal:"بوابة العميلة",clientDesc:"تصفحي الخدمات، احجزي موعدك، تابعي نقاطك ومواعيدك.",employeePortal:"بوابة الموظفة",employeeDesc:"جدولك الشخصي، حالة الخدمات، العمولة والراحة.",ownerPortal:"بوابة صاحبة الصالون",ownerDesc:"إدارة شاملة للحجوزات والماليات والموظفات والمخزون.",enter:"دخول",features:"أدوات النظام",feat1:"حجز ومواعيد",feat2:"كاشير وفواتير",feat3:"مخزون وموظفات",feat4:"تقارير ونسخ احتياطي",login:"تسجيل الدخول",createAccount:"إنشاء حساب عميلة",name:"الاسم الكامل",phone:"رقم الجوال",email:"البريد الإلكتروني (اختياري)",password:"كلمة المرور",continue:"متابعة",cancel:"إلغاء",back:"رجوع",save:"حفظ",delete:"حذف",edit:"تعديل",close:"إغلاق",clientLogin:"دخول العميلة",employeeLogin:"دخول الموظفة",ownerLogin:"دخول المالكة",clientRegister:"إنشاء حساب عميلة",myBookings:"مواعيدي",book:"احجزي موعدًا",services:"الخدمات والأسعار",loyalty:"نقاط الولاء",redeem:"استبدال النقاط عبر واتساب",points:"نقاط",code:"كود العميلة",chooseService:"اختاري الخدمة",chooseEmployee:"اختاري الموظفة",date:"التاريخ",time:"الوقت",notes:"ملاحظات",submitBooking:"تأكيد طلب الحجز",bookingSuccess:"تم تسجيل طلب الحجز وفتح واتساب لإرسال التفاصيل.",bookingFail:"تعذر إنشاء الحجز",noBookings:"لا توجد حجوزات حتى الآن.",status:"الحالة",employee:"الموظفة",service:"الخدمة",price:"السعر",duration:"المدة",minutes:"دقيقة",pending:"بانتظار التأكيد",confirmed:"مؤكد",inProgress:"جاري التنفيذ",completed:"مكتمل",cancelled:"ملغي",noShow:"لم تحضر",actions:"الإجراءات",today:"اليوم",dashboard:"لوحة التحكم",appointments:"الحجوزات",schedule:"إغلاق المواعيد",cashier:"الكاشير والفواتير",inventory:"المخزون",staff:"الموظفات",reports:"التقارير",expenses:"المصروفات",servicesManage:"إدارة الخدمات",backup:"النسخ الاحتياطي",logout:"تسجيل الخروج",revenue:"الإيرادات المسجلة",bills:"عدد الفواتير",stockItems:"أصناف المخزون",bookingsCount:"عدد الحجوزات",closeDay:"إغلاق اليوم كاملًا",blockPeriod:"إغلاق فترة",startTime:"من الساعة",endTime:"إلى الساعة",allStaff:"جميع الموظفات",reason:"السبب",blocked:"الأوقات المغلقة",reopen:"إعادة فتح",dateRequired:"اختاري التاريخ.",invalidTime:"تحققي من وقت البداية والنهاية.",blockedSaved:"تم حفظ الإغلاق.",reopened:"تمت إعادة فتح الوقت.",confirmCancel:"هل تريدين إلغاء هذا الحجز؟",cancelBooking:"إلغاء الحجز",confirm:"تأكيد",markConfirmed:"تأكيد الحجز",startService:"بدء الخدمة",complete:"إكمال الخدمة",markNoShow:"لم تحضر",onlyOwnerCancel:"إلغاء الحجوزات متاح للمالكة فقط.",loginRequired:"سجلي الدخول أولًا.",cashierTitle:"إنشاء فاتورة",customer:"العميلة",payment:"طريقة الدفع",cash:"نقدًا",card:"شبكة",pointsPay:"نقاط الولاء",addInvoice:"إصدار الفاتورة",invoiceArchive:"أرشيف الفواتير",amount:"المبلغ",expenseTitle:"تسجيل مصروف",category:"التصنيف",addExpense:"حفظ المصروف",inventoryTitle:"إضافة / تعديل صنف",itemName:"اسم الصنف",quantity:"الكمية الحالية",minQuantity:"حد التنبيه",unitCost:"تكلفة الوحدة",addItem:"حفظ الصنف",lowStock:"مخزون منخفض",staffTitle:"إدارة الموظفات",staffName:"اسم الموظفة",staffPhone:"رقم الجوال",commission:"العمولة %",addStaff:"إضافة موظفة",serviceTitle:"إضافة / تعديل خدمة",serviceName:"اسم الخدمة",servicePrice:"السعر بالريال",serviceDuration:"المدة بالدقائق",addService:"حفظ الخدمة",monthlyReports:"ملخص الأداء",totalRevenue:"إجمالي الفواتير",completedServices:"الخدمات المكتملة",expensesTotal:"إجمالي المصروفات",net:"صافي تقديري",staffPerformance:"أداء الموظفات (خدمات)",export:"تنزيل نسخة احتياطية",restore:"استعادة نسخة",print:"طباعة",reset:"مسح جميع البيانات المحلية",resetWarn:"هذا يمسح بيانات هذا المتصفح نهائيًا. هل أنت متأكد؟",restoreWarn:"ستستبدل النسخة المستعادة البيانات الحالية.",backupDone:"تم تنزيل النسخة الاحتياطية.",saved:"تم الحفظ.",required:"أكملي الحقول المطلوبة.",noData:"لا توجد بيانات لعرضها.",clientOnly:"بوابة العميلة",ownerOnly:"المالكة فقط",employeeOnly:"بوابة الموظفة",demoNotice:"مهم: البيانات محفوظة في هذا المتصفح فقط. هذا الملف لا يوفّر مصادقة آمنة أو مزامنة بين الأجهزة.",localAuth:"دخول محلي",loginHint:"هذه نسخة ملف واحد: أنشئي حساباتك من داخل الصفحة. لا تستخدمي كلمات مرور حقيقية أو بيانات حساسة هنا.",ownerPin:"رمز دخول المالكة",employeeCode:"رقم الموظفة",invalidLogin:"بيانات الدخول غير صحيحة.",profile:"حسابي",whatsapp:"فتح واتساب",loyaltyRedeemText:"أرغب في استبدال نقاط الولاء",pointsApplied:"تم خصم النقاط.",redeemAsk:"كم نقطة تريدين استبدالها؟",redeemAmount:"عدد النقاط",redeemDone:"تم تسجيل طلب الاستبدال. أكدي الخصم بعد التحقق من العميلة.",noSlots:"لا توجد أوقات متاحة في هذا اليوم.",timeTaken:"هذا الوقت متعارض مع حجز أو وقت مغلق.",datePast:"لا يمكن الحجز في تاريخ سابق.",cashierNote:"يخصم النظام المواد المرتبطة بالخدمة عند إكمال الفاتورة إذا كانت الوصفة محددة.",noService:"لا توجد خدمة",bookingId:"رقم الحجز",invoiceId:"رقم الفاتورة",clientList:"العميلات",clientCode:"كود العميلة",loyaltyAdmin:"إدارة نقاط الولاء",addPoints:"إضافة نقاط",removePoints:"خصم نقاط",pointReason:"سبب التعديل",quickActions:"إجراءات سريعة",choose:"اختاري",start:"ابدئي",employeeBreak:"استراحة الموظفة",addBreak:"إضافة استراحة",restoresuccess:"تمت استعادة البيانات.",notFound:"العنصر غير موجود.",revenueByStaff:"الإيرادات حسب الموظفة",rated:"التقييمات",rate:"التقييم",rateService:"تقييم الخدمة",sendRating:"إرسال التقييم",ratingSaved:"شكرًا لتقييمك.",loginAs:"دخول بصفة",newCustomer:"عميلة جديدة",adminSettings:"إعدادات النظام",businessName:"اسم الصالون",saveSettings:"حفظ الإعدادات",dayClosed:"هذا اليوم مغلق للحجز.",serviceCompleted:"تم إكمال الخدمة وتحديث السجل.",invoiceCreated:"تم إصدار الفاتورة.",confirmDelete:"هل تريدين حذف هذا العنصر؟",opening:"جارٍ التحميل…",noEmployees:"أضيفي الموظفات من لوحة المالكة أولًا.",noServices:"أضيفي الخدمات من لوحة المالكة أولًا.",noPermission:"ليست لديك صلاحية لهذه العملية."},
- en:{brand:"Quality Nail Salon",tagline:"Beauty begins here",home:"Home",footer:"Quality Nail Salon Management • Single-file edition",switchLang:"العربية",welcomeTitle:"Your salon, all in one place",welcomeDesc:"Manage bookings, staff, invoices, inventory, and loyalty.",clientPortal:"Client Portal",clientDesc:"Browse services, book appointments, track points and bookings.",employeePortal:"Employee Portal",employeeDesc:"Your schedule, service status, commission and breaks.",ownerPortal:"Salon Owner Portal",ownerDesc:"Manage bookings, finances, staff, and inventory.",enter:"Enter",features:"System tools",feat1:"Bookings & calendar",feat2:"POS & invoices",feat3:"Inventory & staff",feat4:"Reports & backups",login:"Log in",createAccount:"Create client account",name:"Full name",phone:"Phone number",email:"Email (optional)",password:"Password",continue:"Continue",cancel:"Cancel",back:"Back",save:"Save",delete:"Delete",edit:"Edit",close:"Close",clientLogin:"Client login",employeeLogin:"Employee login",ownerLogin:"Owner login",clientRegister:"Create client account",myBookings:"My bookings",book:"Book appointment",services:"Services & prices",loyalty:"Loyalty points",redeem:"Redeem points via WhatsApp",points:"Points",code:"Client code",chooseService:"Choose a service",chooseEmployee:"Choose an employee",date:"Date",time:"Time",notes:"Notes",submitBooking:"Submit booking request",bookingSuccess:"Booking request saved. WhatsApp will open with details.",bookingFail:"Could not create booking",noBookings:"No bookings yet.",status:"Status",employee:"Employee",service:"Service",price:"Price",duration:"Duration",minutes:"min",pending:"Pending confirmation",confirmed:"Confirmed",inProgress:"In progress",completed:"Completed",cancelled:"Cancelled",noShow:"No-show",actions:"Actions",today:"Today",dashboard:"Dashboard",appointments:"Appointments",schedule:"Block times",cashier:"POS & invoices",inventory:"Inventory",staff:"Staff",reports:"Reports",expenses:"Expenses",servicesManage:"Manage services",backup:"Backups",logout:"Log out",revenue:"Recorded revenue",bills:"Invoices",stockItems:"Inventory items",bookingsCount:"Bookings",closeDay:"Close full day",blockPeriod:"Block period",startTime:"Start time",endTime:"End time",allStaff:"All employees",reason:"Reason",blocked:"Blocked times",reopen:"Reopen",dateRequired:"Choose a date.",invalidTime:"Check the start and end times.",blockedSaved:"Block saved.",reopened:"Time reopened.",confirmCancel:"Cancel this booking?",cancelBooking:"Cancel booking",confirm:"Confirm",markConfirmed:"Confirm booking",startService:"Start service",complete:"Complete service",markNoShow:"No-show",onlyOwnerCancel:"Only the owner can cancel bookings.",loginRequired:"Please log in first.",cashierTitle:"Create invoice",customer:"Client",payment:"Payment method",cash:"Cash",card:"Card",pointsPay:"Loyalty points",addInvoice:"Create invoice",invoiceArchive:"Invoice archive",amount:"Amount",expenseTitle:"Record expense",category:"Category",addExpense:"Save expense",inventoryTitle:"Add / edit item",itemName:"Item name",quantity:"Current quantity",minQuantity:"Low-stock threshold",unitCost:"Unit cost",addItem:"Save item",lowStock:"Low stock",staffTitle:"Manage staff",staffName:"Employee name",staffPhone:"Phone number",commission:"Commission %",addStaff:"Add employee",serviceTitle:"Add / edit service",serviceName:"Service name",servicePrice:"Price (SAR)",serviceDuration:"Duration (minutes)",addService:"Save service",monthlyReports:"Performance summary",totalRevenue:"Total invoices",completedServices:"Completed services",expensesTotal:"Total expenses",net:"Estimated net",staffPerformance:"Employee performance (services)",export:"Download backup",restore:"Restore backup",print:"Print",reset:"Clear all local data",resetWarn:"This permanently clears data in this browser. Continue?",restoreWarn:"Restored backup will replace current data.",backupDone:"Backup downloaded.",saved:"Saved.",required:"Complete required fields.",noData:"Nothing to show yet.",clientOnly:"Client portal",ownerOnly:"Owner only",employeeOnly:"Employee portal",demoNotice:"Important: data is saved only in this browser. This file does not provide secure authentication or cross-device sync.",localAuth:"Local sign-in",loginHint:"Single-file version: create accounts here. Do not use real passwords or sensitive information.",ownerPin:"Owner access code",employeeCode:"Employee number",invalidLogin:"Incorrect login details.",profile:"My account",whatsapp:"Open WhatsApp",loyaltyRedeemText:"I would like to redeem loyalty points",pointsApplied:"Points deducted.",redeemAsk:"How many points do you want to redeem?",redeemAmount:"Number of points",redeemDone:"Redemption request recorded. Verify the client before deducting.",noSlots:"No available times on this day.",timeTaken:"This time conflicts with a booking or blocked period.",datePast:"Past dates cannot be booked.",cashierNote:"Linked supplies can be deducted when an invoice is completed.",noService:"No service",bookingId:"Booking ID",invoiceId:"Invoice ID",clientList:"Clients",clientCode:"Client code",loyaltyAdmin:"Loyalty management",addPoints:"Add points",removePoints:"Deduct points",pointReason:"Reason",quickActions:"Quick actions",choose:"Choose",start:"Start",employeeBreak:"Employee break",addBreak:"Add break",restoresuccess:"Data restored.",notFound:"Item not found.",revenueByStaff:"Revenue by employee",rated:"Ratings",rate:"Rating",rateService:"Rate service",sendRating:"Send rating",ratingSaved:"Thanks for rating.",loginAs:"Sign in as",newCustomer:"New client",adminSettings:"Settings",businessName:"Salon name",saveSettings:"Save settings",dayClosed:"This day is closed for bookings.",serviceCompleted:"Service completed and record updated.",invoiceCreated:"Invoice created.",confirmDelete:"Delete this item?",opening:"Loading…",noEmployees:"Add employees in the owner dashboard first.",noServices:"Add services in the owner dashboard first.",noPermission:"You do not have permission for this action."}
+ ar:{brand:"صالون جودة الأظافر",tagline:"الجمال يبدأ من هنا",home:"الرئيسية",footer:"نظام إدارة صالون جودة الأظافر • إصدار ملف واحد",switchLang:"English",welcomeTitle:"كل تفاصيل صالونك، في مكان واحد",welcomeDesc:"نظام لإدارة الحجوزات والموظفات والفواتير والمخزون ونقاط الولاء.",clientPortal:"بوابة العميلة",clientDesc:"تصفحي الخدمات، احجزي موعدك، تابعي نقاطك ومواعيدك.",employeePortal:"بوابة الموظفة",employeeDesc:"جدولك الشخصي، حالة الخدمات، العمولة والراحة.",ownerPortal:"بوابة صاحبة الصالون",ownerDesc:"إدارة شاملة للحجوزات والماليات والموظفات والمخزون.",enter:"دخول",features:"أدوات النظام",feat1:"حجز ومواعيد",feat2:"كاشير وفواتير",feat3:"مخزون وموظفات",feat4:"تقارير ونسخ احتياطي",login:"تسجيل الدخول",createAccount:"إنشاء حساب عميلة",name:"الاسم الكامل",phone:"رقم الجوال",email:"البريد الإلكتروني (اختياري)",password:"كلمة المرور",continue:"متابعة",cancel:"إلغاء",back:"رجوع",save:"حفظ",delete:"حذف",edit:"تعديل",close:"إغلاق",clientLogin:"دخول العميلة",employeeLogin:"دخول الموظفة",ownerLogin:"دخول المالكة",clientRegister:"إنشاء حساب عميلة",myBookings:"مواعيدي",book:"احجزي موعدًا",services:"الخدمات والأسعار",loyalty:"نقاط الولاء",redeem:"استبدال النقاط عبر واتساب",points:"نقاط",code:"كود العميلة",chooseService:"اختاري الخدمة",chooseEmployee:"اختاري الموظفة",date:"التاريخ",time:"الوقت",notes:"ملاحظات",submitBooking:"تأكيد طلب الحجز",bookingSuccess:"تم تسجيل طلب الحجز وفتح واتساب لإرسال التفاصيل.",bookingFail:"تعذر إنشاء الحجز",noBookings:"لا توجد حجوزات حتى الآن.",status:"الحالة",employee:"الموظفة",service:"الخدمة",price:"السعر",duration:"المدة",minutes:"دقيقة",pending:"بانتظار التأكيد",confirmed:"مؤكد",inProgress:"جاري التنفيذ",completed:"مكتمل",cancelled:"ملغي",noShow:"لم تحضر",actions:"الإجراءات",today:"اليوم",dashboard:"لوحة التحكم",appointments:"الحجوزات",schedule:"إغلاق المواعيد",cashier:"الكاشير والفواتير",inventory:"المخزون",staff:"الموظفات",reports:"التقارير",expenses:"المصروفات",servicesManage:"إدارة الخدمات",backup:"النسخ الاحتياطي",logout:"تسجيل الخروج",revenue:"الإيرادات المسجلة",bills:"عدد الفواتير",stockItems:"أصناف المخزون",bookingsCount:"عدد الحجوزات",closeDay:"إغلاق اليوم كاملًا",blockPeriod:"إغلاق فترة",startTime:"من الساعة",endTime:"إلى الساعة",allStaff:"جميع الموظفات",reason:"السبب",blocked:"الأوقات المغلقة",reopen:"إعادة فتح",dateRequired:"اختاري التاريخ.",invalidTime:"تحققي من وقت البداية والنهاية.",blockedSaved:"تم حفظ الإغلاق.",reopened:"تمت إعادة فتح الوقت.",confirmCancel:"هل تريدين إلغاء هذا الحجز؟",cancelBooking:"إلغاء الحجز",confirm:"تأكيد",markConfirmed:"تأكيد الحجز",startService:"بدء الخدمة",complete:"إكمال الخدمة",markNoShow:"لم تحضر",onlyOwnerCancel:"إلغاء الحجوزات متاح للمالكة فقط.",loginRequired:"سجلي الدخول أولًا.",cashierTitle:"إنشاء فاتورة",customer:"العميلة",payment:"طريقة الدفع",cash:"نقدًا",card:"شبكة",pointsPay:"نقاط الولاء",addInvoice:"إصدار الفاتورة",invoiceArchive:"أرشيف الفواتير",amount:"المبلغ",expenseTitle:"تسجيل مصروف",category:"التصنيف",addExpense:"حفظ المصروف",inventoryTitle:"إضافة / تعديل صنف",itemName:"اسم الصنف",quantity:"الكمية الحالية",minQuantity:"حد التنبيه",unitCost:"تكلفة الوحدة",addItem:"حفظ الصنف",lowStock:"مخزون منخفض",staffTitle:"إدارة الموظفات",staffName:"اسم الموظفة",staffPhone:"رقم الجوال",commission:"العمولة %",addStaff:"إضافة موظفة",serviceTitle:"إضافة / تعديل خدمة",serviceName:"اسم الخدمة",servicePrice:"السعر بالريال",serviceDuration:"المدة بالدقائق",addService:"حفظ الخدمة",monthlyReports:"ملخص الأداء",totalRevenue:"إجمالي الفواتير",completedServices:"الخدمات المكتملة",expensesTotal:"إجمالي المصروفات",net:"صافي تقديري",staffPerformance:"أداء الموظفات (خدمات)",export:"تنزيل نسخة احتياطية",restore:"استعادة نسخة",print:"طباعة",reset:"مسح جميع البيانات المحلية",resetWarn:"سيتم حذف إعدادات هذا المتصفح وتسجيل الخروج فقط. لن تُحذف الخدمات أو الموظفات أو الفواتير من Firebase. هل تريدين المتابعة؟",restoreWarn:"ستُضاف العناصر المفقودة من النسخة الاحتياطية دون استبدال السجلات الحالية. راجعي محتويات النسخة قبل الاستعادة.",backupDone:"تم تنزيل النسخة الاحتياطية.",saved:"تم الحفظ.",required:"أكملي الحقول المطلوبة.",noData:"لا توجد بيانات لعرضها.",clientOnly:"بوابة العميلة",ownerOnly:"المالكة فقط",employeeOnly:"بوابة الموظفة",demoNotice:"تُحفظ بيانات الإدارة في Firebase. نزّلي نسخة احتياطية بانتظام؛ حذف إعدادات المتصفح لا يحذف قاعدة Firebase.",localAuth:"دخول محلي",loginHint:"هذه نسخة ملف واحد: أنشئي حساباتك من داخل الصفحة. لا تستخدمي كلمات مرور حقيقية أو بيانات حساسة هنا.",ownerPin:"رمز دخول المالكة",employeeCode:"رقم الموظفة",invalidLogin:"بيانات الدخول غير صحيحة.",profile:"حسابي",whatsapp:"فتح واتساب",loyaltyRedeemText:"أرغب في استبدال نقاط الولاء",pointsApplied:"تم خصم النقاط.",redeemAsk:"كم نقطة تريدين استبدالها؟",redeemAmount:"عدد النقاط",redeemDone:"تم تسجيل طلب الاستبدال. أكدي الخصم بعد التحقق من العميلة.",noSlots:"لا توجد أوقات متاحة في هذا اليوم.",timeTaken:"هذا الوقت متعارض مع حجز أو وقت مغلق.",datePast:"لا يمكن الحجز في تاريخ سابق.",cashierNote:"يخصم النظام المواد المرتبطة بالخدمة عند إكمال الفاتورة إذا كانت الوصفة محددة.",noService:"لا توجد خدمة",bookingId:"رقم الحجز",invoiceId:"رقم الفاتورة",clientList:"العميلات",clientCode:"كود العميلة",loyaltyAdmin:"إدارة نقاط الولاء",addPoints:"إضافة نقاط",removePoints:"خصم نقاط",pointReason:"سبب التعديل",quickActions:"إجراءات سريعة",choose:"اختاري",start:"ابدئي",employeeBreak:"استراحة الموظفة",addBreak:"إضافة استراحة",restoresuccess:"تمت استعادة البيانات.",notFound:"العنصر غير موجود.",revenueByStaff:"الإيرادات حسب الموظفة",rated:"التقييمات",rate:"التقييم",rateService:"تقييم الخدمة",sendRating:"إرسال التقييم",ratingSaved:"شكرًا لتقييمك.",loginAs:"دخول بصفة",newCustomer:"عميلة جديدة",adminSettings:"إعدادات النظام",businessName:"اسم الصالون",saveSettings:"حفظ الإعدادات",dayClosed:"هذا اليوم مغلق للحجز.",serviceCompleted:"تم إكمال الخدمة وتحديث السجل.",invoiceCreated:"تم إصدار الفاتورة.",confirmDelete:"هل تريدين حذف هذا العنصر؟",opening:"جارٍ التحميل…",noEmployees:"أضيفي الموظفات من لوحة المالكة أولًا.",noServices:"أضيفي الخدمات من لوحة المالكة أولًا.",noPermission:"ليست لديك صلاحية لهذه العملية."},
+ en:{brand:"Quality Nail Salon",tagline:"Beauty begins here",home:"Home",footer:"Quality Nail Salon Management • Single-file edition",switchLang:"العربية",welcomeTitle:"Your salon, all in one place",welcomeDesc:"Manage bookings, staff, invoices, inventory, and loyalty.",clientPortal:"Client Portal",clientDesc:"Browse services, book appointments, track points and bookings.",employeePortal:"Employee Portal",employeeDesc:"Your schedule, service status, commission and breaks.",ownerPortal:"Salon Owner Portal",ownerDesc:"Manage bookings, finances, staff, and inventory.",enter:"Enter",features:"System tools",feat1:"Bookings & calendar",feat2:"POS & invoices",feat3:"Inventory & staff",feat4:"Reports & backups",login:"Log in",createAccount:"Create client account",name:"Full name",phone:"Phone number",email:"Email (optional)",password:"Password",continue:"Continue",cancel:"Cancel",back:"Back",save:"Save",delete:"Delete",edit:"Edit",close:"Close",clientLogin:"Client login",employeeLogin:"Employee login",ownerLogin:"Owner login",clientRegister:"Create client account",myBookings:"My bookings",book:"Book appointment",services:"Services & prices",loyalty:"Loyalty points",redeem:"Redeem points via WhatsApp",points:"Points",code:"Client code",chooseService:"Choose a service",chooseEmployee:"Choose an employee",date:"Date",time:"Time",notes:"Notes",submitBooking:"Submit booking request",bookingSuccess:"Booking request saved. WhatsApp will open with details.",bookingFail:"Could not create booking",noBookings:"No bookings yet.",status:"Status",employee:"Employee",service:"Service",price:"Price",duration:"Duration",minutes:"min",pending:"Pending confirmation",confirmed:"Confirmed",inProgress:"In progress",completed:"Completed",cancelled:"Cancelled",noShow:"No-show",actions:"Actions",today:"Today",dashboard:"Dashboard",appointments:"Appointments",schedule:"Block times",cashier:"POS & invoices",inventory:"Inventory",staff:"Staff",reports:"Reports",expenses:"Expenses",servicesManage:"Manage services",backup:"Backups",logout:"Log out",revenue:"Recorded revenue",bills:"Invoices",stockItems:"Inventory items",bookingsCount:"Bookings",closeDay:"Close full day",blockPeriod:"Block period",startTime:"Start time",endTime:"End time",allStaff:"All employees",reason:"Reason",blocked:"Blocked times",reopen:"Reopen",dateRequired:"Choose a date.",invalidTime:"Check the start and end times.",blockedSaved:"Block saved.",reopened:"Time reopened.",confirmCancel:"Cancel this booking?",cancelBooking:"Cancel booking",confirm:"Confirm",markConfirmed:"Confirm booking",startService:"Start service",complete:"Complete service",markNoShow:"No-show",onlyOwnerCancel:"Only the owner can cancel bookings.",loginRequired:"Please log in first.",cashierTitle:"Create invoice",customer:"Client",payment:"Payment method",cash:"Cash",card:"Card",pointsPay:"Loyalty points",addInvoice:"Create invoice",invoiceArchive:"Invoice archive",amount:"Amount",expenseTitle:"Record expense",category:"Category",addExpense:"Save expense",inventoryTitle:"Add / edit item",itemName:"Item name",quantity:"Current quantity",minQuantity:"Low-stock threshold",unitCost:"Unit cost",addItem:"Save item",lowStock:"Low stock",staffTitle:"Manage staff",staffName:"Employee name",staffPhone:"Phone number",commission:"Commission %",addStaff:"Add employee",serviceTitle:"Add / edit service",serviceName:"Service name",servicePrice:"Price (SAR)",serviceDuration:"Duration (minutes)",addService:"Save service",monthlyReports:"Performance summary",totalRevenue:"Total invoices",completedServices:"Completed services",expensesTotal:"Total expenses",net:"Estimated net",staffPerformance:"Employee performance (services)",export:"Download backup",restore:"Restore backup",print:"Print",reset:"Clear all local data",resetWarn:"Clear this browser’s local settings and sign out only? Firebase salon data will NOT be deleted.",restoreWarn:"Missing entries from the backup will be added; current records stay unchanged. Review the backup first.",backupDone:"Backup downloaded.",saved:"Saved.",required:"Complete required fields.",noData:"Nothing to show yet.",clientOnly:"Client portal",ownerOnly:"Owner only",employeeOnly:"Employee portal",demoNotice:"Salon records use Firebase. Download regular backups; clearing browser settings does not delete Firebase data.",localAuth:"Local sign-in",loginHint:"Single-file version: create accounts here. Do not use real passwords or sensitive information.",ownerPin:"Owner access code",employeeCode:"Employee number",invalidLogin:"Incorrect login details.",profile:"My account",whatsapp:"Open WhatsApp",loyaltyRedeemText:"I would like to redeem loyalty points",pointsApplied:"Points deducted.",redeemAsk:"How many points do you want to redeem?",redeemAmount:"Number of points",redeemDone:"Redemption request recorded. Verify the client before deducting.",noSlots:"No available times on this day.",timeTaken:"This time conflicts with a booking or blocked period.",datePast:"Past dates cannot be booked.",cashierNote:"Linked supplies can be deducted when an invoice is completed.",noService:"No service",bookingId:"Booking ID",invoiceId:"Invoice ID",clientList:"Clients",clientCode:"Client code",loyaltyAdmin:"Loyalty management",addPoints:"Add points",removePoints:"Deduct points",pointReason:"Reason",quickActions:"Quick actions",choose:"Choose",start:"Start",employeeBreak:"Employee break",addBreak:"Add break",restoresuccess:"Data restored.",notFound:"Item not found.",revenueByStaff:"Revenue by employee",rated:"Ratings",rate:"Rating",rateService:"Rate service",sendRating:"Send rating",ratingSaved:"Thanks for rating.",loginAs:"Sign in as",newCustomer:"New client",adminSettings:"Settings",businessName:"Salon name",saveSettings:"Save settings",dayClosed:"This day is closed for bookings.",serviceCompleted:"Service completed and record updated.",invoiceCreated:"Invoice created.",confirmDelete:"Delete this item?",opening:"Loading…",noEmployees:"Add employees in the owner dashboard first.",noServices:"Add services in the owner dashboard first.",noPermission:"You do not have permission for this action."}
 };
 let lang=localStorage.getItem("qns_lang")||"ar";
 const t=k=>(translations[lang]&&translations[lang][k])||translations.ar[k]||k;
@@ -118,13 +118,38 @@ function initialState(){return {settings:{salonName:"صالون جودة الأ�
 // Historical cache is removed after Firebase becomes available; cloud remains authoritative.
 function load(){return initialState()}
 let db=load();
+// Baseline of fields actually loaded for this owner session. It is never read from localStorage.
+let salonCloudBaseline=null;
 function persist(){
   if(!firebaseReady || !auth.currentUser || auth.currentUser.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){
     console.warn("Blocked unauthenticated salon data write");return Promise.resolve(false);
   }
   const cleanRecords=arr=>(arr||[]).map(({password,...record})=>record);
-  const cloudData={...db,clients:cleanRecords(db.clients),staff:cleanRecords(db.staff),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
-  saveQueue=saveQueue.then(()=>salonDoc.set(cloudData,{merge:false})).then(()=>true).catch(err=>{console.error("Firestore save failed",err);toast("تعذر حفظ البيانات في Firebase. تحققي من قواعد Firestore والاتصال.");return false});
+  const snapshot=JSON.parse(JSON.stringify({...db,clients:cleanRecords(db.clients),staff:cleanRecords(db.staff),session:null}));
+  const tracked=Object.keys(snapshot).filter(key=>!['session','updatedAt','schemaVersion'].includes(key));
+  const stringify=value=>JSON.stringify(value===undefined?null:value);
+  const startingBaseline=salonCloudBaseline;
+  saveQueue=saveQueue.then(async()=>{
+    // Reading the current server document prevents overwriting unrelated work from other tabs/devices.
+    if(!firebaseReady||auth.currentUser?.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2")throw Error('انتهت جلسة المالكة');
+    const remoteSnapshot=await salonDoc.get({source:'server'});
+    if(!remoteSnapshot.exists)throw Error('قاعدة الصالون غير موجودة في Firebase؛ لن نستبدلها ببيانات فارغة');
+    const remote=remoteSnapshot.data()||{};
+    const baseline=salonCloudBaseline||startingBaseline||remote;
+    const patch={};
+    for(const key of tracked){
+      // Skip stale local values when this session did not edit them.
+      if(stringify(snapshot[key])===stringify(baseline[key]))continue;
+      // Skip values already written by live roster / other authorized writers.
+      if(stringify(snapshot[key])===stringify(remote[key]))continue;
+      patch[key]=snapshot[key];
+    }
+    if(!Object.keys(patch).length)return true;
+    patch.updatedAt=new Date().toISOString();patch.schemaVersion=3;
+    await salonDoc.set(patch,{merge:true});
+    salonCloudBaseline={...baseline,...patch};
+    return true;
+  }).catch(err=>{console.error("Firestore save failed",err);toast("تعذر حفظ البيانات في Firebase: "+String(err.message||err));return false});
   return saveQueue;
 }
 function toast(msg){const root=$("#toastRoot");root.innerHTML=`<div class="toast">${esc(msg)}</div>`;setTimeout(()=>root.innerHTML="",2800)}
@@ -136,7 +161,7 @@ function activeStaff(){return db.staff.filter(s=>s.active!==false)}
 function currentUser(){if(!db.session)return null;if(db.session.type==="client")return db.clients.find(x=>x.id===db.session.id);if(db.session.type==="employee")return db.staff.find(x=>x.id===db.session.id);return db.session.type==="owner"?{id:"owner",name:db.settings.salonName}:null}
 function setSession(type,id){throw Error("Legacy local sign-in is disabled. Use Firebase Authentication.")}
 async function clearSession(){
-  db.session=null;firebaseReady=false;db=initialState();portalUser=null;portalBookings=[];
+  db.session=null;firebaseReady=false;salonCloudBaseline=null;db=initialState();portalUser=null;portalBookings=[];
   try{await auth.signOut()}catch(e){console.warn(e)}
   renderHome();
 }
@@ -149,7 +174,7 @@ function renderOwnerLogin(){
       const credential=await auth.signInWithEmailAndPassword(String(fd.get("email")).trim(),String(fd.get("password")));
       if(credential.user.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2")throw Object.assign(new Error("هذا الحساب ليس حساب صاحبة الصالون المصرّح له."),{code:"owner/not-authorized"});
       const snap=await salonDoc.get();
-      if(snap.exists){const remote=snap.data();const base=initialState();db={...base,...remote,settings:{...base.settings,...(remote.settings||{})},session:{type:"owner",id:credential.user.uid}};}
+      if(snap.exists){const remote=snap.data();const base=initialState();db={...base,...remote,settings:{...base.settings,...(remote.settings||{})},session:{type:"owner",id:credential.user.uid}};salonCloudBaseline=JSON.parse(JSON.stringify(remote));}
       else {db={...db,session:{type:"owner",id:credential.user.uid}};}
       firebaseReady=true;localStorage.removeItem(STORAGE_KEY);
       closeModal();renderOwner("dashboard");
@@ -373,34 +398,107 @@ async function uploadSalonImage(file,kind){
 async function setServicePhoto(id){
  const item=db.services.find(x=>x.id===id);if(!item)return;
  const pick=document.createElement('input');pick.type='file';pick.accept='image/*';
- pick.onchange=async()=>{const file=pick.files?.[0];if(!file)return;try{toast('جارٍ رفع صورة الخدمة...');const url=await uploadSalonImage(file,'services');item.imageUrl=url;await persist();await saveQueue;await publishPortalCatalog();renderOwner('services');toast('تم حفظ صورة الخدمة ونشرها')}catch(e){toast('تعذر رفع الصورة: '+e.message)}};
+ pick.onchange=async()=>{const file=pick.files?.[0];if(!file)return;try{toast('جارٍ رفع صورة الخدمة...');const url=await uploadSalonImage(file,'services');const before=item.imageUrl;item.imageUrl=url;const saved=await persist();if(saved!==true){item.imageUrl=before;throw Error('تعذر حفظ رابط الصورة في Firebase')}const published=await publishPortalCatalog();renderOwner('services');toast(published?'تم حفظ صورة الخدمة ونشرها':'تم حفظ الصورة لكن تعذر تحديث صور بوابة العميلات')}catch(e){toast('تعذر رفع الصورة: '+e.message)}};
  pick.click();
 }
 async function removeServiceSafe(id){
  const item=db.services.find(s=>s.id===id);if(!item||db.session?.type!=='owner')return;
  if(!confirm('حذف خدمة «'+item.name+'» من القائمة وبوابة العميلات؟ ستبقى الفواتير والحجوزات السابقة محفوظة.'))return;
  const before=db.services.slice();db.services=db.services.filter(s=>s.id!==id);
- try{await persist();await saveQueue;const ok=await publishPortalCatalog();if(!ok)throw Error('تعذر نشر التحديث');renderOwner('services');toast('تم حذف الخدمة من القائمة وبوابة العميلات')}catch(e){db.services=before;renderOwner('services');toast('تعذر إكمال الحذف: '+e.message)}
+ try{const saved=await persist();if(saved!==true)throw Error('تعذر حفظ الحذف في Firebase');const ok=await publishPortalCatalog();renderOwner('services');toast(ok?'تم حذف الخدمة من الإدارة وبوابة العميلات':'تم حذف الخدمة من الإدارة، لكن فشل نشر التحديث للعميلات؛ أعيدي النشر')}catch(e){db.services=before;renderOwner('services');toast('تعذر إكمال الحذف: '+e.message)}
 }
 function servicesPanel(){return `<div class="card"><h3>إعدادات استبدال نقاط الولاء</h3><div class="form-grid"><div class="field"><label>عدد النقاط المطلوبة للخصم</label><input id="redeemThreshold" type="number" min="1" step="1" value="${Number(db.settings.redeemPoints)||50}"></div><div class="field"><label>قيمة الخصم بالريال</label><input id="redeemValue" type="number" min="0.01" step="0.01" value="${Number(db.settings.redeemRiyals)||10}"></div><button class="btn full" type="button" onclick="saveLoyaltySettings()">حفظ إعدادات النقاط والخصم</button></div></div><div class="card" style="margin-top:14px"><h3>${esc(t("serviceTitle"))}</h3><form id="serviceForm" class="form-grid"><div class="field"><label>${esc(t("serviceName"))} (عربي)</label><input name="name" required maxlength="80"></div><div class="field"><label>${esc(t("serviceName"))} (English)</label><input name="nameEn" maxlength="80"></div><div class="field"><label>${esc(t("servicePrice"))}</label><input name="price" type="number" min="0" step=".01" required></div><div class="field"><label>${esc(t("serviceDuration"))}</label><input name="duration" type="number" min="5" step="5" value="30" required></div><div class="field"><label>نقاط الولاء المكتسبة عند شراء الخدمة</label><input name="loyaltyPoints" type="number" min="0" step="1" value="0" required></div><div class="field full"><label>اختيار صورة الخدمة من الجهاز</label><input name="serviceFile" type="file" accept="image/*"><small>يمكن رفع الصورة من ألبوم الجوال بدون رابط.</small></div><div class="field full"><label>رابط صورة الخدمة (https://) — اختياري</label><input name="imageUrl" type="url" placeholder="https://example.com/service.jpg"><small class="muted">الصورة تظهر للعميلة في صفحة الحجز ودليل الخدمات. استخدمي رابط صورة منشورة على الإنترنت.</small></div><button class="btn full">${esc(t("addService"))}</button></form></div><div class="section-head"><h3>${esc(t("services"))}</h3></div><div class="service-grid">${db.services.map(s=>`<article class="service"><div class="spread"><span class="badge">${s.active===false?"مخفية":"نشطة"}</span><button class="btn danger small" onclick="toggleService('${s.id}')">${s.active===false?"تفعيل":"إخفاء"}</button></div>${servicePicture(s)}<h3>${esc(textService(s))}</h3><p>${s.duration} ${esc(t("minutes"))} • نقاط الخدمة: ${Math.max(0,Number(s.loyaltyPoints)||0)}</p><div class="spread" style="margin-top:10px"><span class="price">${money(s.price)}</span><div class="row"><button class="btn secondary small" onclick="setServicePhoto('${s.id}')">📷 صورة الخدمة</button><button class="btn danger small" onclick="removeServiceSafe('${s.id}')">حذف الخدمة</button><button class="btn secondary small" onclick="editService('${s.id}')">${esc(t("edit"))}</button></div></div></article>`).join("")}</div>`}
-function saveLoyaltySettings(){const pts=Number($("#redeemThreshold").value),sar=Number($("#redeemValue").value);if(!Number.isInteger(pts)||pts<1||!Number.isFinite(sar)||sar<=0){toast("تحققي من عدد النقاط وقيمة الخصم");return}db.settings.redeemPoints=pts;db.settings.redeemRiyals=sar;persist();toast("تم حفظ إعدادات الاستبدال") }
+async function saveLoyaltySettings(){
+ const pts=Number($("#redeemThreshold").value),sar=Number($("#redeemValue").value);
+ if(!Number.isInteger(pts)||pts<1||!Number.isFinite(sar)||sar<=0){toast("تحققي من عدد النقاط وقيمة الخصم");return}
+ const oldPoints=db.settings.redeemPoints,oldRiyals=db.settings.redeemRiyals;
+ db.settings.redeemPoints=pts;db.settings.redeemRiyals=sar;
+ if(await persist()!==true){db.settings.redeemPoints=oldPoints;db.settings.redeemRiyals=oldRiyals;return}
+ const ok=await publishPortalCatalog();toast(ok?"تم حفظ إعدادات النقاط ونشرها للعميلات":"حُفظت إعدادات النقاط لكن تعذر نشرها للعميلات");
+}
 function setupServices(){const f=$('#serviceForm');if(!f)return;f.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(f),button=f.querySelector('button[type="submit"],button:not([type])');if(button)button.disabled=true;
  try{const file=f.querySelector('[name="serviceFile"]')?.files?.[0];let imageUrl=String(fd.get('imageUrl')||'').trim();if(file)imageUrl=await uploadSalonImage(file,'services');
- db.services.push({id:uid('svc'),name:String(fd.get('name')).trim(),nameEn:String(fd.get('nameEn')).trim(),price:Number(fd.get('price')),duration:Number(fd.get('duration')),loyaltyPoints:Math.max(0,Math.floor(Number(fd.get('loyaltyPoints'))||0)),active:true,imageUrl,materials:[]});await persist();await saveQueue;await publishPortalCatalog();renderOwner('services');toast('تم حفظ الخدمة');
+ const added={id:uid('svc'),name:String(fd.get('name')).trim(),nameEn:String(fd.get('nameEn')).trim(),price:Number(fd.get('price')),duration:Number(fd.get('duration')),loyaltyPoints:Math.max(0,Math.floor(Number(fd.get('loyaltyPoints'))||0)),active:true,imageUrl,materials:[]};
+ db.services.push(added);
+ const saved=await persist();if(saved!==true){db.services=db.services.filter(x=>x.id!==added.id);throw Error('تعذر حفظ الخدمة في Firebase')}
+ const published=await publishPortalCatalog();renderOwner('services');toast(published?'تم حفظ الخدمة ونشرها للعميلات':'حُفظت الخدمة لكن فشل نشرها للعميلات؛ أعيدي النشر');
  }catch(err){toast('تعذر حفظ الخدمة: '+err.message)}finally{if(button)button.disabled=false}})}
-function toggleService(id){const s=db.services.find(x=>x.id===id);if(s)s.active=s.active===false;persist();renderOwner("services")}
-function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return;const name=prompt(t("serviceName"),s.name);if(name===null)return;const price=prompt(t("servicePrice"),s.price);if(price===null)return;const dur=prompt(t("serviceDuration"),s.duration);if(dur===null)return;if(!name.trim()||!Number.isFinite(Number(price))||Number(price)<0||!Number.isFinite(Number(dur))||Number(dur)<5){toast(t("required"));return}s.name=name.trim();s.price=Number(price);s.duration=Number(dur);const pts=prompt("عدد نقاط الولاء لهذه الخدمة",String(s.loyaltyPoints||0));if(pts===null)return;if(!Number.isInteger(Number(pts))||Number(pts)<0){toast("أدخلي نقاطًا صحيحة");return}s.loyaltyPoints=Number(pts);persist();renderOwner("services");toast(t("saved"))}
+async function toggleService(id){
+ const item=db.services.find(x=>String(x.id)===String(id));if(!item)return;
+ const old=item.active;item.active=item.active===false;
+ if(await persist()!==true){item.active=old;toast("تعذر حفظ حالة الخدمة، لم يتم تغييرها");renderOwner("services");return}
+ const published=await publishPortalCatalog();renderOwner("services");
+ toast(published?"تم تحديث حالة الخدمة في الإدارة وبوابة العميلات":"حُفظت حالة الخدمة في الإدارة لكن تعذر نشرها للعميلات؛ أعيدي النشر من إدارة الخدمات");
+}
+async function editService(id){
+ const item=db.services.find(x=>String(x.id)===String(id));if(!item)return;
+ const name=prompt(t("serviceName"),item.name);if(name===null)return;
+ const price=prompt(t("servicePrice"),item.price);if(price===null)return;
+ const dur=prompt(t("serviceDuration"),item.duration);if(dur===null)return;
+ const pts=prompt("عدد نقاط الولاء لهذه الخدمة",String(item.loyaltyPoints||0));if(pts===null)return;
+ if(!name.trim()||!Number.isFinite(Number(price))||Number(price)<0||!Number.isFinite(Number(dur))||Number(dur)<5||!Number.isInteger(Number(pts))||Number(pts)<0){toast("تحققي من الاسم والسعر والمدة والنقاط");return}
+ const original={name:item.name,price:item.price,duration:item.duration,loyaltyPoints:item.loyaltyPoints};
+ Object.assign(item,{name:name.trim(),price:Number(price),duration:Number(dur),loyaltyPoints:Number(pts)});
+ if(await persist()!==true){Object.assign(item,original);renderOwner("services");return}
+ const published=await publishPortalCatalog();renderOwner("services");
+ toast(published?"تم تعديل الخدمة ونشر السعر الجديد للعميلات":"حُفظ التعديل في الإدارة، لكن تعذر نشره للعميلات؛ أعيدي نشر الخدمات");
+}
 function expensesPanel(){return `<div class="card"><h3>${esc(t("expenseTitle"))}</h3><form id="expenseForm" class="form-grid"><div class="field"><label>${esc(t("category"))}</label><select name="category"><option>إيجار / Rent</option><option>رواتب / Salaries</option><option>مستلزمات / Supplies</option><option>فواتير / Bills</option><option>أخرى / Other</option></select></div><div class="field"><label>${esc(t("amount"))}</label><input name="amount" type="number" min=".01" step=".01" required></div><div class="field"><label>تاريخ المصروف</label><input name="date" type="date" min="2024-01-01" max="2050-12-31" value="${today()}" required></div><div class="field full"><label>${esc(t("notes"))}</label><input name="notes" maxlength="200"></div><button class="btn full">${esc(t("addExpense"))}</button></form></div><div class="section-head"><h3>${esc(t("expenses"))}</h3></div>${db.expenses.length?`<div class="table-wrap"><table><thead><tr><th>${esc(t("date"))}</th><th>${esc(t("category"))}</th><th>${esc(t("notes"))}</th><th>${esc(t("amount"))}</th><th></th></tr></thead><tbody>${db.expenses.slice().reverse().map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.category)}</td><td>${esc(e.notes)}</td><td>${money(e.amount)}</td><td><button class="btn danger small" onclick="deleteExpense('${e.id}')">${esc(t("delete"))}</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">${esc(t("noData"))}</div>`}`}
 function setupExpenses(){const f=$("#expenseForm");if(!f)return;f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f);db.expenses.push({id:uid("exp"),category:String(fd.get("category")),amount:Number(fd.get("amount")),notes:String(fd.get("notes")).trim(),date:String(fd.get("date")||today()),createdAt:new Date().toISOString()});persist();renderOwner("expenses");toast(t("saved"))})}
 function deleteExpense(id){if(!confirm(t("confirmDelete")))return;db.expenses=db.expenses.filter(x=>x.id!==id);persist();renderOwner("expenses")}
 function reportsPanel(){const d=today(),year=Number(d.slice(0,4))||2026,month=d.slice(5,7);return `<div class="card"><div class="spread"><div><h2>تقارير الأرباح والإيرادات</h2><p class="muted">اختاري فترة زمنية مخصصة أو شهرًا أو سنة من 2024 إلى 2050.</p></div></div><div class="form-grid" style="margin-top:12px"><div class="field"><label>الفترة</label><select id="reportMode"><option value="month">شهر محدد</option><option value="year">سنة كاملة</option><option value="range">من تاريخ إلى تاريخ</option><option value="all">كل الفترات</option></select></div><div class="field"><label>السنة</label><select id="reportYear">${yearOptions(year)}</select></div><div class="field"><label>الشهر</label><select id="reportMonth">${monthOptions(month)}</select></div><div class="field"><label>من تاريخ</label><input id="reportFrom" type="date" min="2024-01-01" max="2050-12-31" value="${d.slice(0,4)>="2024"?d:"2024-01-01"}"></div><div class="field"><label>إلى تاريخ</label><input id="reportTo" type="date" min="2024-01-01" max="2050-12-31" value="${d.slice(0,4)<="2050"?d:"2050-12-31"}"></div><div class="row full"><button class="btn" onclick="drawReports()">عرض التقرير</button><button class="btn secondary" onclick="setReportPreset('month')">هذا الشهر</button><button class="btn secondary" onclick="setReportPreset('year')">هذه السنة</button></div></div></div><div class="stats" style="margin-top:14px"><div class="stat"><span>الإيرادات</span><strong id="reportRevenue">0.00 ر.س</strong></div><div class="stat"><span>المصروفات</span><strong id="reportExpenses">0.00 ر.س</strong></div><div class="stat"><span>صافي الربح التقديري</span><strong id="reportProfit">0.00 ر.س</strong></div><div class="stat"><span>عدد الفواتير</span><strong id="reportInvoiceCount">0</strong></div></div><div class="section-head"><h3>الرسم البياني لصافي الربح</h3></div><div class="card"><p id="reportPeriodLabel" class="muted tiny"></p><div id="profitChart" class="chart-bars" style="height:230px"></div><div id="profitChartLabels" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px"></div></div><div class="section-head"><h3>أداء الموظفات ضمن الفترة</h3></div><div class="card"><div id="staffChart" class="chart-bars"></div><div id="staffRows"></div></div><div class="section-head"><h3>الإيرادات حسب الموظفة</h3></div><div class="card" id="revenueStaff"></div>`}
 function setReportPreset(mode){$("#reportMode").value=mode;drawReports()}
 function reportDateFilter(date){const mode=$("#reportMode")?.value||"month",year=$("#reportYear")?.value||today().slice(0,4),month=$("#reportMonth")?.value||today().slice(5,7),from=$("#reportFrom")?.value,to=$("#reportTo")?.value;if(!date)return false;if(mode==="month")return date.startsWith(`${year}-${month}`);if(mode==="year")return date.startsWith(`${year}-`);if(mode==="range")return (!from||date>=from)&&(!to||date<=to);return true}
-function drawReports(){const chart=$("#profitChart");if(!chart)return;const invoices=db.invoices.filter(i=>reportDateFilter(i.date||String(i.createdAt||"").slice(0,10))),expenses=db.expenses.filter(e=>reportDateFilter(e.date||String(e.createdAt||"").slice(0,10))),revenue=invoices.reduce((a,i)=>a+Number(i.total||0),0),costs=expenses.reduce((a,e)=>a+Number(e.amount||0),0),profit=revenue-costs;$("#reportRevenue").textContent=money(revenue);$("#reportExpenses").textContent=money(costs);$("#reportProfit").textContent=money(profit);$("#reportInvoiceCount").textContent=invoices.length;const mode=$("#reportMode").value,year=$("#reportYear").value,month=$("#reportMonth").value,from=$("#reportFrom").value,to=$("#reportTo").value;let keys=[];if(mode==="month"){const days=new Date(Number(year),Number(month),0).getDate();keys=Array.from({length:days},(_,i)=>`${year}-${month}-${String(i+1).padStart(2,"0")}`)}else if(mode==="year"){keys=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,"0")}`)}else if(mode==="range"&&from&&to){const a=new Date(from+"T12:00:00"),b=new Date(to+"T12:00:00");if(a<=b){const days=Math.round((b-a)/86400000)+1;if(days<=31){keys=Array.from({length:days},(_,i)=>{const x=new Date(a);x.setDate(x.getDate()+i);return x.toISOString().slice(0,10)})}else{let x=new Date(a.getFullYear(),a.getMonth(),1);while(x<=b){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}}else{const all=[...db.invoices.map(i=>i.date||String(i.createdAt||"").slice(0,10)),...db.expenses.map(e=>e.date||String(e.createdAt||"").slice(0,10))].filter(Boolean).sort();if(all.length){let x=new Date(all[0].slice(0,7)+"-01T12:00:00"),last=new Date(all[all.length-1].slice(0,7)+"-01T12:00:00");while(x<=last&&keys.length<36){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}const monthly=keys.map(key=>{const sumInv=invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,i)=>a+Number(i.total||0),0),sumExp=expenses.filter(e=>(e.date||String(e.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,e)=>a+Number(e.amount||0),0);return {key,profit:sumInv-sumExp,revenue:sumInv,expenses:sumExp}});const max=Math.max(1,...monthly.map(x=>Math.abs(x.profit)));chart.innerHTML=monthly.length?monthly.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,Math.abs(x.profit)/max*170)}px;${x.profit<0?"background:linear-gradient(#e9a1a8,#a32d3d)":""}" title="صافي الربح: ${money(x.profit)}"></div>${esc(x.key.length===10?x.key.slice(8):x.key.slice(5)+"/"+x.key.slice(0,4))}<br><b>${money(x.profit)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات ضمن الفترة المحددة.</div>`;$("#reportPeriodLabel").textContent=mode==="month"?`الشهر ${month}/${year}`:mode==="year"?`السنة ${year}`:mode==="range"?`من ${from||"البداية"} إلى ${to||"النهاية"}`:"كل الفترات";$("#profitChartLabels").innerHTML=`<div><small>إجمالي الإيرادات</small><br><b>${money(revenue)}</b></div><div><small>إجمالي المصروفات</small><br><b>${money(costs)}</b></div><div><small>صافي الربح التقديري</small><br><b>${money(profit)}</b></div>`;const data=db.staff.map(s=>({name:s.name,count:db.bookings.filter(b=>b.staffId===s.id&&b.status==="completed"&&reportDateFilter(b.date)).length,revenue:invoices.filter(i=>i.staffId===s.id).reduce((a,i)=>a+Number(i.total||0),0)}));const cmax=Math.max(1,...data.map(x=>x.count));$("#staffChart").innerHTML=data.length?data.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,x.count/cmax*135)}px" title="${x.count}"></div>${esc(x.name)}<br><b>${x.count}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`;$("#staffRows").innerHTML=data.map(x=>`<div style="margin-top:12px"><div class="spread"><span>${esc(x.name)}</span><b>${x.count} خدمات مكتملة</b></div><div class="progress"><i style="width:${x.count/cmax*100}%"></i></div></div>`).join("");$("#revenueStaff").innerHTML=data.length?data.map(x=>`<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(x.name)}</span><b>${money(x.revenue)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`}
+function drawReports(){const chart=$("#profitChart");if(!chart)return;const invoices=db.invoices.filter(i=>reportDateFilter(i.date||String(i.createdAt||"").slice(0,10))),expenses=db.expenses.filter(e=>reportDateFilter(e.date||String(e.createdAt||"").slice(0,10))),revenue=invoices.reduce((a,i)=>a+Number(i.total||0),0),costs=expenses.reduce((a,e)=>a+Number(e.amount||0),0),profit=revenue-costs;$("#reportRevenue").textContent=money(revenue);$("#reportExpenses").textContent=money(costs);$("#reportProfit").textContent=money(profit);$("#reportInvoiceCount").textContent=invoices.length;const mode=$("#reportMode").value,year=$("#reportYear").value,month=$("#reportMonth").value,from=$("#reportFrom").value,to=$("#reportTo").value;let keys=[];if(mode==="month"){const days=new Date(Number(year),Number(month),0).getDate();keys=Array.from({length:days},(_,i)=>`${year}-${month}-${String(i+1).padStart(2,"0")}`)}else if(mode==="year"){keys=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,"0")}`)}else if(mode==="range"&&from&&to){const a=new Date(from+"T12:00:00"),b=new Date(to+"T12:00:00");if(a<=b){const days=Math.round((b-a)/86400000)+1;if(days<=31){keys=Array.from({length:days},(_,i)=>{const x=new Date(a);x.setDate(x.getDate()+i);return x.toISOString().slice(0,10)})}else{let x=new Date(a.getFullYear(),a.getMonth(),1);while(x<=b){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}}else{const all=[...db.invoices.map(i=>i.date||String(i.createdAt||"").slice(0,10)),...db.expenses.map(e=>e.date||String(e.createdAt||"").slice(0,10))].filter(Boolean).sort();if(all.length){let x=new Date(all[0].slice(0,7)+"-01T12:00:00"),last=new Date(all[all.length-1].slice(0,7)+"-01T12:00:00");while(x<=last&&keys.length<36){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}const monthly=keys.map(key=>{const sumInv=invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,i)=>a+Number(i.total||0),0),sumExp=expenses.filter(e=>(e.date||String(e.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,e)=>a+Number(e.amount||0),0);return {key,profit:sumInv-sumExp,revenue:sumInv,expenses:sumExp}});const max=Math.max(1,...monthly.map(x=>Math.abs(x.profit)));chart.innerHTML=monthly.length?monthly.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,Math.abs(x.profit)/max*170)}px;${x.profit<0?"background:linear-gradient(#e9a1a8,#a32d3d)":""}" title="صافي الربح: ${money(x.profit)}"></div>${esc(x.key.length===10?x.key.slice(8):x.key.slice(5)+"/"+x.key.slice(0,4))}<br><b>${money(x.profit)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات ضمن الفترة المحددة.</div>`;$("#reportPeriodLabel").textContent=mode==="month"?`الشهر ${month}/${year}`:mode==="year"?`السنة ${year}`:mode==="range"?`من ${from||"البداية"} إلى ${to||"النهاية"}`:"كل الفترات";$("#profitChartLabels").innerHTML=`<div><small>إجمالي الإيرادات</small><br><b>${money(revenue)}</b></div><div><small>إجمالي المصروفات</small><br><b>${money(costs)}</b></div><div><small>صافي الربح التقديري</small><br><b>${money(profit)}</b></div>`;const data=activeStaff().map(s=>({name:s.name,count:db.bookings.filter(b=>b.staffId===s.id&&b.status==="completed"&&reportDateFilter(b.date)).length,revenue:invoices.filter(i=>i.staffId===s.id).reduce((a,i)=>a+Number(i.total||0),0)}));const cmax=Math.max(1,...data.map(x=>x.count));$("#staffChart").innerHTML=data.length?data.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,x.count/cmax*135)}px" title="${x.count}"></div>${esc(x.name)}<br><b>${x.count}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`;$("#staffRows").innerHTML=data.map(x=>`<div style="margin-top:12px"><div class="spread"><span>${esc(x.name)}</span><b>${x.count} خدمات مكتملة</b></div><div class="progress"><i style="width:${x.count/cmax*100}%"></i></div></div>`).join("");$("#revenueStaff").innerHTML=data.length?data.map(x=>`<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(x.name)}</span><b>${money(x.revenue)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`}
 function backupPanel(){return `<div class="grid"><div class="card"><div class="portal-icon">📥</div><h3>${esc(t("export"))}</h3><p class="muted">${esc(t("backup"))} — JSON</p><button class="btn" onclick="downloadBackup()">${esc(t("export"))}</button></div><div class="card"><div class="portal-icon">📤</div><h3>${esc(t("restore"))}</h3><p class="muted">${esc(t("restoreWarn"))}</p><input id="restoreFile" type="file" accept=".json,application/json"><button class="btn secondary" style="margin-top:10px" onclick="restoreBackup()">${esc(t("restore"))}</button></div><div class="card"><div class="portal-icon">⚙️</div><h3>${esc(t("adminSettings"))}</h3><button class="btn secondary" onclick="ownerSettings()">${esc(t("adminSettings"))}</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><button class="btn danger" onclick="resetLocalData()">${esc(t("reset"))}</button></div></div><div class="notice" style="margin-top:14px">${esc(t("demoNotice"))} النسخة تشمل بيانات العميلات والحجوزات والفواتير والموظفات والمخزون.</div>`}
 function downloadBackup(){const data={...db,exportedAt:new Date().toISOString(),format:"quality-nail-salon-backup-v1"};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`quality-nail-salon-backup-${today()}.json`;a.click();URL.revokeObjectURL(url);toast(t("backupDone"))}
-function restoreBackup(){const file=$("#restoreFile").files[0];if(!file){toast(t("required"));return}if(!confirm(t("restoreWarn")))return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!data||!Array.isArray(data.bookings)||!Array.isArray(data.clients)||!Array.isArray(data.services))throw new Error("Invalid backup");const defaults=initialState();db={...defaults,...data,session:{type:"owner",id:"owner"}};persist();renderOwner("dashboard");toast(t("restoresuccess"))}catch(e){toast("ملف النسخة غير صالح")}};r.readAsText(file)}
-function resetLocalData(){if(!confirm(t("resetWarn")))return;localStorage.removeItem(STORAGE_KEY);db=initialState();persist();localStorage.removeItem("qns_owner_pin");clearSession()}
+async function restoreBackup(){
+ const file=$("#restoreFile")?.files?.[0];
+ if(!file){toast(t("required"));return}
+ if(db.session?.type!=="owner"||!firebaseReady||auth.currentUser?.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){toast(t("noPermission"));return}
+ if(file.size>20*1024*1024){toast("ملف النسخة كبير جدًا، تواصلي مع الدعم قبل الاستعادة");return}
+ try{
+  const backup=JSON.parse(await file.text());
+  if(!backup||!Array.isArray(backup.bookings)||!Array.isArray(backup.clients)||!Array.isArray(backup.services)||!Array.isArray(backup.invoices))throw Error("Invalid backup");
+  const snap=await salonDoc.get({source:"server"});
+  if(!snap.exists)throw Error("بيانات الصالون غير موجودة في Firebase، لا يمكن الاستعادة بأمان");
+  const remote=snap.data(),keys=["clients","services","bookings","staff","invoices","expenses","inventory","blocks","breaks","redemptions","reviews","packages"];
+  const merged={...remote};let added=0;
+  const archive=remote.staffArchive||{};
+  for(const key of keys){
+   const present=Array.isArray(remote[key])?remote[key]:[],old=Array.isArray(backup[key])?backup[key]:[];
+   const known=new Set(present.filter(x=>x&&x.id!=null).map(x=>String(x.id)));
+   const extras=[];
+   for(const item of old){
+    if(!item||typeof item!=="object"||item.id==null||known.has(String(item.id)))continue;
+    // Never re-activate deliberately deleted employees from a backup.
+    if(key==="staff"&&archive[String(item.id)])continue;
+    const {password,...safe}=item;
+    extras.push(safe);known.add(String(item.id));
+   }
+   merged[key]=[...present,...extras];added+=extras.length;
+  }
+  if(!added){toast("جميع سجلات النسخة موجودة مسبقًا، لم تتغير بيانات Firebase");return}
+  if(!confirm("سيتم إضافة "+added+" سجل مفقود من النسخة الاحتياطية، دون تغيير السجلات الموجودة. هل توافقين؟"))return;
+  // Recheck immediately before write to avoid restoring over a changed live database.
+  const latest=await salonDoc.get({source:"server"});
+  if(!latest.exists||String(latest.data()?.updatedAt||"")!==String(remote.updatedAt||""))throw Error("تغيرت البيانات منذ الفحص؛ أعيدي المحاولة لضمان عدم استبدال تغييرات حديثة");
+  const patch={};for(const key of keys)if(merged[key].length>(Array.isArray(remote[key])?remote[key].length:0))patch[key]=merged[key];
+  patch.updatedAt=new Date().toISOString();
+  await salonDoc.set(patch,{merge:true});
+  db={...initialState(),...remote,...patch,session:{type:"owner",id:auth.currentUser.uid}};
+  if(patch.services||patch.staff){const published=await publishPortalCatalog();if(!published)toast("استعيدت البيانات، لكن أعيدي نشر الخدمات من إدارة الخدمات")}
+  renderOwner("dashboard");toast("تمت إضافة "+added+" سجل مفقود بنجاح");
+ }catch(e){console.error("Safe backup recovery failed",e);toast("لم تتم الاستعادة: "+String(e.message||e))}
+}
+async function resetLocalData(){
+ if(!confirm(t("resetWarn")))return;
+ // Critical: clearing a device must NEVER call persist() or write initialState() to Firebase.
+ localStorage.removeItem(STORAGE_KEY);
+ localStorage.removeItem("qns_owner_pin");
+ await clearSession();
+ toast(lang==="ar"?"تم تنظيف إعدادات الجهاز فقط، بيانات Firebase محفوظة":"Device settings cleared; Firebase data was not changed");
+}
 function ownerSettings(){if(db.session?.type!=="owner"){toast(t("noPermission"));return}$("#modalRoot").innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-box"><div class="spread"><h2>${esc(t("adminSettings"))}</h2><button class="btn secondary small" onclick="closeModal()">✕</button></div><form id="settingsForm" class="form-grid"><div class="field full"><label>${esc(t("businessName"))}</label><input name="salonName" value="${esc(db.settings.salonName)}" required></div><div class="field full"><label>WhatsApp</label><input name="whatsapp" value="${esc(db.settings.whatsapp||WA_NUMBER)}" required></div><div class="field full"><label class="checkline"><input type="checkbox" name="homeServiceEnabled" ${db.settings.homeServiceEnabled===true?"checked":""}> تفعيل خيار الخدمة المنزلية في واجهة العميلة</label><small>الخدمة المنزلية مخفية عن العميلات افتراضيًا إلى أن تفعّليها. داخل الصالون متاح دائمًا.</small></div><button class="btn full">${esc(t("saveSettings"))}</button></form></div></div>`;$("#settingsForm").addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(e.currentTarget);db.settings.salonName=String(fd.get("salonName")).trim();db.settings.whatsapp=String(fd.get("whatsapp")).replace(/\D/g,"");db.settings.homeServiceEnabled=fd.get("homeServiceEnabled")==="on";persist();closeModal();renderOwner(ownerActiveTab);toast(t("saved"))})}
 function renderApp(){if(!db.session){renderHome();return}if(db.session.type==="owner")renderOwner(ownerActiveTab);else if(db.session.type==="client")renderClient();else if(db.session.type==="employee")renderEmployee();else renderHome()}
 $("#langBtn").addEventListener("click",()=>{
@@ -1023,7 +1121,7 @@ auth.onAuthStateChanged(async user=>{
  try{
   if(user.uid==="AvRinM2frzLkDWH1CsH7CnIhFnK2"){
    const snap=await salonDoc.get();firebaseReady=true;localStorage.removeItem(STORAGE_KEY);
-   if(snap.exists){const remote=snap.data(),base=initialState();db={...base,...remote,settings:{...base.settings,...remote.settings},session:{type:"owner",id:user.uid}}}
+   if(snap.exists){const remote=snap.data(),base=initialState();db={...base,...remote,settings:{...base.settings,...remote.settings},session:{type:"owner",id:user.uid}};salonCloudBaseline=JSON.parse(JSON.stringify(remote))}
    else{firebaseReady=false;db.session=null;toast("بيانات الصالون غير موجودة في Firebase؛ لن ننشئ بيانات فارغة تلقائيًا");renderHome();return}
    renderOwner("dashboard");return;
   }
@@ -2842,8 +2940,9 @@ publishPortalCatalog=async function(){
       const row={...(s||{}),id:recordId,name,phone,authUid:profileUid||s?.authUid||'',email:profile?.email||s?.email||'',active:isActive,allowedServiceIds:selected};
       const next=s?cleanRoster().map(x=>x===s?row:x):[...cleanRoster(),row];
       const clean=array=>(array||[]).map(({password,...rest})=>rest);
-      const payload={...db,staff:clean(next),clients:clean(db.clients),session:null,updatedAt:new Date().toISOString(),schemaVersion:3};
-      const batch=firestore.batch();batch.set(salonDoc,payload);
+      // Only update staff: a stale employee editor must never replace invoices/services/clients.
+      const payload={staff:clean(next),updatedAt:new Date().toISOString()};
+      const batch=firestore.batch();batch.set(salonDoc,payload,{merge:true});
       if(profile){
         batch.set(staffProfiles.doc(profile.uid),{staffId:recordId,name,active:isActive,archived:restore?false:profile.archived===true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
       }
@@ -2890,5 +2989,235 @@ publishPortalCatalog=async function(){
 })();
 </script>
 
+<script id="salon-staff-unified-sync">
+/* 2026-10-23: One synchronized active employee roster for POS, booking, reports and clients.
+   Historical invoices/bookings are NEVER deleted when a staff account is archived. */
+(function(){
+ 'use strict';
+ const OWNER_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+ const owner=()=>db.session?.type==='owner'&&firebaseReady===true&&auth.currentUser?.uid===OWNER_UID;
+ const salonRef=firestore.collection('salonData').doc('main');
+ const catalogRef=firestore.collection('portal').doc('catalog');
+ const profilesRef=firestore.collection('employeeProfiles');
+ const id=x=>String(x??'');
+ const clean=a=>(Array.isArray(a)?a:[]).map(({password,...record})=>record);
+ const usable=s=>s&&s.active!==false&&s.archived!==true;
+ const roster=()=>Array.isArray(db.staff)?db.staff:[];
+ const clientStaff=arr=>(arr||[]).filter(usable).map(s=>({
+  id:id(s.id),name:id(s.name),authUid:id(s.authUid),active:true,
+  allowedServiceIds:Array.isArray(s.allowedServiceIds)?s.allowedServiceIds.map(id):null
+ }));
+ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+ let saving=false, syncing=false, again=false, ownerWatch=null, profileWatch=null, catalogWatch=null, syncHandle=null;
+ const previousActiveStaff=activeStaff;
+ activeStaff=function(){return roster().filter(usable)};
+ const oldStaffName=staffName;
+ staffName=function(staffId){return roster().find(s=>id(s.id)===id(staffId))?.name||db.staffArchive?.[id(staffId)]?.name||oldStaffName(staffId)};
+
+ function updateSelect(selector,placeholder){
+  const element=document.querySelector(selector);if(!element)return;
+  const old=element.value;
+  const choices=activeStaff();
+  element.replaceChildren();
+  const first=document.createElement('option');first.value=placeholder.value;first.textContent=placeholder.label;
+  element.append(first);
+  choices.forEach(s=>{const option=document.createElement('option');option.value=id(s.id);option.textContent=id(s.name);element.append(option)});
+  if([...element.options].some(x=>x.value===old))element.value=old;
+  else element.value=placeholder.value;
+ }
+ function updateOwnerViews(){
+  if(!owner())return;
+  updateSelect('#invoiceStaff',{value:'',label:'بدون تحديد'});
+  updateSelect('#obStaff',{value:'',label:'اختاري الموظفة'});
+  updateSelect('#blockStaff',{value:'all',label:'جميع الموظفات'});
+  if(document.querySelector('#staffChart')&&typeof drawReports==='function')drawReports();
+  // In an employee editor, do not destroy unsaved form input.
+  if(ownerActiveTab==='staff'&&!document.querySelector('#salonStaffRepairManager input:focus, #salonStaffRepairManager button:focus')){
+   renderOwner('staff');
+  }
+ }
+ function updateClientViews(){
+  if(portalRole!=='client'||!portalUser)return;
+  const form=document.querySelector('#portalBooking');if(!form)return;
+  const select=form.querySelector('select[name="staff"]');if(!select)return;
+  const old=select.value;
+  const rows=(portalCatalog.staff||[]).filter(usable);
+  const label=select.options[0]?.textContent||'اختاري الموظفة';
+  select.replaceChildren();
+  const blank=document.createElement('option');blank.value='';blank.textContent=label;select.append(blank);
+  rows.forEach(s=>{const option=document.createElement('option');option.value=id(s.id);option.textContent=id(s.name);select.append(option)});
+  select.value=rows.some(s=>id(s.id)===old)?old:'';
+  // Update the already-installed service-qualification filter without erasing any booking form data.
+  const quantity=form.querySelector('input[name^="serviceQty_"]');
+  if(quantity)quantity.dispatchEvent(new Event('change',{bubbles:true}));
+ }
+ function updatePublicStaff(snapshot){
+  if(!snapshot.exists)return;
+  const published=snapshot.data(),newStaff=Array.isArray(published.staff)?published.staff:[];
+  if(same(portalCatalog.staff||[],newStaff))return;
+  portalCatalog.staff=newStaff;
+  updateClientViews();
+ }
+ function watchPublic(){
+  if(catalogWatch)return;
+  catalogWatch=catalogRef.onSnapshot(updatePublicStaff,err=>console.warn('Staff publication watch:',err));
+ }
+ async function syncRemote(){
+  if(!owner()||saving)return;
+  if(syncing){again=true;return}
+  syncing=true;
+  try{
+   await saveQueue;
+   const [salonSnap,profilesSnap,catalogSnap]=await Promise.all([
+    salonRef.get({source:'server'}),profilesRef.get({source:'server'}),catalogRef.get({source:'server'})
+   ]);
+   if(!owner()||!salonSnap.exists)return;
+   const current=salonSnap.data()||{};
+   const before=Array.isArray(current.staff)?current.staff:[];
+   const archive={...(current.staffArchive||{})};
+   const profiles=profilesSnap.docs.map(d=>({uid:d.id,...d.data()}));
+   const profileByUid=new Map(profiles.map(p=>[id(p.uid),p]));
+   const profileByStaff=new Map(profiles.filter(p=>p.staffId).map(p=>[id(p.staffId),p]));
+   const next=[];
+   for(const s of before){
+    if(!s||!s.id)continue;
+    const p=profileByUid.get(id(s.authUid))||profileByStaff.get(id(s.id));
+    if(p?.archived===true){
+     archive[id(s.id)]={id:id(s.id),name:id(s.name||p.name),authUid:id(s.authUid||p.uid),archived:true};
+     continue;
+    }
+    const item={...s};
+    if(p&&p.active===false)item.active=false;
+    if(p&&p.active===true&&p.archived!==true)item.active=true;
+    next.push(item);
+   }
+   // Recover active linked employees whose login profile exists but whose roster entry was missing.
+   for(const p of profiles){
+    if(p.active!==true||p.archived===true||!p.staffId||!p.email)continue;
+    if(next.some(s=>id(s.authUid)===id(p.uid)||id(s.id)===id(p.staffId)))continue;
+    const recovered={id:id(p.staffId),authUid:id(p.uid),name:id(p.name||p.email),email:id(p.email),phone:'',active:true,allowedServiceIds:null};
+    if(next.some(s=>id(s.id)===recovered.id))continue;
+    next.push(recovered);
+   }
+   // Restored employees rejoin active reports under their original staff ID.
+   for(const staff of next)if(staff.active!==false)delete archive[id(staff.id)];
+   const publicList=clientStaff(next);
+   const published=Array.isArray(catalogSnap.data()?.staff)?catalogSnap.data().staff:[];
+   const rosterChanged=!same(before,next)||!same(current.staffArchive||{},archive);
+   const publicChanged=!same(published,publicList);
+   if((rosterChanged||publicChanged)&&!saving){
+    const batch=firestore.batch();
+    if(rosterChanged)batch.set(salonRef,{staff:clean(next),staffArchive:archive,updatedAt:new Date().toISOString()},{merge:true});
+    if(publicChanged)batch.set(catalogRef,{staff:publicList},{merge:true});
+    await batch.commit();
+   }
+   if(owner()){
+    const changed=!same(roster(),next);
+    db.staff=next;db.staffArchive=archive;
+    if(changed)updateOwnerViews();
+   }
+  }catch(err){console.warn('Roster reconciliation:',err);}
+  finally{syncing=false;if(again){again=false;scheduleSync()}}
+ }
+ function scheduleSync(){
+  if(!owner()||saving)return;
+  if(syncHandle)clearTimeout(syncHandle);
+  syncHandle=setTimeout(()=>{syncHandle=null;void syncRemote()},180);
+ }
+ function watchOwner(){
+  if(!owner()||ownerWatch)return;
+  ownerWatch=salonRef.onSnapshot(snap=>{
+   if(!owner()||saving||!snap.exists||snap.metadata.fromCache)return;
+   const rows=snap.data()?.staff;
+   if(!Array.isArray(rows)||same(roster(),rows))return;
+   db.staff=rows;db.staffArchive=snap.data()?.staffArchive||db.staffArchive||{};
+   updateOwnerViews();
+  },err=>console.warn('Roster watch:',err));
+  profileWatch=profilesRef.onSnapshot(()=>scheduleSync(),err=>console.warn('Profile watch:',err));
+  scheduleSync();
+ }
+ function ensureWatches(){watchPublic();if(owner())watchOwner()}
+ const priorRender=renderOwner;
+ renderOwner=function(tab=ownerActiveTab){
+  const result=priorRender.apply(this,arguments);
+  if(owner())ensureWatches();
+  return result;
+ };
+
+ // One owner-controlled archival operation regardless of which of the old employee screens was used.
+ async function retire(uidOrStaffId){
+  if(!owner()||saving)return;
+  saving=true;
+  try{
+   await saveQueue;
+   const [salonSnap,profileSnap]=await Promise.all([
+    salonRef.get({source:'server'}),profilesRef.doc(id(uidOrStaffId)).get({source:'server'})
+   ]);
+   if(!salonSnap.exists)throw Error('لم أجد بيانات الصالون في Firebase');
+   const cloud=salonSnap.data()||{},list=Array.isArray(cloud.staff)?cloud.staff:[];
+   let p=profileSnap.exists?profileSnap.data():null;
+   let uid=profileSnap.exists?id(uidOrStaffId):'';
+   let employee=list.find(s=>id(s.id)===id(uidOrStaffId)||id(s.authUid)===id(uidOrStaffId));
+   if(!employee&&p?.staffId)employee=list.find(s=>id(s.id)===id(p.staffId));
+   if(employee?.authUid&&!uid){uid=id(employee.authUid);const snap=await profilesRef.doc(uid).get({source:'server'});p=snap.exists?snap.data():null;}
+   if(!employee&&!p)throw Error('الموظفة غير موجودة أو حُذفت بالفعل');
+   const name=id(employee?.name||p?.name||'الموظفة');
+   if(!confirm('حذف «'+name+'» من قوائم الكاشير والحجز والإيرادات والأداء الحالية؟\n\nستبقى فواتيرها وحجوزاتها القديمة محفوظة، ويمكن استعادة حسابها لاحقًا.'))return;
+   const staffId=id(employee?.id||p?.staffId);
+   const next=list.filter(s=>id(s.id)!==staffId&&(!uid||id(s.authUid)!==uid));
+   const archive={...(cloud.staffArchive||{})};
+   if(staffId)archive[staffId]={id:staffId,name,authUid:uid,archived:true};
+   const batch=firestore.batch();
+   batch.set(salonRef,{staff:clean(next),staffArchive:archive,updatedAt:new Date().toISOString()},{merge:true});
+   if(uid&&p)batch.set(profilesRef.doc(uid),{active:false,archived:true,archivedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+   batch.set(catalogRef,{staff:clientStaff(next)},{merge:true});
+   await batch.commit();
+   if(!owner())return;
+   db.staff=next;db.staffArchive=archive;
+   updateOwnerViews();
+   if(ownerActiveTab==='staff')renderOwner('staff');
+   toast('تم حذف الموظفة من الكاشير والحجز والأداء ونشر التغيير للعميلات');
+  }catch(err){console.error('Employee retirement:',err);toast('تعذر حذف الموظفة: '+String(err.message||err));}
+  finally{saving=false;scheduleSync()}
+ }
+ // Capture at document level before older handlers can retain an obsolete roster.
+ document.addEventListener('click',event=>{
+  if(!owner())return;
+  const button=event.target.closest('button');if(!button)return;
+  const account=button.closest('[data-account]');
+  const accountDelete=button.dataset.accountAction==='retire'&&account;
+  const secureDelete=button.hasAttribute('data-retire-uid');
+  const inline=button.getAttribute('onclick')||'';
+  const legacyDelete=/^\s*deleteStaff\(['"]([^'"]+)['"]\)/.exec(inline);
+  if(!accountDelete&&!secureDelete&&!legacyDelete)return;
+  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
+  const key=accountDelete?account.dataset.account:secureDelete?button.dataset.retireUid:legacyDelete[1];
+  void retire(key);
+ },true);
+ window.deleteStaff=retire;
+ // Preserve historic attribution; removed employees are not counted as current performance.
+ const priorReport=drawReports;
+ drawReports=function(){
+  const result=priorReport.apply(this,arguments);
+  const parent=document.querySelector('#revenueStaff');if(!parent)return result;
+  const archived=db.staffArchive||{};
+  const archivedRows=db.invoices.filter(i=>archived[id(i.staffId)]&&reportDateFilter(i.date||id(i.createdAt).slice(0,10)));
+  if(!archivedRows.length)return result;
+  const grouped=new Map();
+  archivedRows.forEach(i=>{const key=id(i.staffId);grouped.set(key,(grouped.get(key)||0)+Number(i.total||0))});
+  const note=document.createElement('details');note.style.marginTop='16px';
+  const title=document.createElement('summary');title.textContent='إيرادات محفوظة لموظفات سابقات (ضمن إجمالي الإيرادات)';note.append(title);
+  for(const [key,value] of grouped){
+   const r=document.createElement('div');r.className='spread';r.style.padding='8px 0';
+   const name=document.createElement('span');name.textContent=archived[key].name||'موظفة سابقة';
+   const amount=document.createElement('b');amount.textContent=money(value);r.append(name,amount);note.append(r);
+  }
+  parent.append(note);return result;
+ };
+ // Start public live updates for already signed-in clients, too.
+ watchPublic();
+})();
+
+</script>
 </body>
 </html>
