@@ -285,14 +285,14 @@ function setupOwnerBooking(){const client=$("#obClient"),name=$("#obName"),phone
  });
  client.addEventListener("change",()=>{const c=db.clients.find(x=>x.id===client.value);name.value=c?.name||"";phone.value=c?.phone||"";name.readOnly=!!c;phone.readOnly=!!c});$("#obLocation").addEventListener("change",()=>$("#obAddressWrap").classList.toggle("hidden",$("#obLocation").value!=="home"));$$(".ob-service").forEach(x=>x.addEventListener("change",()=>{const services=$$(".ob-service:checked").map(el=>db.services.find(s=>s.id===el.value)).filter(Boolean);$("#obSummary").textContent=`${services.length} خدمات — ${money(services.reduce((a,s)=>a+Number(s.price||0),0))} — ${services.reduce((a,s)=>a+(Number(s.duration)||30),0)} دقيقة`;}));$("#ownerBookingForm").addEventListener("submit",saveOwnerBooking)}
 function saveOwnerBooking(e){e.preventDefault();if(db.session?.type!=="owner")return;const services=$$(".ob-service:checked").map(el=>db.services.find(s=>s.id===el.value&&s.active!==false)).filter(Boolean),staff=db.staff.find(x=>x.id===$("#obStaff").value&&x.active!==false),date=$("#obDate").value,time=$("#obTime").value,location=$("#obLocation").value,address=$("#obAddress").value.trim(),name=$("#obName").value.trim(),phone=$("#obPhone").value.trim();if(!services.length||!staff||!date||!time||!name||!phone){toast("أكملي البيانات واختاري خدمة واحدة على الأقل");return}if(date<today()){toast(t("datePast"));return}if(location==="home"&&db.settings.homeServiceEnabled!==true){toast("الخدمة المنزلية غير مفعلة");return}if(location==="home"&&!address){toast("أدخلي عنوان الخدمة المنزلية");return}const duration=services.reduce((a,s)=>a+(Number(s.duration)||30),0),start=timeToMin(time),end=start+duration;if(end>1440){toast("مدة الخدمات تتجاوز نهاية اليوم");return}const blocked=db.blocks.some(b=>b.date===date&&(b.staffId==="all"||b.staffId===staff.id)&&(b.fullDay||(start<timeToMin(b.endTime)&&end>timeToMin(b.startTime))));if(blocked){toast("هذا الموعد مغلق من جدول المواعيد");return}if(conflicts(date,time,staff.id,duration)&&!confirm("⚠️ يوجد حجز آخر بنفس وقت الموظفة. هل تريدين إضافة هذا الحجز أيضًا بقرارك؟"))return;let client=db.clients.find(c=>c.id===$("#obClient").value);if(!client){client=db.clients.find(c=>String(c.phone||"").replace(/\s/g,"")===phone.replace(/\s/g,""));if(!client){client={id:uid("cl"),code:"CL-"+db.counter++,name,phone,points:0,createdAt:new Date().toISOString()};db.clients.push(client)}}const b={id:uid("book"),clientId:client.id,clientCode:client.code,customerName:client.name,phone:client.phone,serviceId:services[0].id,serviceIds:services.map(s=>s.id),serviceName:services.map(s=>textService(s)).join("، "),staffId:staff.id,date,time,duration,price:services.reduce((a,s)=>a+Number(s.price||0),0),serviceLocation:location,homeAddress:location==="home"?address:"",notes:$("#obNotes").value.trim(),status:"pending",createdAt:new Date().toISOString()};db.bookings.push(b);persist();renderOwner("appointments");toast("تم حفظ الحجز بنجاح")}
-function cashierPanel(){cashierCart=[];cashierEditingInvoiceId=null;return `<div class="cashier-layout"><section class="card"><div class="spread"><div><h2>الكاشير</h2><p class="muted">أضيفي الخدمات وسجّلي العميلة أو ابحثي عن عميلة مسجلة.</p></div><span class="badge green">نظام الفواتير</span></div><form id="invoiceForm" class="form-grid"><div class="field"><label>البحث عن خدمة</label><input id="serviceSearchCashier" placeholder="اكتبي اسم الخدمة…" autocomplete="off"></div><div class="field"><label>اختاري الخدمة</label><select id="invoiceService"><option value="">اختاري خدمة للإضافة</option>${activeServices().map(s=>`<option value="${s.id}">${esc(textService(s))} — ${money(salonEffectivePrice(s.price,db.settings?.serviceOffers?.[s.id]))}${salonOfferIsActive(db.settings?.serviceOffers?.[s.id])?' (خصم '+Number(db.settings.serviceOffers[s.id].percent)+'%)':''}</option>`).join("")}</select></div><div class="full" id="cashierSearchResults"></div>
+function cashierPanel(){cashierCart=[];cashierEditingInvoiceId=null;return `<div class="cashier-layout"><section class="card"><div class="spread"><div><h2>الكاشير</h2><p class="muted">أضيفي الخدمات وسجّلي العميلة أو ابحثي عن عميلة مسجلة.</p></div><span class="badge green">نظام الفواتير</span></div><form id="invoiceForm" class="form-grid" novalidate><div id="cashierFormError" class="notice hidden full" role="alert" aria-live="assertive" style="border:1px solid #b64152;color:#8b243d;background:#fff1f3;margin:0"></div><div class="field"><label>البحث عن خدمة</label><input id="serviceSearchCashier" placeholder="اكتبي اسم الخدمة…" autocomplete="off"></div><div class="field"><label>اختاري الخدمة</label><select id="invoiceService"><option value="">اختاري خدمة للإضافة</option>${activeServices().map(s=>`<option value="${s.id}">${esc(textService(s))} — ${money(salonEffectivePrice(s.price,db.settings?.serviceOffers?.[s.id]))}${salonOfferIsActive(db.settings?.serviceOffers?.[s.id])?' (خصم '+Number(db.settings.serviceOffers[s.id].percent)+'%)':''}</option>`).join("")}</select></div><div class="full" id="cashierSearchResults"></div>
 <div class="card full" style="background:#fff8fb"><div class="spread"><h3 style="margin:0">بيانات العميلة</h3><div class="row"><button type="button" id="customerModeNew" class="btn small" onclick="setCashierCustomerMode('new')">تسجيل عميلة جديدة</button><button type="button" id="customerModeExisting" class="btn secondary small" onclick="setCashierCustomerMode('existing')">البحث عن عميلة</button></div></div><div id="newCustomerFields" class="form-grid" style="margin-top:12px"><div class="field"><label>اسم العميلة</label><input id="newClientName" maxlength="100" placeholder="الاسم الكامل"></div><div class="field"><label>رقم الجوال</label><input id="newClientPhone" maxlength="20" inputmode="tel" placeholder="05xxxxxxxx"></div><div class="field full"><label>البريد الإلكتروني (اختياري)</label><input id="newClientEmail" type="email"></div></div><div id="existingCustomerFields" class="field hidden" style="margin-top:12px"><label>ابحثي بالاسم أو رقم الجوال</label><input id="invoiceClientSearch" placeholder="اكتبي الاسم أو الجوال"><select id="invoiceClient" style="margin-top:8px"><option value="">اختاري العميلة المسجلة</option>${db.clients.map(c=>`<option value="${c.id}">${esc(c.name)} (${esc(c.phone||c.code||"")})</option>`).join("")}</select><small id="selectedClientInfo" class="muted"></small></div></div>
 <div class="field"><label>الموظفة الافتراضية للخدمات الجديدة</label><select id="invoiceStaff"><option value="">اختاري موظفة عند إضافة خدمة (اختياري)</option>${activeStaff().map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div><div class="field"><label>طريقة الدفع</label><select id="invoicePayment"><option value="cash">نقدًا</option><option value="card">شبكة</option><option value="transfer">تحويل</option><option value="points">نقاط الولاء</option><option value="mixed">مختلط</option></select></div><div class="field"><label>تاريخ الفاتورة</label><input id="invoiceDate" type="date" min="2024-01-01" max="2050-12-31" value="${today()}" required></div><div class="field"><label>الخصم (ريال)</label><input id="invoiceDiscount" type="number" min="0" step=".01" value="0"></div><div class="field"><label>الضريبة %</label><input id="invoiceTaxRate" type="number" min="0" max="100" step=".01" value="0"></div><div class="field"><label>نقاط إضافية للعميلة</label><input id="invoicePointsAdd" type="number" min="0" step="1" value="0"></div><div class="field"><label>النقاط المستخدمة (كل ${Number(db.settings.redeemPoints)||50} نقطة = خصم ${money(Number(db.settings.redeemRiyals)||10)})</label><input id="invoicePointsUse" type="number" min="0" step="1" value="0"></div><div class="field full"><label>ملاحظات الفاتورة</label><textarea id="invoiceNotes" rows="2" maxlength="500"></textarea></div><div class="field full"><label for="invoiceWhatsAppChoice">إرسال الفاتورة للعميلة عبر واتساب بعد حفظها؟</label><select id="invoiceWhatsAppChoice" name="invoiceWhatsAppChoice"><option value="no" selected>لا — حفظ الفاتورة فقط</option><option value="yes">نعم — فتح واتساب برسالة الفاتورة بعد الحفظ</option></select><small class="muted">الحفظ يتم أولًا في Firebase. عند اختيار نعم يفتح واتساب برسالة جاهزة، واضغطي «إرسال» داخله لإرسالها للعميلة.</small></div>
-<div class="full"><p class="muted tiny">حددي الموظفة المنفذة لكل خدمة من السطر الخاص بها. يمكنك إضافة نفس الخدمة أكثر من مرة إذا نفذتها موظفتان مختلفتان.</p><div class="spread"><b>الخدمات في الفاتورة</b><button type="button" class="btn secondary small" onclick="clearCashierCart()">تفريغ الخدمات</button></div><div id="cashierCartRows" class="card" style="margin-top:8px;background:#fff">لم تتم إضافة خدمات بعد.</div></div><div class="card full" style="background:#fbf2f6"><div class="spread"><span>المجموع قبل الخصم والضريبة</span><b id="cashierSubtotal">0.00 ر.س</b></div><div class="spread"><span>الخصم</span><b id="cashierDiscountView">0.00 ر.س</b></div><div class="spread"><span>الضريبة</span><b id="cashierTaxView">0.00 ر.س</b></div><div class="spread" style="margin-top:8px"><span>الإجمالي النهائي</span><strong class="invoice-total" id="cashierTotal">0.00 ر.س</strong></div></div><button id="cashierSubmitBtn" class="btn full" type="submit">إصدار وحفظ الفاتورة</button></form></section><aside><div class="card"><h3>اختصارات الكاشير</h3><div class="grid" style="grid-template-columns:1fr 1fr"><button class="btn secondary" onclick="ownerTab('clients')">العميلات</button><button class="btn secondary" onclick="ownerTab('services')">إدارة الخدمات</button><button class="btn secondary" onclick="ownerTab('expenses')">المصروفات</button><button class="btn secondary" onclick="ownerTab('invoices')">سجل الفواتير</button></div><p class="muted tiny" style="margin-top:12px">سجل الفواتير موجود في صفحة مستقلة ويمكن البحث بالتاريخ والشهر والسنة.</p></div><div class="section-head"><h3>ملخص اليوم</h3></div><div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><span>فواتير اليوم</span><strong>${db.invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10))===today()).length}</strong></div><div class="stat"><span>إيراد اليوم</span><strong>${money(db.invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10))===today()).reduce((a,i)=>a+Number(i.total||0),0))}</strong></div></div></aside></div>`}
+<div class="full"><p class="muted tiny">كل خدمة لها سطر مستقل وموظفتها. عند اختيار كمية ٢ ستظهر الخدمة في سطرين، ويمكنك اختيار موظفة مختلفة لكل واحدة، أو الضغط على زر «نسخ الخدمة».</p><div class="spread"><b>الخدمات في الفاتورة</b><button type="button" class="btn secondary small" onclick="clearCashierCart()">تفريغ الخدمات</button></div><div id="cashierCartRows" class="card" style="margin-top:8px;background:#fff">لم تتم إضافة خدمات بعد.</div></div><div class="card full" style="background:#fbf2f6"><div class="spread"><span>المجموع قبل الخصم والضريبة</span><b id="cashierSubtotal">0.00 ر.س</b></div><div class="spread"><span>الخصم</span><b id="cashierDiscountView">0.00 ر.س</b></div><div class="spread"><span>الضريبة</span><b id="cashierTaxView">0.00 ر.س</b></div><div class="spread" style="margin-top:8px"><span>الإجمالي النهائي</span><strong class="invoice-total" id="cashierTotal">0.00 ر.س</strong></div></div><button id="cashierSubmitBtn" class="btn full" type="submit">إصدار وحفظ الفاتورة</button></form></section><aside><div class="card"><h3>اختصارات الكاشير</h3><div class="grid" style="grid-template-columns:1fr 1fr"><button class="btn secondary" onclick="ownerTab('clients')">العميلات</button><button class="btn secondary" onclick="ownerTab('services')">إدارة الخدمات</button><button class="btn secondary" onclick="ownerTab('expenses')">المصروفات</button><button class="btn secondary" onclick="ownerTab('invoices')">سجل الفواتير</button></div><p class="muted tiny" style="margin-top:12px">سجل الفواتير موجود في صفحة مستقلة ويمكن البحث بالتاريخ والشهر والسنة.</p></div><div class="section-head"><h3>ملخص اليوم</h3></div><div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><span>فواتير اليوم</span><strong>${db.invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10))===today()).length}</strong></div><div class="stat"><span>إيراد اليوم</span><strong>${money(db.invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10))===today()).reduce((a,i)=>a+Number(i.total||0),0))}</strong></div></div></aside></div>`}
 function setCashierCustomerMode(mode){const isNew=mode==="new";const n=$("#newCustomerFields"),e=$("#existingCustomerFields");if(!n||!e)return;n.classList.toggle("hidden",!isNew);e.classList.toggle("hidden",isNew);$("#customerModeNew").className="btn small "+(isNew?"":"secondary");$("#customerModeExisting").className="btn small "+(!isNew?"":"secondary");$("#newClientName").required=isNew;$("#newClientPhone").required=isNew;$("#invoiceClient").required=!isNew;}
 function toggleCashierBookingFields(show){$("#cashierBookingFields")?.classList.toggle("hidden",!show);const ids=["cashierBookingDate","cashierBookingTime","cashierBookingType","cashierBookingStaff"];ids.forEach(id=>{const el=$("#"+id);if(el)el.required=!!show});}
 function toggleHomeAddress(type){const wrap=$("#cashierHomeAddressWrap");if(!wrap)return;wrap.classList.toggle("hidden",type!=="home");$("#cashierHomeAddress").required=type==="home";}
-function setupCashier(){const service=$("#invoiceService"),search=$("#serviceSearchCashier");if(!service)return;setCashierCustomerMode("new");service.addEventListener("change",()=>{if(service.value)addCashierService(service.value)});search.addEventListener("input",()=>{const q=search.value.trim().toLowerCase(),matches=activeServices().filter(s=>(s.name+" "+(s.nameEn||"")).toLowerCase().includes(q));$("#cashierSearchResults").innerHTML=q?`<div class="service-grid">${matches.map(s=>`<button type="button" class="service" onclick="addCashierService('${s.id}')"><b>${esc(textService(s))}</b><div class="price">${money(salonEffectivePrice(s.price,db.settings?.serviceOffers?.[s.id]))}</div>${salonOfferIsActive(db.settings?.serviceOffers?.[s.id])?`<span class="salon-promo-badge">خصم ${Number(db.settings.serviceOffers[s.id].percent)}%</span>`:""}<small>${s.duration} دقيقة</small></button>`).join("")||"لا توجد خدمات مطابقة"}</div>`:""});["invoiceDiscount","invoiceTaxRate"].forEach(id=>$("#"+id).addEventListener("input",updateCashierTotals));const clientSearch=$("#invoiceClientSearch");clientSearch.addEventListener("input",()=>{const q=clientSearch.value.trim().toLowerCase();Array.from($("#invoiceClient").options).forEach((o,i)=>{if(i===0){o.hidden=false;return}const c=db.clients.find(x=>x.id===o.value);o.hidden=!!q&&!((c?.name||"").toLowerCase().includes(q)||(c?.phone||"").toLowerCase().includes(q)||(c?.code||"").toLowerCase().includes(q))});});$("#invoiceClient").addEventListener("change",()=>{const c=db.clients.find(x=>x.id===$("#invoiceClient").value);$("#selectedClientInfo").textContent=c?`الكود: ${c.code||"—"} • النقاط: ${Number(c.points)||0}`:""});$("#invoiceForm").addEventListener("submit",submitInvoice);renderCashierCart()}
+function setupCashier(){const service=$("#invoiceService"),search=$("#serviceSearchCashier");if(!service)return;setCashierCustomerMode("new");service.addEventListener("change",()=>{if(service.value)addCashierService(service.value)});search.addEventListener("input",()=>{const q=search.value.trim().toLowerCase(),matches=activeServices().filter(s=>(s.name+" "+(s.nameEn||"")).toLowerCase().includes(q));$("#cashierSearchResults").innerHTML=q?`<div class="service-grid">${matches.map(s=>`<button type="button" class="service" onclick="addCashierService('${s.id}')"><b>${esc(textService(s))}</b><div class="price">${money(salonEffectivePrice(s.price,db.settings?.serviceOffers?.[s.id]))}</div>${salonOfferIsActive(db.settings?.serviceOffers?.[s.id])?`<span class="salon-promo-badge">خصم ${Number(db.settings.serviceOffers[s.id].percent)}%</span>`:""}<small>${s.duration} دقيقة</small></button>`).join("")||"لا توجد خدمات مطابقة"}</div>`:""});["invoiceDiscount","invoiceTaxRate"].forEach(id=>$("#"+id).addEventListener("input",updateCashierTotals));const clientSearch=$("#invoiceClientSearch");clientSearch.addEventListener("input",()=>{const q=clientSearch.value.trim().toLowerCase();Array.from($("#invoiceClient").options).forEach((o,i)=>{if(i===0){o.hidden=false;return}const c=db.clients.find(x=>x.id===o.value);o.hidden=!!q&&!((c?.name||"").toLowerCase().includes(q)||(c?.phone||"").toLowerCase().includes(q)||(c?.code||"").toLowerCase().includes(q))});});$("#invoiceClient").addEventListener("change",()=>{const c=db.clients.find(x=>x.id===$("#invoiceClient").value);$("#selectedClientInfo").textContent=c?`الكود: ${c.code||"—"} • النقاط: ${Number(c.points)||0}`:""});const form=$("#invoiceForm");form.noValidate=true;form.addEventListener("submit",submitInvoice);form.addEventListener("input",cashierClearFormError);form.addEventListener("change",cashierClearFormError);renderCashierCart()}
 function addCashierService(id){
  const svc=db.services.find(s=>String(s.id)===String(id)&&s.active!==false);if(!svc)return;
  const preferred=String($('#invoiceStaff')?.value||'');
@@ -303,7 +303,28 @@ function addCashierService(id){
 function cashierLine(rowId){return cashierCart.find(x=>String(x.lineId)===String(rowId))}
 function removeCashierService(rowId){cashierCart=cashierCart.filter(x=>String(x.lineId)!==String(rowId));renderCashierCart()}
 function changeCartPrice(rowId,value){const item=cashierLine(rowId);if(item){item.price=Math.max(0,Number(value)||0);item.manualPrice=true;updateCashierTotals()}}
-function changeCartQty(rowId,value){const item=cashierLine(rowId);if(item){item.quantity=Math.max(1,Math.floor(Number(value)||1));renderCashierCart()}}
+// A quantity of two represents two independently assignable services, never one row owned by one employee.
+function copyCashierLine(rowId){
+ const original=cashierLine(rowId);if(!original)return;
+ const sameCount=cashierCart.reduce((sum,x)=>sum+(String(x.serviceId)===String(original.serviceId)?Math.max(1,Number(x.quantity)||1):0),0);
+ if(sameCount>=10){cashierFormIssue('الحد الأقصى 10 مرات للخدمة نفسها في الفاتورة.');return}
+ const copy={...original,lineId:uid('line'),quantity:1,staffId:'',staffName:''};
+ const index=cashierCart.indexOf(original);cashierCart.splice(index+1,0,copy);
+ renderCashierCart();
+}
+function changeCartQty(rowId,value){
+ const item=cashierLine(rowId);if(!item)return;
+ const count=Math.floor(Number(value));
+ if(!Number.isFinite(count)||count<1){cashierFormIssue('الكمية يجب أن تكون 1 أو أكثر.');renderCashierCart();return}
+ if(count===1){item.quantity=1;renderCashierCart();return}
+ const existingCount=cashierCart.reduce((sum,x)=>sum+(String(x.serviceId)===String(item.serviceId)&&x!==item?Math.max(1,Number(x.quantity)||1):0),0);
+ if(existingCount+count>10){cashierFormIssue('الحد الأقصى 10 مرات للخدمة نفسها في الفاتورة.');renderCashierCart();return}
+ item.quantity=1;
+ const index=cashierCart.indexOf(item);
+ const newLines=Array.from({length:count-1},()=>({...item,lineId:uid('line'),quantity:1,staffId:'',staffName:''}));
+ cashierCart.splice(index+1,0,...newLines);
+ renderCashierCart();toast('تم فصل الكمية إلى '+count+' أسطر. حددي الموظفة لكل خدمة.');
+}
 function changeCartStaff(rowId,value){const item=cashierLine(rowId);if(item){item.staffId=String(value||'');const chosen=invoiceStaffRoster().find(s=>String(s.id)===item.staffId);item.staffName=chosen?.name||'';}}
 function clearCashierCart(){cashierCart=[];renderCashierCart()}
 function invoiceStaffRoster(){
@@ -322,18 +343,27 @@ function invoiceLineStaffOptions(item){
 
 function cashierTotals(){const threshold=Math.max(1,Number(db.settings.redeemPoints)||50),value=Math.max(0,Number(db.settings.redeemRiyals)||10),used=Math.max(0,Math.floor(Number($("#invoicePointsUse")?.value)||0)),loyaltyDiscount=Math.floor(used/threshold)*value;const subtotal=cashierCart.reduce((a,x)=>a+x.price*x.quantity,0),discount=Math.min(subtotal,Math.max(0,Number($("#invoiceDiscount")?.value)||0)+loyaltyDiscount),taxable=Math.max(0,subtotal-discount),tax=taxable*Math.max(0,Number($("#invoiceTaxRate")?.value)||0)/100;return {subtotal,discount,loyaltyDiscount,tax,total:taxable+tax}}
 function renderCashierCart(){const root=$('#cashierCartRows');if(!root)return;
- root.innerHTML=cashierCart.length?cashierCart.map(x=>`<div class="cart-row salon-service-invoice-row" style="grid-template-columns:minmax(0,1fr) minmax(135px,175px) 95px 66px auto;gap:8px;align-items:end">
+ root.innerHTML=cashierCart.length?cashierCart.map(x=>`<div class="cart-row salon-service-invoice-row" style="grid-template-columns:minmax(0,1fr) minmax(135px,175px) 95px 75px auto;gap:8px;align-items:end">
   <div><b>${esc(x.name)}</b><div class="tiny muted">${money(x.price)} لكل خدمة • ${Math.max(0,Number(db.services.find(s=>String(s.id)===String(x.serviceId))?.loyaltyPoints)||0)} نقطة</div></div>
   <div><label class="tiny muted" for="staff-${esc(x.lineId)}">الموظفة المنفذة</label><select id="staff-${esc(x.lineId)}" aria-label="الموظفة المنفذة لخدمة ${esc(x.name)}" onchange="changeCartStaff('${esc(x.lineId)}',this.value)" style="width:100%;min-width:0">${invoiceLineStaffOptions(x)}</select></div>
   <div><label class="tiny muted">السعر</label><input style="width:100%" aria-label="سعر الخدمة" type="number" min="0" step=".01" value="${x.price}" onchange="changeCartPrice('${esc(x.lineId)}',this.value)"></div>
-  <div><label class="tiny muted">الكمية</label><input style="width:100%" aria-label="الكمية" type="number" min="1" step="1" value="${x.quantity}" onchange="changeCartQty('${esc(x.lineId)}',this.value)"></div>
-  <button type="button" class="btn danger small" onclick="removeCashierService('${esc(x.lineId)}')">حذف</button>
+  <div><label class="tiny muted">الكمية</label><input style="width:100%" aria-label="الكمية (تفصل لأسطر مستقلة)" type="number" min="1" max="10" step="1" value="${x.quantity}" onchange="changeCartQty('${esc(x.lineId)}',this.value)"></div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap"><button type="button" class="btn secondary small" onclick="copyCashierLine('${esc(x.lineId)}')">+ نسخ الخدمة</button><button type="button" class="btn danger small" onclick="removeCashierService('${esc(x.lineId)}')">حذف</button></div>
  </div>`).join(''):`<div class="empty">ابحثي عن خدمة ثم أضيفيها إلى الفاتورة.</div>`;
  updateCashierTotals();
 }
 
 function updateCashierTotals(){const out=$("#cashierSubtotal");if(!out)return;const x=cashierTotals();out.textContent=money(x.subtotal);$("#cashierDiscountView").textContent=money(x.discount);$("#cashierTaxView").textContent=money(x.tax);$("#cashierTotal").textContent=money(x.total)}
 let salonInvoiceSaving=false;
+function cashierClearFormError(){const el=$('#cashierFormError');if(el){el.textContent='';el.classList.add('hidden')}}
+function cashierFormIssue(message,field){
+ const el=$('#cashierFormError');if(el){el.textContent=message;el.classList.remove('hidden')}
+ toast(message);
+ const target=typeof field==='string'?$(field):field;
+ if(target){try{target.focus({preventScroll:false})}catch(e){target.focus()}}
+ else if(el)el.scrollIntoView({block:'nearest',behavior:'smooth'});
+ return false;
+}
 function invoiceWhatsAppURL(invoice){
  const digits=String(invoice.customerPhone||'').replace(/\D/g,'');
  let phone=digits.startsWith('00966')?digits.slice(2):digits;
@@ -352,37 +382,40 @@ function shareInvoiceWhatsApp(id){
  else toast('تم فتح واتساب. اضغطي إرسال داخل واتساب لإرسال الفاتورة.');
 }
 async function submitInvoice(e){
- e.preventDefault();if(salonInvoiceSaving)return;
+ e.preventDefault();if(salonInvoiceSaving){cashierFormIssue('جارٍ حفظ الفاتورة بالفعل، انتظري نتيجة الحفظ قبل المحاولة مرة أخرى.');return}
+ cashierClearFormError();
  if(db.session?.type!=='owner'||!firebaseReady||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2'){toast('دخول المالكة مطلوب');return}
- if(!cashierCart.length){toast('أضيفي خدمة واحدة على الأقل');return}
+ if(!cashierCart.length){cashierFormIssue('أضيفي خدمة واحدة على الأقل');return}
  const oldId=cashierEditingInvoiceId;
  const existing=oldId?db.invoices.find(i=>String(i.id)===String(oldId)):null;
  if(oldId&&!existing){toast('الفاتورة الأصلية لم تعد موجودة؛ لم يتم الحفظ');return}
  const mode=$('#newCustomerFields').classList.contains('hidden')?'existing':'new';let client=null;
  if(mode==='new'){
   const name=$('#newClientName').value.trim(),phone=$('#newClientPhone').value.trim(),email=$('#newClientEmail').value.trim();
-  if(!name||!phone){toast('أدخلي اسم العميلة ورقم جوالها');return}
+  if(!name){cashierFormIssue('اسم العميلة مطلوب. اكتبي الاسم ثم اضغطي إصدار وحفظ الفاتورة.', '#newClientName');return}if(!phone){cashierFormIssue('رقم جوال العميلة مطلوب.', '#newClientPhone');return}if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){cashierFormIssue('البريد الإلكتروني غير صحيح؛ صححيه أو اتركيه فارغًا.', '#newClientEmail');return}
   const duplicate=db.clients.find(c=>String(c.phone||'').replace(/\s/g,'')===phone.replace(/\s/g,''));
   if(duplicate){toast('رقم الجوال مسجل مسبقًا. اختاري البحث عن عميلة');setCashierCustomerMode('existing');$('#invoiceClientSearch').value=phone;$('#invoiceClient').value=duplicate.id;return}
   client={id:uid('cl'),code:'CL-'+db.counter,name,phone,email,points:0,createdAt:new Date().toISOString()};
  }else{
   client=db.clients.find(c=>String(c.id)===String($('#invoiceClient').value))||null;
-  if(!client){toast('اختاري العميلة المسجلة أو بدّلي إلى تسجيل عميلة جديدة');return}
+  if(!client){cashierFormIssue('اختاري العميلة المسجلة أو بدّلي إلى تسجيل عميلة جديدة', '#invoiceClient');return}
  }
  const payment=$('#invoicePayment').value;
  const pointsUse=Math.max(0,Math.floor(Number($('#invoicePointsUse').value)||0));
  const pointsAdd=Math.max(0,Math.floor(Number($('#invoicePointsAdd').value)||0));
  const threshold=Math.max(1,Number(db.settings.redeemPoints)||50);
- if(pointsUse%threshold!==0){toast('يجب استبدال النقاط بمضاعفات الحد المحدد');return}
+ if(pointsUse%threshold!==0){cashierFormIssue('يجب استبدال النقاط بمضاعفات الحد المحدد','#invoicePointsUse');return}
  const availablePoints=Number(client.points||0)+(existing&&String(existing.clientId)===String(client.id)?(Number(existing.pointsAdded||0)-Number(existing.pointsUsed||0)):0);
- if(pointsUse>availablePoints){toast('رصيد نقاط العميلة غير كافٍ');return}
+ if(pointsUse>availablePoints){cashierFormIssue('رصيد نقاط العميلة غير كافٍ','#invoicePointsUse');return}
  const roster=invoiceStaffRoster();
- const selected=cashierCart.map((x,index)=>{
-  const sid=String(x.staffId||'');const record=roster.find(s=>String(s.id)===sid);
-  if(!sid||!record)throw Error('اختاري الموظفة المنفذة للخدمة رقم '+(index+1)+' ('+x.name+')');
-  if(!Number.isFinite(Number(x.price))||Number(x.price)<0||!Number.isInteger(Number(x.quantity))||Number(x.quantity)<1)throw Error('تحققي من السعر والكمية للخدمة '+x.name);
-  return {...x,staffId:sid,staffName:String(record.name||x.staffName||'')};
- });
+ const selected=[];
+ for(let index=0;index<cashierCart.length;index++){
+  const x=cashierCart[index],sid=String(x.staffId||'');
+  const record=roster.find(s=>String(s.id)===sid);
+  if(!sid||!record){cashierFormIssue('حددي الموظفة المنفذة للسطر '+(index+1)+' («'+x.name+'»)، ثم اضغطي الحفظ مرة ثانية.', '#staff-'+x.lineId);return}
+  if(!Number.isFinite(Number(x.price))||Number(x.price)<0||!Number.isInteger(Number(x.quantity))||Number(x.quantity)<1){cashierFormIssue('تحققي من السعر والكمية للخدمة «'+x.name+'»');return}
+  selected.push({...x,staffId:sid,staffName:String(record.name||x.staffName||'')});
+ }
  // An archived employee can be kept on an old line, but cannot be assigned to a new service.
  if(existing){for(const line of selected){
   const oldLine=invoiceLineRows(existing).find(old=>String(old.serviceId)===String(line.serviceId)&&String(old.staffId||existing.staffId||'')===String(line.staffId));
@@ -407,7 +440,7 @@ async function submitInvoice(e){
   pointsUsed:pointsUse,loyaltyDiscount:totals.loyaltyDiscount,pointsAdded:pointsAdd+earned,pointsEarned:earned,
   notes:$('#invoiceNotes').value.trim(),date:$('#invoiceDate').value,createdAt:existing?.createdAt||now,
   updatedAt:now,whatsappRequested:$('#invoiceWhatsAppChoice')?.value==='yes',bookingId:existing?.bookingId||''};
- if(!/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)){toast('حددي تاريخ الفاتورة الصحيح');return}
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)){cashierFormIssue('حددي تاريخ الفاتورة الصحيح','#invoiceDate');return}
  const button=e.currentTarget?.querySelector('button[type="submit"]');if(button)button.disabled=true;
  const wantsWhatsApp=invoice.whatsappRequested;salonInvoiceSaving=true;
  let popup=null;const originalDb=JSON.parse(JSON.stringify(db));
@@ -511,12 +544,12 @@ function openInvoiceInCashier(id){
  const invoice=db.invoices.find(i=>String(i.id)===String(id));if(!invoice){toast('الفاتورة غير موجودة');return}
  // The cashier creates a fresh form. Load the same saved invoice AFTER rendering it.
  renderOwner('cashier');cashierEditingInvoiceId=String(invoice.id);
- cashierCart=invoiceLineRows(invoice).map(x=>({
+ cashierCart=invoiceLineRows(invoice).flatMap(x=>Array.from({length:Math.min(30,Math.max(1,Math.floor(Number(x.quantity)||1)))},()=>({
    lineId:uid('line'),serviceId:x.serviceId||'',name:x.name||invoice.serviceName||'خدمة',
-   price:Math.max(0,Number(x.price??0)||0),quantity:Math.max(1,Math.floor(Number(x.quantity)||1)),
+   price:Math.max(0,Number(x.price??0)||0),quantity:1,
    duration:Number(x.duration)||30,manualPrice:true,
    staffId:String(x.staffId||invoice.staffId||''),staffName:x.staffName||invoice.staffName||''
- }));
+ })));
  // If the old invoice contains discontinued services, show them in the cart without deleting them.
  const client=(db.clients||[]).find(c=>String(c.id)===String(invoice.clientId))||
     (db.clients||[]).find(c=>String(c.phone||'').replace(/\D/g,'')===String(invoice.customerPhone||'').replace(/\D/g,''));
