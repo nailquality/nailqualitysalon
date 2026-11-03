@@ -82,6 +82,7 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
 .salon-cashier-offer-btn{display:flex;flex-direction:column;align-items:flex-start;text-align:right;gap:6px;min-height:105px;cursor:pointer}
 .salon-cashier-offer-btn .salon-offer-kind{color:#7c405c;font-size:12px}
 </style>
+<style id="salon-credit-visible-css-fixed">
 .salon-balance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:14px}
 .salon-balance-tile{padding:12px;border-radius:14px;border:1px solid #e7ccd6;background:white;min-width:0}
 .salon-credit-numbers{display:flex;flex-wrap:wrap;justify-content:space-between;gap:9px;margin:9px 0}
@@ -1926,7 +1927,7 @@ renderPortalClient=function(){
  const settings=portalCatalog.settings||{};const pts=Math.max(0,Number(portalUser.points)||0);const threshold=Math.max(1,Number(settings.redeemPoints)||50);const riyals=Math.max(0,Number(settings.redeemRiyals)||10);
  if(salonClientPage==='bookings'){
   const rows=portalBookings.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  panel.innerHTML='<div class="section-head"><h3>📅 '+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(b.status||'pending')}</p><small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد حجوزات مؤكدة في النظام حاليًا. الطلبات المرسلة عبر واتساب تنتظر تأكيد الصالون ولا تُضاف تلقائيًا إلى مواعيدي.</div>');
+  panel.innerHTML='<div class="section-head"><h3>📅 '+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(b.status||'pending')} • ${b.depositStatus==='paid'?'✅ مدفوع':'🕒 لم يُدفع العربون'}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p><small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد حجوزات مؤكدة في النظام حاليًا. الطلبات المرسلة عبر واتساب تنتظر تأكيد الصالون ولا تُضاف تلقائيًا إلى مواعيدي.</div>');
  }else if(salonClientPage==='points'){
   panel.innerHTML=`<div class="section-head"><h3>🎁 ${lang==='ar'?'نقاطي ومكافآتي':'My points & rewards'}</h3></div><div class="stats"><div class="stat"><span>رصيد النقاط</span><strong>${pts}</strong></div><div class="stat"><span>خصم متاح عند الاستبدال</span><strong>${money(Math.floor(pts/threshold)*riyals)}</strong></div></div><div class="card" style="margin-top:14px"><h3>كيف أستخدم نقاطي؟</h3><p>كل ${threshold} نقطة = خصم ${money(riyals)} حسب سياسة الصالون.</p><p>يمكنك اختيار «نعم، أريد استخدام نقاطي» أثناء طلب الحجز. يراجع الصالون الرصيد ويؤكد قيمة الخصم قبل إصدار الفاتورة.</p><p class="notice">لا تُخصم أي نقاط بمجرد إرسال طلب واتساب. يُعتمد الخصم عند تأكيد الصالون والدفع.</p><button type="button" class="btn" onclick="salonClientPage='home';renderPortalClient()">احجزي واستخدمي نقاطك</button></div>`;
  }
@@ -4009,6 +4010,248 @@ publishPortalCatalog=async function(){
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkDateChange()});
  window.addEventListener('focus',checkDateChange);
 })();
+</script>
+<script id="salon-verified-guest-loyalty-and-unpaid-reservations">
+/* Quality Nail Salon · cashier guest loyalty and unpaid booking controls · 2026-11-03
+   Guest points are stored only in the owner's existing salonData/main.clients records.
+   Clients may see their balance ONLY after SMS verification and a deployed callable
+   getSalonLoyalty. Never publish clients or loyalty balances in portal/catalog. */
+(function(){
+'use strict';
+const fieldValue=()=>firebase.firestore.FieldValue.serverTimestamp();
+const isOwner=()=>db?.session?.type==='owner' && auth?.currentUser?.uid==='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+const loyalty={uid:'',points:null,pending:false,error:'',readAt:0,verifiedPhone:''};
+function normalized(value){
+ try{return normalizeSaudiPhone(value)}catch(_){return ''}
+}
+function phoneVerified(){
+ const current=auth?.currentUser;
+ return !!(current&&portalUser&&normalized(current.phoneNumber)&&normalized(current.phoneNumber)===normalized(portalUser.phone));
+}
+function renderLoyaltyNotice(){
+ if(portalRole!=='client'||!portalUser)return;
+ const app=document.getElementById('app');if(!app)return;
+ document.getElementById('salonGuestLoyaltyBanner')?.remove();
+ const pane=document.createElement('section');pane.id='salonGuestLoyaltyBanner';pane.className='card';
+ pane.style.cssText='margin:12px 0 16px;border:1px solid #ead0dc;background:linear-gradient(120deg,#fff8fb,#fff)';
+ if(!phoneVerified()){
+  pane.innerHTML='<div class="spread"><div><b>🎁 نقاطك محفوظة حتى لو اشتريتِ قبل التسجيل</b><p class="muted" style="margin:6px 0">للربط الآمن برصيدك السابق، تحققي برسالة SMS من ملكية رقم الجوال المسجل في حسابك.</p></div><button class="btn small" type="button" id="salonVerifyLoyaltyPhone">تحققي من الجوال</button></div>';
+  pane.querySelector('#salonVerifyLoyaltyPhone').onclick=salonOpenVerifyPhone;
+ }else{
+  let message=loyalty.pending?'جارٍ تحديث نقاطك من الصالون…':loyalty.error?'تعذر تحديث النقاط: '+loyalty.error:loyalty.points===null?'افتحي رصيدك للتحقق من نقاطك.':'الرصيد المرتبط برقمك الموثق: '+loyalty.points+' نقطة';
+  pane.innerHTML='<div class="spread"><div><b>🎁 رصيد نقاطك من الكاشير</b><p class="muted" style="margin:5px 0" id="salonLoyaltyMessage"></p></div><button type="button" class="btn secondary small" id="salonRefreshLoyalty">تحديث الرصيد</button></div>';
+  pane.querySelector('#salonLoyaltyMessage').textContent=message;
+  pane.querySelector('#salonRefreshLoyalty').onclick=()=>salonRefreshMyLoyalty(true);
+ }
+ const target=document.getElementById('salonClientPagePanel')||app;
+ target.prepend(pane);
+}
+async function salonRefreshMyLoyalty(force=false){
+ const user=auth?.currentUser;
+ if(portalRole!=='client'||!user||!portalUser)return;
+ if(!phoneVerified()){
+  loyalty.uid=user.uid;loyalty.points=null;loyalty.error='';loyalty.verifiedPhone='';
+  portalUser.points=0;renderLoyaltyNotice();return;
+ }
+ const phone=normalized(user.phoneNumber);
+ if(!force&&loyalty.pending)return;
+ if(!force&&loyalty.uid===user.uid&&loyalty.verifiedPhone===phone&&Date.now()-loyalty.readAt<45000)return;
+ loyalty.uid=user.uid;loyalty.verifiedPhone=phone;loyalty.pending=true;loyalty.error='';renderLoyaltyNotice();
+ try{
+  await user.getIdToken(true);
+  const callable=firebase.app().functions('us-central1').httpsCallable('getSalonLoyalty');
+  const response=(await callable({})).data||{};
+  if(!auth.currentUser||auth.currentUser.uid!==user.uid||portalRole!=='client')return;
+  if(!Number.isInteger(response.points)||response.points<0)throw Error('استجابة الرصيد غير صحيحة');
+  loyalty.points=response.points;loyalty.readAt=Date.now();loyalty.error='';
+  portalUser.points=response.points;
+  // Re-render the points statistics after resolving the server's authoritative value.
+  renderPortalClient();
+ }catch(err){
+  loyalty.error=(err.code==='functions/not-found'||err.code==='functions/unavailable')?'خدمة ربط النقاط غير منشورة على Firebase بعد.':
+   (err.code==='functions/failed-precondition'?'تحتاجين مراجعة الصالون لتوحيد سجلات رقم الجوال.':
+   (err.code==='functions/permission-denied'?'تعذر تأكيد ملكية الرقم، راجعي بيانات حسابك.':String(err.message||err)));
+  // Never claim the cached guest balance is available when verification fails.
+  portalUser.points=0;loyalty.points=null;renderPortalClient();
+ }finally{loyalty.pending=false;renderLoyaltyNotice()}
+}
+function salonOpenVerifyPhone(){
+ if(!auth?.currentUser||!portalUser){toast('سجلي دخول العميلة أولًا');return}
+ if(phoneVerified()){salonRefreshMyLoyalty(true);return}
+ const phone=normalized(portalUser.phone);
+ if(!phone){toast('رقم الجوال في الحساب غير صحيح. تواصلي مع الصالون.');return}
+ document.getElementById('salonSmsLoyaltyDialog')?.remove();
+ const cover=document.createElement('div');cover.id='salonSmsLoyaltyDialog';
+ cover.style.cssText='position:fixed;inset:0;background:#0008;display:grid;place-items:center;z-index:99999;padding:16px';
+ cover.innerHTML='<section class="card" style="width:min(420px,100%);max-height:90vh;overflow:auto"><h3>تأكيد رقم الجوال لاستلام النقاط</h3><p class="muted">سنرسل رمز تحقق برسالة SMS إلى الرقم المسجل في حسابك.</p><p id="salonSmsMasked"></p><div id="salonSmsCaptcha" style="margin:12px 0;min-height:80px"></div><div class="field"><label>رمز التحقق بعد إرسال الرسالة</label><input id="salonSmsPin" inputmode="numeric" maxlength="6" placeholder="6 أرقام" autocomplete="one-time-code"></div><p role="alert" id="salonSmsMessage" class="muted tiny"></p><div class="row" style="margin-top:12px"><button id="salonSendSms" type="button" class="btn small">إرسال رمز SMS</button><button id="salonFinishSms" type="button" class="btn success small" disabled>تأكيد الرمز</button><button type="button" id="salonCloseSms" class="btn secondary small">إغلاق</button></div></section>';
+ document.body.append(cover);
+ const $in=id=>cover.querySelector('#'+id);
+ $in('salonSmsMasked').textContent='+'+phone.slice(0,5)+'*****'+phone.slice(-2);
+ $in('salonCloseSms').onclick=()=>{try{verifier?.clear()}catch(_){}cover.remove()};
+ let verifier=null,confirmation=null;
+ $in('salonSendSms').onclick=async()=>{
+  $in('salonSendSms').disabled=true;$in('salonSmsMessage').textContent='جارٍ تجهيز التحقق…';
+  try{
+   if(!verifier){verifier=new firebase.auth.RecaptchaVerifier('salonSmsCaptcha',{size:'normal'});await verifier.render()}
+   confirmation=await auth.currentUser.linkWithPhoneNumber('+'+phone,verifier);
+   $in('salonFinishSms').disabled=false;$in('salonSmsMessage').textContent='تم طلب رسالة التحقق. اكتبي الرمز ثم اضغطي تأكيد.';
+  }catch(e){$in('salonSmsMessage').textContent='تعذر إرسال الرمز: '+String(e.message||e);$in('salonSendSms').disabled=false}
+ };
+ $in('salonFinishSms').onclick=async()=>{
+  if(!confirmation)return;
+  const pin=$in('salonSmsPin').value.trim();
+  if(!/^\d{6}$/.test(pin)){$in('salonSmsMessage').textContent='أدخلي رمز التحقق المكوّن من 6 أرقام';return}
+  $in('salonFinishSms').disabled=true;
+  try{
+   await confirmation.confirm(pin);await auth.currentUser.reload();await auth.currentUser.getIdToken(true);
+   cover.remove();loyalty.readAt=0;toast('تم توثيق الجوال. جارٍ ربط نقاطك السابقة.');
+   await salonRefreshMyLoyalty(true);
+  }catch(e){$in('salonSmsMessage').textContent='تعذر تأكيد الرمز: '+String(e.message||e);$in('salonFinishSms').disabled=false}
+ };
+}
+// Refresh after login or registration; never fetch guest points without SMS-proven phone ownership.
+const previousRenderPortalClient=renderPortalClient;
+renderPortalClient=function(...args){
+ if(portalRole==='client'&&portalUser){
+  if(!phoneVerified())portalUser.points=0;
+  else if(loyalty.uid!==auth.currentUser?.uid||loyalty.verifiedPhone!==normalized(auth.currentUser?.phoneNumber))portalUser.points=0;
+ }
+ const result=previousRenderPortalClient.apply(this,args);
+ if(portalRole==='client'&&portalUser){
+  renderLoyaltyNotice();
+  if(phoneVerified())Promise.resolve().then(()=>salonRefreshMyLoyalty(false));
+ }
+ return result;
+};
+
+// Keep the existing booking records, but mark explicit unpaid cancellations in their audit trail.
+function isLegacyPaid(b){
+ return b?.depositStatus==='paid'||b?.paymentStatus==='paid'||(db.invoices||[]).some(i=>String(i.bookingId||'')===String(b.id));
+}
+function salonLegacyBookingPaymentTag(b){return '<div class="tiny" style="margin-top:5px">'+(isLegacyPaid(b)?'✅ الدفع مسجل':'🕒 بانتظار الدفع')+(b.cancelReason==='unpaid'?' · أُلغي لعدم الدفع':'')+'</div>'}
+const previousBookingTable=bookingTable;
+bookingTable=function(list,compact=false){
+ // Decorate each row without changing the original booking action handlers.
+ const output=previousBookingTable(list,compact);
+ if(compact||!list.length)return output;
+ let ordinal=0;
+ return output.replace(/<tr><td>/g,match=>{
+  // First <tr><td> is a data row (header uses <th>).
+  const b=list[ordinal++];
+  return b?'<tr><td>':match;
+ }).replace(/<\/tr>/g,(match,offset,full)=>{
+  // Decorate in the exact order of data rows, preserving existing markup.
+  const before=full.slice(0,offset),idx=(before.match(/<tr><td>/g)||[]).length-1;
+  const b=list[idx];if(!b)return match;
+  // Insert into the last actions cell only, before end of row.
+  return match;
+ });
+};
+// A targeted booking-table extension (preserves all existing action buttons).
+bookingTable=function(list,compact=false){
+ const html=previousBookingTable(list,compact);
+ if(compact||!list.length)return html;
+ let n=0;
+ return html.replace(/(<tr><td>[\s\S]*?<\/tr>)/g,row=>{
+  const b=list[n++];if(!b)return row;
+  const payment=salonLegacyBookingPaymentTag(b);
+  let out=row.replace('</tr>','</tr>');
+  const badge=statusBadge(b.status);
+  out=out.replace(badge+'</td>',badge+payment+'</td>');
+  if(!['cancelled','completed','noShow'].includes(b.status)&&!isLegacyPaid(b)){
+   const buttons=`<button type="button" class="btn success small" onclick="salonMarkLegacyBookingPaid('${esc(b.id)}')">تأكيد استلام الدفع</button><button type="button" class="btn danger small" onclick="salonCancelUnpaidLegacyBooking('${esc(b.id)}')">إلغاء لعدم الدفع</button>`;
+   out=out.replace('</div></td></tr>',buttons+'</div></td></tr>');
+  }
+  return out;
+ });
+};
+// Transactional legacy-booking updates: recheck the latest payment state before cancelling.
+async function salonChangeLegacyPayment(id,action){
+ if(!isOwner())throw Error('المالكة فقط يمكنها تعديل الدفع');
+ await saveQueue;
+ let updated=null;
+ await firestore.runTransaction(async tx=>{
+  const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('قاعدة الصالون غير متاحة');
+  const remote=snap.data()||{};
+  if(!Array.isArray(remote.bookings))throw Error('لم يتم العثور على حجوزات الصالون');
+  const bookings=remote.bookings.map(b=>({...b}));
+  const current=bookings.find(b=>String(b.id)===String(id));
+  if(!current)throw Error('لم يتم العثور على الحجز');
+  if(['cancelled','completed','noShow'].includes(current.status))throw Error('الحجز مغلق مسبقًا');
+  if(action==='cancel'){
+   if(current.depositStatus==='paid'||current.paymentStatus==='paid'||
+      (db.invoices||[]).some(i=>String(i.bookingId||'')===String(id)))throw Error('الحجز مسجل أنه مدفوع، لا يمكن إلغاؤه لعدم الدفع');
+   current.status='cancelled';current.cancelReason='unpaid';
+   current.cancelledAt=new Date().toISOString();
+  }else{
+   if(current.depositStatus==='paid')throw Error('الدفع مسجل بالفعل');
+   current.depositStatus='paid';current.paidAt=new Date().toISOString();
+  }
+  current.updatedAt=new Date().toISOString();
+  tx.update(salonDoc,{bookings,updatedAt:new Date().toISOString()});
+  updated=bookings;
+ });
+ if(updated){db.bookings=updated;salonUpdateInvoiceBaseline({bookings:updated});renderOwner(ownerActiveTab)}
+}
+window.salonMarkLegacyBookingPaid=async function(id){
+ if(!confirm('هل وصل الدفع فعلًا إلى حساب الصالون؟ لا تعتمدي الدفع قبل التحقق.'))return;
+ try{await salonChangeLegacyPayment(id,'paid');toast('تم تسجيل الدفع')}
+ catch(e){toast('تعذر تسجيل الدفع: '+String(e.message||e))}
+};
+window.salonCancelUnpaidLegacyBooking=async function(id){
+ if(!confirm('تأكيد إلغاء الحجز لعدم الدفع؟ سيعود الموعد متاحًا للحجز.'))return;
+ try{await salonChangeLegacyPayment(id,'cancel');toast('تم إلغاء الحجز لعدم الدفع')}
+ catch(e){toast('تعذر الإلغاء: '+String(e.message||e))}
+};
+
+function salonPortalPaymentBadge(b){
+ return b.depositStatus==='paid'?'✅ تم تسجيل الدفع':'🕒 بانتظار دفع العربون';
+}
+// Override the owner listing LAST; another legacy script wraps it and would otherwise hide payment actions.
+showPortalBookingsOwner=async function(){
+ const host=document.querySelector('#portalBookingsOwner');if(!host)return;
+ if(!isOwner()){host.textContent='المالكة فقط يمكنها الاطلاع على الحجوزات';return}
+ host.innerHTML='<p class="muted">جارٍ تحميل الحجوزات من Firebase…</p>';
+ try{
+  const snap=await firestore.collection('portalBookings').get();
+  const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAt?.seconds||'').localeCompare(String(a.createdAt?.seconds||'')));
+  host.innerHTML=rows.length?rows.map(b=>{
+   const id=esc(b.id),closed=['cancelled','completed','noShow'].includes(b.status),paid=b.depositStatus==='paid';
+   return `<section class="card" style="margin:10px 0;border:1px solid #ead1de"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date||'')} ${esc(b.time||'')}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · ${esc(b.location==='home'?'خدمة منزلية':'في الصالون')} · <strong>${salonPortalPaymentBadge(b)}</strong></p><p class="muted tiny">رقم الحجز: ${id}${b.cancelReason==='unpaid'?' · السبب: إلغاء لعدم الدفع':''}</p><div class="row" style="margin-top:12px">${closed?'':`<button class="btn secondary small" type="button" onclick="ownerEditSavedBooking('${id}')">تعديل</button>${!paid?`<button class="btn success small" type="button" onclick="salonMarkPortalPaid('${id}')">تأكيد استلام الدفع</button><button class="btn danger small" type="button" onclick="salonCancelUnpaidPortal('${id}')">إلغاء لعدم الدفع</button>`:`<button class="btn success small" type="button" onclick="ownerConfirmSavedBooking('${id}')">تأكيد الحجز</button>`}<button class="btn danger small" type="button" onclick="ownerCancelSavedBooking('${id}')">إلغاء عادي</button>`}</div></section>`;
+  }).join(''):'<div class="empty">لا توجد حجوزات حاليًا.</div>';
+ }catch(e){host.textContent='تعذر تحميل الحجوزات: '+String(e.message||e)}
+};
+window.salonMarkPortalPaid=async function(id){
+ if(!isOwner())return toast('المالكة فقط');
+ if(!confirm('هل تأكدتِ من استلام الدفع بالفعل؟'))return;
+ try{
+  const ref=firestore.collection('portalBookings').doc(id);
+  await firestore.runTransaction(async tx=>{
+   const s=await tx.get(ref);if(!s.exists)throw Error('الحجز غير موجود');
+   const b=s.data();if(['cancelled','completed','noShow'].includes(b.status))throw Error('الحجز مغلق');
+   tx.update(ref,{depositStatus:'paid',paidAt:fieldValue(),updatedAt:fieldValue()});
+  });
+  await showPortalBookingsOwner();toast('تم تسجيل استلام العربون');
+ }catch(e){toast('تعذر تسجيل الدفع: '+String(e.message||e))}
+};
+window.salonCancelUnpaidPortal=async function(id){
+ if(!isOwner())return toast('المالكة فقط');
+ if(!confirm('إلغاء الحجز بسبب عدم الدفع؟ سيتم تحرير الموعد وسيظهر للعميلة أن الحجز ملغي.'))return;
+ try{
+  const ref=firestore.collection('portalBookings').doc(id);
+  await firestore.runTransaction(async tx=>{
+   const s=await tx.get(ref);if(!s.exists)throw Error('الحجز غير موجود');
+   const b=s.data();
+   if(b.depositStatus==='paid')throw Error('هذا الحجز مسجل أنه مدفوع؛ لا يمكن إلغاؤه لعدم الدفع');
+   if(['cancelled','completed','noShow'].includes(b.status))throw Error('الحجز مغلق بالفعل');
+   tx.update(ref,{status:'cancelled',cancelReason:'unpaid',cancelledAt:fieldValue(),updatedAt:fieldValue()});
+  });
+  await showPortalBookingsOwner();toast('تم الإلغاء بسبب عدم الدفع، وأصبح الموعد متاحًا');
+ }catch(e){toast('تعذر إلغاء الحجز: '+String(e.message||e))}
+};
+window.salonRefreshMyLoyalty=salonRefreshMyLoyalty;
+})();
+
 </script>
 </body>
 </html>
