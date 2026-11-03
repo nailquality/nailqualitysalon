@@ -5732,5 +5732,98 @@ window.renderPortalClient=function(...args){
 if(typeof portalRole!=='undefined'&&portalRole==='client'&&portalUser)renderShop();
 })();
 </script>
+
+<!-- Salon sign-out reset v2026-11-03: final override AFTER all previous listeners/wrappers. -->
+<script id="salon-signout-reset-20261103">
+(function(){
+ 'use strict';
+ let signOutPending=false;
+ function showSigningOut(){
+  const app=document.getElementById('app');
+  if(app){
+   app.className='wrap';
+   app.innerHTML='<section class="card" role="status" aria-live="polite" style="max-width:540px;margin:52px auto;text-align:center;padding:38px 25px"><h2>جارٍ تسجيل الخروج…</h2><p class="muted">يتم إنهاء جلسة الحساب والعودة للرئيسية.</p></section>';
+  }
+  const home=document.getElementById('homeBtn');if(home)home.classList.add('hidden');
+ }
+ function resetPrivateState(){
+  portalRole='';portalUser=null;portalBookings=[];
+  if(typeof salonClientPage!=='undefined')salonClientPage='home';
+  portalCatalog={services:[],staff:[],packages:[],settings:{}};
+  db=initialState();db.session=null;
+  firebaseReady=false;
+  if(typeof salonInvoiceStorageReady!=='undefined')salonInvoiceStorageReady=false;
+  if(typeof salonCloudBaseline!=='undefined')salonCloudBaseline=null;
+  loginInProgress=false;
+  const root=document.getElementById('modalRoot');if(root)root.replaceChildren();
+  try{localStorage.removeItem(STORAGE_KEY)}catch(_ignored){}
+ }
+ function homeURL(){
+  const url=new URL(window.location.href);url.hash='';
+  // Vary only the post-logout page request so stale GitHub Pages/embedded previews
+  // cannot simply restore the authenticated page from history or HTTP cache.
+  url.searchParams.set('signed_out','1');
+  return url.href;
+ }
+ clearSession=async function salonSignOutToHome(){
+  if(signOutPending)return;
+  signOutPending=true;
+  window.salonLogoutBusy=true;
+  showSigningOut();
+  try{
+   // Firebase signOut also clears browser persistence for this account.
+   // Do not call the old clearSession wrappers: their asynchronous callbacks
+   // can paint the stale authenticated view after logout.
+   await auth.signOut();
+   if(auth.currentUser)throw Error('تعذّر إنهاء جلسة الحساب، أعيدي المحاولة.');
+   resetPrivateState();
+   renderHome();
+   // A full navigation cancels in-flight Firestore requests and all stale UI
+   // continuations. This fixes the old client page reappearing after logout.
+   window.location.replace(homeURL());
+  }catch(error){
+   console.error('Salon sign-out failed',error);
+   signOutPending=false;
+   window.salonLogoutBusy=false;
+   if(!auth.currentUser){
+    resetPrivateState();renderHome();
+    window.location.replace(homeURL());
+   }else{
+    // Keep the user informed if Firebase genuinely failed to sign out;
+    // do not falsely show a public page while still authenticated.
+    if(db.session?.type==='owner')renderOwner('dashboard');
+    else if(portalRole==='client'&&portalUser)renderPortalClient();
+    else if(portalRole==='employee'&&portalUser)renderPortalEmployee();
+    else renderHome();
+    toast('تعذّر تسجيل الخروج: '+String(error?.message||error));
+   }
+  }
+ };
+ // Stop any in-flight sign-in/catalog request painting client/owner screens
+ // while sign-out navigation is underway.
+ const beforeClient=renderPortalClient;
+ renderPortalClient=function(...args){
+  if(signOutPending||!auth.currentUser||portalRole!=='client')return;
+  return beforeClient.apply(this,args);
+ };
+ const beforeEmployee=renderPortalEmployee;
+ renderPortalEmployee=function(...args){
+  if(signOutPending||!auth.currentUser||portalRole!=='employee')return;
+  return beforeEmployee.apply(this,args);
+ };
+ const beforeOwner=renderOwner;
+ renderOwner=function(...args){
+  if(signOutPending||!auth.currentUser||db.session?.type!=='owner')return;
+  return beforeOwner.apply(this,args);
+ };
+ // If the browser restores a protected page from its back-forward cache,
+ // return to the public landing after Firebase has been signed out.
+ window.addEventListener('pageshow',function(event){
+  if(event.persisted&&!auth.currentUser&&db.session){resetPrivateState();renderHome();}
+ });
+ document.documentElement.dataset.salonLogoutFix='20261103';
+})();
+</script>
+
 </body>
 </html>
