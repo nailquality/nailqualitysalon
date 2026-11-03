@@ -2055,31 +2055,35 @@ renderOwner=function(tab=ownerActiveTab){
  content.append(details);
 };
 
+window.salonAuthRevision=window.salonAuthRevision||0;
 auth.onAuthStateChanged(async user=>{
- if(loginInProgress)return;
+ const salonAuthRevision=++window.salonAuthRevision;
+ const salonAuthStillCurrent=()=>!window.salonLogoutBusy&&salonAuthRevision===window.salonAuthRevision&&auth.currentUser?.uid===user?.uid;
+ if(window.salonLogoutBusy||loginInProgress)return;
  if(!user){firebaseReady=false;db.session=null;db=initialState();portalUser=null;portalRole='';portalBookings=[];salonClientPage='home';renderHome();return}
  try{
   if(user.uid==="AvRinM2frzLkDWH1CsH7CnIhFnK2"){
-   const snap=await salonDoc.get();firebaseReady=true;localStorage.removeItem(STORAGE_KEY);
+   const snap=await salonDoc.get();if(!salonAuthStillCurrent())return;firebaseReady=true;localStorage.removeItem(STORAGE_KEY);
    if(snap.exists){const remote=snap.data(),base=initialState();db={...base,...remote,settings:{...base.settings,...remote.settings},session:{type:"owner",id:user.uid}};salonCloudBaseline=JSON.parse(JSON.stringify(remote))}
    else{firebaseReady=false;db.session=null;toast("بيانات الصالون غير موجودة في Firebase؛ لن ننشئ بيانات فارغة تلقائيًا");renderHome();return}
-   if(auth.currentUser?.uid!==user.uid)return;
+   if(!salonAuthStillCurrent())return;
    renderOwner("dashboard");
    salonInitializeInvoiceStorage().then(()=>{
-    if(db.session?.type==='owner'&&ownerActiveTab==='dashboard')renderOwner('dashboard');
+    if(salonAuthStillCurrent()&&db.session?.type==='owner'&&ownerActiveTab==='dashboard')renderOwner('dashboard');
    }).catch(err=>console.warn('Invoice initialization',err));
    return;
   }
   const client=await firestore.collection("clientProfiles").doc(user.uid).get();
+   if(!salonAuthStillCurrent())return;
   if(loginInProgress)return;
-  if(client.exists){if(auth.currentUser?.uid!==user.uid)return;portalUser=client.data();portalRole="client";await loadPortalCatalog();if(auth.currentUser?.uid!==user.uid)return;try{await loadPortalBookings()}catch(err){console.warn('Bookings unavailable',err);portalBookings=[]}if(auth.currentUser?.uid!==user.uid)return;renderPortalClient();return}
+  if(client.exists){if(!salonAuthStillCurrent())return;portalUser=client.data();portalRole="client";await loadPortalCatalog();if(auth.currentUser?.uid!==user.uid)return;try{await loadPortalBookings()}catch(err){console.warn('Bookings unavailable',err);portalBookings=[]}if(!salonAuthStillCurrent())return;renderPortalClient();return}
   // Check employees first: an employee must never be offered a client-profile recovery form.
   let employee;
   try{employee=await firestore.collection("employeeProfiles").doc(user.uid).get()}
   catch(checkError){console.warn('Employee lookup not allowed for this UID',checkError);employee={exists:false}}
   
   if(loginInProgress)return;
-  if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()===String(user.email||'').trim().toLowerCase()){if(auth.currentUser?.uid!==user.uid)return;portalUser=employee.data();portalRole="employee";await loadPortalCatalog();if(auth.currentUser?.uid!==user.uid)return;try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('تم الدخول، لكن تعذر جلب الحجوزات. تأكدي من نشر قواعد Firestore المرفقة.')}if(auth.currentUser?.uid!==user.uid)return;renderPortalEmployee();return}
+  if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()===String(user.email||'').trim().toLowerCase()){if(auth.currentUser?.uid!==user.uid)return;portalUser=employee.data();portalRole="employee";await loadPortalCatalog();if(auth.currentUser?.uid!==user.uid)return;try{await loadPortalBookings()}catch(err){console.warn('Employee bookings unavailable',err);portalBookings=[];toast('تم الدخول، لكن تعذر جلب الحجوزات. تأكدي من نشر قواعد Firestore المرفقة.')}if(!salonAuthStillCurrent())return;renderPortalEmployee();return}
   if(loginInProgress)return;
   if(employee.exists&&employee.data().active===true&&String(employee.data().email||'').trim().toLowerCase()!==String(user.email||'').trim().toLowerCase()){
    toast('إيميل حساب Firebase لا يطابق الإيميل المرتبط بـ UID الموظفة. راجعي ربط الحساب من لوحة المالكة.');
@@ -2092,7 +2096,7 @@ auth.onAuthStateChanged(async user=>{
    return;
   }
   toast("لم يُعثر على ملف الحساب بعد. أعيدي المحاولة بعد قليل أو سجّلي الدخول من جديد.");
- }catch(e){console.error(e);if(loginInProgress)return;toast("تعذر تحميل الحساب. راجعي قواعد Firestore: "+e.message);if(!portalUser)renderHome()}
+ }catch(e){console.error(e);if(loginInProgress||!salonAuthStillCurrent())return;toast("تعذر تحميل الحساب. راجعي قواعد Firestore: "+e.message);if(!portalUser)renderHome()}
 });
 </script>
 
@@ -5733,95 +5737,87 @@ if(typeof portalRole!=='undefined'&&portalRole==='client'&&portalUser)renderShop
 })();
 </script>
 
-<!-- Salon sign-out reset v2026-11-03: final override AFTER all previous listeners/wrappers. -->
-<script id="salon-signout-reset-20261103">
+<!-- Salon auth transition control: avoid stale profile reads and full-page logout reload loops. -->
+<script id="salon-signout-stable-20261103">
 (function(){
- 'use strict';
- let signOutPending=false;
- function showSigningOut(){
-  const app=document.getElementById('app');
-  if(app){
-   app.className='wrap';
-   app.innerHTML='<section class="card" role="status" aria-live="polite" style="max-width:540px;margin:52px auto;text-align:center;padding:38px 25px"><h2>جارٍ تسجيل الخروج…</h2><p class="muted">يتم إنهاء جلسة الحساب والعودة للرئيسية.</p></section>';
-  }
-  const home=document.getElementById('homeBtn');if(home)home.classList.add('hidden');
- }
- function resetPrivateState(){
+'use strict';
+window.salonAuthRevision=window.salonAuthRevision||0;
+let pending=false;
+function discardPrivateState(){
   portalRole='';portalUser=null;portalBookings=[];
-  if(typeof salonClientPage!=='undefined')salonClientPage='home';
+  salonClientPage='home';
   portalCatalog={services:[],staff:[],packages:[],settings:{}};
   db=initialState();db.session=null;
   firebaseReady=false;
   if(typeof salonInvoiceStorageReady!=='undefined')salonInvoiceStorageReady=false;
   if(typeof salonCloudBaseline!=='undefined')salonCloudBaseline=null;
   loginInProgress=false;
-  const root=document.getElementById('modalRoot');if(root)root.replaceChildren();
+  document.getElementById('modalRoot')?.replaceChildren();
   try{localStorage.removeItem(STORAGE_KEY)}catch(_ignored){}
- }
- function homeURL(){
-  const url=new URL(window.location.href);url.hash='';
-  // Vary only the post-logout page request so stale GitHub Pages/embedded previews
-  // cannot simply restore the authenticated page from history or HTTP cache.
-  url.searchParams.set('signed_out','1');
-  return url.href;
- }
- clearSession=async function salonSignOutToHome(){
-  if(signOutPending)return;
-  signOutPending=true;
-  window.salonLogoutBusy=true;
-  showSigningOut();
+}
+function cleanOldLogoutQuery(){
+  // The old release appended signed_out=1 and used a full navigation.
+  // Removing that marker changes the URL *without* reloading the page.
   try{
-   // Firebase signOut also clears browser persistence for this account.
-   // Do not call the old clearSession wrappers: their asynchronous callbacks
-   // can paint the stale authenticated view after logout.
-   await auth.signOut();
-   if(auth.currentUser)throw Error('تعذّر إنهاء جلسة الحساب، أعيدي المحاولة.');
-   resetPrivateState();
-   renderHome();
-   // A full navigation cancels in-flight Firestore requests and all stale UI
-   // continuations. This fixes the old client page reappearing after logout.
-   window.location.replace(homeURL());
-  }catch(error){
-   console.error('Salon sign-out failed',error);
-   signOutPending=false;
-   window.salonLogoutBusy=false;
-   if(!auth.currentUser){
-    resetPrivateState();renderHome();
-    window.location.replace(homeURL());
-   }else{
-    // Keep the user informed if Firebase genuinely failed to sign out;
-    // do not falsely show a public page while still authenticated.
-    if(db.session?.type==='owner')renderOwner('dashboard');
-    else if(portalRole==='client'&&portalUser)renderPortalClient();
-    else if(portalRole==='employee'&&portalUser)renderPortalEmployee();
-    else renderHome();
-    toast('تعذّر تسجيل الخروج: '+String(error?.message||error));
-   }
+    const url=new URL(window.location.href);
+    if(url.searchParams.has('signed_out')){
+      url.searchParams.delete('signed_out');
+      window.history.replaceState(window.history.state,'',url.pathname+url.search+url.hash);
+    }
+  }catch(_ignored){}
+}
+clearSession=async function salonSecureLogout(){
+  if(pending)return;
+  pending=true;
+  window.salonLogoutBusy=true;
+  ++window.salonAuthRevision;
+  const app=document.getElementById('app');
+  if(app){app.className='wrap';app.innerHTML='<section class="card" role="status" aria-live="polite" style="max-width:500px;margin:40px auto;text-align:center"><h2>جارٍ تسجيل الخروج…</h2></section>';}
+  document.getElementById('homeBtn')?.classList.add('hidden');
+  try{
+    await auth.signOut();
+    if(auth.currentUser)throw new Error('تعذّر إنهاء جلسة Firebase.');
+    discardPrivateState();
+    cleanOldLogoutQuery();
+    renderHome();
+  }catch(err){
+    console.error('Sign out failed:',err);
+    if(!auth.currentUser){discardPrivateState();cleanOldLogoutQuery();renderHome();}
+    else{
+      // Let the still-authenticated user see their original page if Firebase rejected logout.
+      window.salonLogoutBusy=false;
+      // Don't claim sign-out succeeded when the authenticated session survived.
+      if(db.session?.type==='owner')renderOwner('dashboard');
+      else if(portalRole==='client'&&portalUser)renderPortalClient();
+      else if(portalRole==='employee'&&portalUser)renderPortalEmployee();
+      else renderHome();
+      toast('تعذّر تسجيل الخروج: '+String(err?.message||err));
+    }
+  }finally{
+    window.salonLogoutBusy=false;
+    pending=false;
   }
- };
- // Stop any in-flight sign-in/catalog request painting client/owner screens
- // while sign-out navigation is underway.
- const beforeClient=renderPortalClient;
- renderPortalClient=function(...args){
-  if(signOutPending||!auth.currentUser||portalRole!=='client')return;
-  return beforeClient.apply(this,args);
- };
- const beforeEmployee=renderPortalEmployee;
- renderPortalEmployee=function(...args){
-  if(signOutPending||!auth.currentUser||portalRole!=='employee')return;
-  return beforeEmployee.apply(this,args);
- };
- const beforeOwner=renderOwner;
- renderOwner=function(...args){
-  if(signOutPending||!auth.currentUser||db.session?.type!=='owner')return;
-  return beforeOwner.apply(this,args);
- };
- // If the browser restores a protected page from its back-forward cache,
- // return to the public landing after Firebase has been signed out.
- window.addEventListener('pageshow',function(event){
-  if(event.persisted&&!auth.currentUser&&db.session){resetPrivateState();renderHome();}
- });
- document.documentElement.dataset.salonLogoutFix='20261103';
+};
+const oldClient=renderPortalClient;
+renderPortalClient=function(...args){
+  if(window.salonLogoutBusy||!auth.currentUser||portalRole!=='client')return;
+  return oldClient.apply(this,args);
+};
+const oldEmployee=renderPortalEmployee;
+renderPortalEmployee=function(...args){
+  if(window.salonLogoutBusy||!auth.currentUser||portalRole!=='employee')return;
+  return oldEmployee.apply(this,args);
+};
+const oldOwner=renderOwner;
+renderOwner=function(...args){
+  if(window.salonLogoutBusy||!auth.currentUser||db.session?.type!=='owner')return;
+  return oldOwner.apply(this,args);
+};
+window.addEventListener('pageshow',function(event){
+  if(event.persisted&&!auth.currentUser&&db.session){discardPrivateState();renderHome()}
+});
+cleanOldLogoutQuery();
+document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
 })();
 </script>
 
