@@ -104,6 +104,15 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
 @media(max-width:560px){.salon-account-hero{padding:20px;gap:12px}.salon-account-emblem{width:54px;height:54px;min-width:54px}.salon-setting-card{padding:18px!important}}
 </style>
 
+
+<style id="salon-client-management-styles">
+.salon-clients-management .salon-client-head{border:1px solid rgba(143,88,105,.13);background:linear-gradient(130deg,#fffaf7,#fff3f5)}
+.salon-clients-management .salon-client-actions{gap:6px;flex-wrap:wrap}
+.salon-clients-management .salon-client-actions button{white-space:nowrap}
+.salon-clients-management .table-wrap{border-radius:14px;overflow:auto;border:1px solid rgba(143,88,105,.1)}
+.salon-clients-management .section-head{margin-block:18px 8px}
+@media(max-width:640px){.salon-clients-management .salon-client-head .spread{align-items:flex-start;gap:9px}.salon-clients-management .salon-client-actions{min-width:145px}}
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -170,7 +179,7 @@ function salonInvoiceLocalDate(invoice){
 }
 const money=n=>new Intl.NumberFormat(lang==="ar"?"ar-SA":"en-SA",{style:"currency",currency:"SAR",maximumFractionDigits:2}).format(Number(n)||0);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function initialState(){return {settings:{salonName:"صالون جودة الأظافر",whatsapp:WA_NUMBER,redeemPoints:50,redeemRiyals:10,homeServiceEnabled:false},clients:[],staff:[],services:[{id:"svc-mani",name:"مانيكير",nameEn:"Manicure",price:65,duration:45,active:true,materials:[]},{id:"svc-pedi",name:"باديكير",nameEn:"Pedicure",price:85,duration:60,active:true,materials:[]},{id:"svc-gel",name:"تركيب جل",nameEn:"Gel extensions",price:150,duration:90,active:true,materials:[]}],bookings:[],blocks:[],inventory:[],invoices:[],expenses:[],breaks:[],redemptions:[],reviews:[],packages:[],clientPackages:[],counter:1001,invoiceCounter:1,session:null}}
+function initialState(){return {settings:{salonName:"صالون جودة الأظافر",whatsapp:WA_NUMBER,redeemPoints:50,redeemRiyals:10,homeServiceEnabled:false},clients:[],clientArchive:[],staff:[],services:[{id:"svc-mani",name:"مانيكير",nameEn:"Manicure",price:65,duration:45,active:true,materials:[]},{id:"svc-pedi",name:"باديكير",nameEn:"Pedicure",price:85,duration:60,active:true,materials:[]},{id:"svc-gel",name:"تركيب جل",nameEn:"Gel extensions",price:150,duration:90,active:true,materials:[]}],bookings:[],blocks:[],inventory:[],invoices:[],expenses:[],breaks:[],redemptions:[],reviews:[],packages:[],clientPackages:[],counter:1001,invoiceCounter:1,session:null}}
 // Security: do not hydrate private salon records from persistent browser storage.
 // Historical cache is removed after Firebase becomes available; cloud remains authoritative.
 /* Customer credit packages: balances are saved only by the invoice Firestore transaction. */
@@ -370,7 +379,7 @@ function ownerLayout(tab,content){
 
 function ownerTab(tab){renderOwner(tab)}
 function bookingTable(list,compact=false){if(!list.length)return `<div class="empty">${esc(t("noBookings"))}</div>`;return `<div class="table-wrap"><table><thead><tr><th>${esc(t("date"))}</th><th>${esc(t("time"))}</th><th>${esc(t("customer"))}</th><th>${esc(t("service"))}</th><th>${esc(t("employee"))}</th><th>${esc(t("status"))}</th>${compact?"":"<th>"+esc(t("actions"))+"</th>"}</tr></thead><tbody>${list.map(b=>`<tr><td>${esc(b.date)}</td><td>${esc(b.time)}</td><td>${esc(clientName(b.clientId)||b.customerName||"—")}<br><small>${esc(b.clientCode||"")}</small></td><td>${esc(b.serviceName||serviceName(b.serviceId))}<br><small>${b.serviceLocation==="home"?"خدمة منزلية":"في الصالون"}</small></td><td>${esc(staffName(b.staffId))}</td><td>${statusBadge(b.status)}</td>${compact?"":`<td><div class="row">${b.status==="pending"?`<button class="btn success small" onclick="changeBooking('${b.id}','confirmed')">${esc(t("markConfirmed"))}</button>`:""}${b.status==="confirmed"?`<button class="btn secondary small" onclick="changeBooking('${b.id}','inProgress')">${esc(t("startService"))}</button>`:""}${b.status==="inProgress"?`<button class="btn success small" onclick="changeBooking('${b.id}','completed')">${esc(t("complete"))}</button>`:""}${!["cancelled","completed","noShow"].includes(b.status)?`<button class="btn danger small" onclick="cancelBooking('${b.id}')">${esc(t("cancelBooking"))}</button>`:""}${b.status==="pending"||b.status==="confirmed"?`<button class="btn outline small" onclick="changeBooking('${b.id}','noShow')">${esc(t("markNoShow"))}</button>`:""}</div></td>`}</tr>`).join("")}</tbody></table></div>`}
-function clientName(id){return db.clients.find(c=>c.id===id)?.name}
+function clientName(id){return db.clients.find(c=>c.id===id)?.name||salonClientsArchive().find(c=>c.id===id)?.name}
 function staffName(id){return db.staff.find(s=>s.id===id)?.name||"—"}
 function serviceName(id){const s=db.services.find(x=>x.id===id);return s?textService(s):"—"}
 function changeBooking(id,status){if(db.session?.type!=="owner"&&db.session?.type!=="employee"){toast(t("noPermission"));return}const b=db.bookings.find(x=>x.id===id);if(!b)return;if(db.session.type==="employee"&&b.staffId!==db.session.id){toast(t("noPermission"));return}if(status==="cancelled"&&db.session.type!=="owner"){toast(t("onlyOwnerCancel"));return}b.status=status;b.updatedAt=new Date().toISOString();if(status==="completed"){const c=db.clients.find(x=>x.id===b.clientId);if(c)c.points+=db.invoices.some(i=>i.bookingId===b.id)?0:(b.serviceIds||[b.serviceId]).reduce((sum,id)=>sum+Math.max(0,Math.floor(Number(db.services.find(s=>s.id===id)?.loyaltyPoints)||0)),0);b.completedAt=new Date().toISOString()}persist();if(db.session.type==="owner")renderOwner(ownerActiveTab);else renderEmployee();toast(status==="completed"?t("serviceCompleted"):t("saved"))}
@@ -396,12 +405,184 @@ function redeemPoints(){const c=currentUser();if(!c)return;const amount=prompt(t
 function renderEmployee(){if(db.session?.type!=="employee"||!currentUser()){renderHome();return}const s=currentUser();$("#homeBtn").classList.remove("hidden");applyLang();const list=db.bookings.filter(b=>b.staffId===s.id).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));const complete=list.filter(b=>b.status==="completed"),rev=complete.reduce((n,b)=>n+(Number(b.price)||0),0),commission=rev*(Number(s.commission)||0)/100;
 $("#app").innerHTML=headerPanel(t("employeePortal"),`${s.name} • ${s.code}`)+`<div class="stats"><div class="stat"><span>${esc(t("bookingsCount"))}</span><strong>${list.length}</strong></div><div class="stat"><span>${esc(t("completedServices"))}</span><strong>${complete.length}</strong></div><div class="stat"><span>${esc(t("revenue"))}</span><strong>${money(rev)}</strong></div><div class="stat"><span>${esc(t("commission"))}</span><strong>${money(commission)}</strong></div></div><div class="section-head"><h3>${esc(t("appointments"))}</h3></div>${bookingTable(list)}<div class="section-head"><h3>${esc(t("employeeBreak"))}</h3></div><div class="card"><div class="form-grid"><div class="field"><label>${esc(t("date"))}</label><input id="breakDate" type="date" min="${today()}" max="2050-12-31" value="${today()}"></div><div class="field"><label>${esc(t("startTime"))}</label><input id="breakStart" type="time" value="13:00"></div><div class="field"><label>${esc(t("endTime"))}</label><input id="breakEnd" type="time" value="14:00"></div><button class="btn" onclick="addEmployeeBreak()">${esc(t("addBreak"))}</button></div><div id="myBreaks" style="margin-top:12px">${db.breaks.filter(b=>b.staffId===s.id).map(b=>`<p>${esc(b.date)} ${esc(b.startTime)}–${esc(b.endTime)}</p>`).join("")}</div></div><div class="section-head"><button class="btn danger" onclick="clearSession()">${esc(t("logout"))}</button></div>`}
 function addEmployeeBreak(){const s=currentUser(),date=$("#breakDate").value,startTime=$("#breakStart").value,endTime=$("#breakEnd").value;if(!s||!date||!startTime||!endTime||startTime>=endTime){toast(t("required"));return}db.breaks.push({id:uid("brk"),staffId:s.id,date,startTime,endTime});persist();renderEmployee();toast(t("saved"))}
-function clientsPanel(){return `<div class="card"><div class="spread"><div><h3>إدارة العميلات</h3><p class="muted">عرض وتعديل بيانات العميلات ونقاط الولاء.</p></div><input id="clientSearch" placeholder="ابحثي بالاسم أو الجوال أو الكود" oninput="filterClients()" style="max-width:360px;padding:10px;border:1px solid var(--line);border-radius:10px"></div><form id="clientAddForm" class="form-grid" style="margin-top:14px"><div class="field"><label>اسم العميلة</label><input name="name" required maxlength="100"></div><div class="field"><label>رقم الجوال</label><input name="phone" required maxlength="20"></div><div class="field"><label>البريد الإلكتروني</label><input name="email" type="email"></div><div class="field"><label>النقاط الافتتاحية</label><input name="points" type="number" min="0" step="1" value="0"></div><button class="btn full">إضافة عميلة</button></form></div><div class="section-head"><h3>سجل العميلات (${db.clients.length})</h3></div><div id="clientsTable">${clientsTable(db.clients)}</div>`}
-function clientsTable(list){if(!list.length)return `<div class="empty">لا توجد عميلات بعد. يمكنك إضافتهن من النموذج أعلاه.</div>`;return `<div class="table-wrap"><table><thead><tr><th>الكود</th><th>اسم العميلة</th><th>الجوال</th><th>البريد</th><th>النقاط</th><th>عدد الفواتير</th><th>الإجراءات</th></tr></thead><tbody>${list.map(c=>`<tr><td>${esc(c.code||"—")}</td><td>${esc(c.name)}</td><td>${esc(c.phone||"—")}</td><td>${esc(c.email||"—")}</td><td><b>${Number(c.points)||0}</b></td><td>${db.invoices.filter(i=>i.clientId===c.id).length}</td><td><div class="row"><button class="btn secondary small" onclick="editClient('${c.id}')">تعديل</button><button class="btn small" onclick="adjustClientPoints('${c.id}')">تعديل النقاط</button></div></td></tr>`).join("")}</tbody></table></div>`}
-function setupClients(){const f=$("#clientAddForm");if(!f)return;f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f),phone=String(fd.get("phone")).trim();if(db.clients.some(c=>c.phone===phone)){toast("رقم الجوال مسجل مسبقًا");return}const c={id:uid("cl"),code:"CL-"+db.counter++,name:String(fd.get("name")).trim(),phone,email:String(fd.get("email")).trim(),points:Math.max(0,Math.floor(Number(fd.get("points"))||0)),createdAt:new Date().toISOString()};db.clients.push(c);persist();renderOwner("clients");toast("تمت إضافة العميلة")})}
-function filterClients(){const q=( $("#clientSearch").value||"").trim().toLowerCase();$("#clientsTable").innerHTML=clientsTable(db.clients.filter(c=>[c.name,c.phone,c.email,c.code].some(v=>String(v||"").toLowerCase().includes(q))))}
-function editClient(id){const c=db.clients.find(x=>x.id===id);if(!c)return;const name=prompt("اسم العميلة",c.name);if(name===null)return;const phone=prompt("رقم الجوال",c.phone||"");if(phone===null)return;const email=prompt("البريد الإلكتروني",c.email||"");if(email===null)return;c.name=name.trim();c.phone=phone.trim();c.email=email.trim();persist();renderOwner("clients")}
-function adjustClientPoints(id){const c=db.clients.find(x=>x.id===id);if(!c)return;const n=prompt(`نقاط ${c.name} الحالية ${Number(c.points)||0}. أدخلي العدد الجديد للنقاط:`,String(c.points||0));if(n===null)return;if(!Number.isInteger(Number(n))||Number(n)<0){toast("أدخلي عدد نقاط صحيحًا");return}c.points=Number(n);persist();renderOwner("clients");toast("تم تحديث النقاط")}
+/* Client record cleanup: only the authenticated owner can archive/restore/delete.
+   salonData/main clients are NOT Authentication users; this code never deletes Firebase Auth accounts. */
+function salonClientKey(phone){return salonNormalizePhone(phone)}
+function salonClientsArchive(){return Array.isArray(db.clientArchive)?db.clientArchive:[]}
+function salonClientMatchPhone(a,b){const n=salonClientKey(a);return n.length>=9&&n===salonClientKey(b)}
+function salonClientNumbers(c){
+ const p=salonClientKey(c.phone);
+ return p&&p.length===9?[`0${p}`,p,`966${p}`,`+966${p}`]:[String(c.phone||'')].filter(Boolean);
+}
+function salonClientHasLink(item,c){
+ if(!item||typeof item!=='object')return false;
+ if(['clientId','customerId','clientCode'].some(k=>item[k]&&String(item[k])===String(k==='clientCode'?c.code:c.id)))return true;
+ return ['phone','customerPhone','clientPhone'].some(k=>item[k]&&salonClientMatchPhone(item[k],c.phone));
+}
+function salonClientReferenceReport(data,c){
+ const collections=['invoices','bookings','redemptions','reviews','loyaltyLedger','clientPackages'];
+ const counts={};
+ for(const key of collections)counts[key]=(Array.isArray(data[key])?data[key]:[]).filter(item=>salonClientHasLink(item,c)).length;
+ const activeCredits=(Array.isArray(data.clientPackages)?data.clientPackages:[]).filter(x=>salonClientHasLink(x,c)&&Number(x.total||0)>Number(x.used||0)&&(!x.expiresOn||String(x.expiresOn)>=today())).length;
+ const futureBookings=(Array.isArray(data.bookings)?data.bookings:[]).filter(x=>salonClientHasLink(x,c)&&String(x.date||'')>=today()&&!['cancelled','completed','noShow'].includes(String(x.status||''))).length;
+ const points=Math.max(0,Number(c.points)||0);
+ return {counts,points,activeCredits,futureBookings,hasHistory:Object.values(counts).some(Boolean)};
+}
+function salonClientCounts(c){const r=salonClientReferenceReport(db,c);return {invoices:r.counts.invoices,bookings:r.counts.bookings,credits:r.counts.clientPackages,points:r.points}}
+function salonClientSearchMatch(c,q){const digits=salonClientKey(q);return [c.name,c.phone,c.email,c.code].some(v=>String(v||'').toLowerCase().includes(q))||(digits.length>=4&&salonClientKey(c.phone).includes(digits))}
+function clientsPanel(){
+ const active=db.clients||[],archived=salonClientsArchive();
+ return `<section id="clientsManagement" class="salon-clients-management">
+  <div class="card salon-client-head"><div class="spread"><div><h2>إدارة العميلات</h2><p class="muted">بحث برقم الجوال، حذف حسابات التجربة الخالية من المعاملات، وأرشفة السجلات التاريخية دون المساس بالفواتير.</p></div><span class="badge">${active.length} نشطة · ${archived.length} مؤرشفة</span></div>
+   <div class="notice" style="margin:12px 0">حذف العميلة من الموقع لا يحذف حسابها من Firebase Authentication أو سجل clientProfiles. إذا بقي الرقم «مسجل مسبقًا» افحصي تلك الحسابات أيضًا. لا تحذفي أي حساب حقيقي له رصيد أو معاملات.</div>
+   <div class="field" style="margin:12px 0"><label for="clientSearch">البحث في العميلات النشطات والمؤرشفات</label><input id="clientSearch" type="search" placeholder="اسم العميلة أو رقم الجوال أو الكود" oninput="filterClients()" autocomplete="off" style="width:100%;max-width:520px"></div>
+   <form id="clientAddForm" class="form-grid" style="margin-top:16px"><div class="field"><label>اسم العميلة</label><input name="name" required maxlength="100"></div><div class="field"><label>رقم الجوال</label><input name="phone" type="tel" inputmode="tel" required maxlength="20"></div><div class="field"><label>البريد الإلكتروني</label><input name="email" type="email"></div><div class="field"><label>النقاط الافتتاحية</label><input name="points" type="number" min="0" step="1" value="0"></div><button class="btn full" type="submit">إضافة عميلة</button></form>
+  </div>
+  <div class="section-head"><h3>العميلات النشطات (<span id="activeClientCount">${active.length}</span>)</h3></div>
+  <div id="clientsTable">${clientsTable(active)}</div>
+  <div class="section-head" style="margin-top:24px"><h3>الأرشيف (<span id="archivedClientCount">${archived.length}</span>)</h3></div>
+  <div id="archivedClientsTable">${salonArchivedClientsTable(archived)}</div>
+ </section>`;
+}
+function clientsTable(list){
+ if(!list.length)return '<div class="empty">لا توجد عميلات نشطات مطابقة للبحث.</div>';
+ return `<div class="table-wrap"><table><thead><tr><th>الكود</th><th>الاسم</th><th>الجوال</th><th>النقاط</th><th>الفواتير</th><th>الإجراءات</th></tr></thead><tbody>${list.map(c=>{
+ const r=salonClientCounts(c);
+ return `<tr><td>${esc(c.code||'—')}</td><td><strong>${esc(c.name||'—')}</strong><br><small>${esc(c.email||'')}</small></td><td dir="ltr">${esc(c.phone||'—')}</td><td>${r.points}</td><td>${r.invoices}</td><td><div class="row salon-client-actions"><button class="btn secondary small" type="button" data-client-action="edit" data-client-id="${esc(c.id)}">تعديل</button><button class="btn secondary small" type="button" data-client-action="points" data-client-id="${esc(c.id)}">النقاط</button><button class="btn secondary small" type="button" data-client-action="archive" data-client-id="${esc(c.id)}">أرشفة</button><button class="btn outline small" type="button" data-client-action="delete" data-client-id="${esc(c.id)}">حذف تجريبي</button></div></td></tr>`;
+ }).join('')}</tbody></table></div>`;
+}
+function salonArchivedClientsTable(list){
+ if(!list.length)return '<div class="empty">لا توجد عميلات مؤرشفـات.</div>';
+ return `<div class="table-wrap"><table><thead><tr><th>العميلة</th><th>رقم الجوال</th><th>تاريخ الأرشفة</th><th>الإجراءات</th></tr></thead><tbody>${list.map(c=>`<tr><td>${esc(c.name||'—')}<br><small>${esc(c.code||'')}</small></td><td dir="ltr">${esc(c.phone||'—')}</td><td>${esc(String(c.archivedAt||'').slice(0,10)||'—')}</td><td><div class="row salon-client-actions"><button type="button" class="btn secondary small" data-client-action="restore" data-client-id="${esc(c.id)}">استعادة</button><button type="button" class="btn outline small" data-client-action="delete" data-client-id="${esc(c.id)}">حذف تجريبي</button></div></td></tr>`).join('')}</tbody></table></div>`;
+}
+function filterClients(){
+ const q=String(document.querySelector('#clientSearch')?.value||'').trim().toLowerCase();
+ const matches=c=>salonClientSearchMatch(c,q);
+ const current=(db.clients||[]).filter(matches),archive=salonClientsArchive().filter(matches);
+ const activeNode=document.querySelector('#clientsTable'),archiveNode=document.querySelector('#archivedClientsTable');
+ if(activeNode)activeNode.innerHTML=clientsTable(current);
+ if(archiveNode)archiveNode.innerHTML=salonArchivedClientsTable(archive);
+ const countA=document.querySelector('#activeClientCount'),countB=document.querySelector('#archivedClientCount');
+ if(countA)countA.textContent=current.length;if(countB)countB.textContent=archive.length;
+}
+function setupClients(){
+ const f=document.querySelector('#clientAddForm'),root=document.querySelector('#clientsManagement');if(!f||!root)return;
+ f.addEventListener('submit',async e=>{
+  e.preventDefault();const fd=new FormData(f),phone=String(fd.get('phone')||'').trim(),name=String(fd.get('name')||'').trim();
+  const key=salonClientKey(phone),submit=f.querySelector('button[type="submit"]');
+  if(!name||key.length!==9||!key.startsWith('5')){toast('أدخلي اسمًا ورقم جوال سعوديًا صحيحًا');return}
+  if([...(db.clients||[]),...salonClientsArchive()].some(c=>salonClientMatchPhone(c.phone,phone))){toast('رقم الجوال موجود في النشطات أو الأرشيف؛ ابحثي عنه أولًا');return}
+  submit.disabled=true;
+  try{
+   await saveQueue;
+   const matches=await salonClientLookupProfiles(phone);
+   if(matches.length){toast('يوجد حساب للرقم في clientProfiles؛ لا يمكن إنشاء حساب كاشير مكرر.');return}
+   const id=uid('cl'),data={id,code:'CL-'+String(db.counter||1001),name,phone,email:String(fd.get('email')||'').trim(),points:Math.max(0,Math.floor(Number(fd.get('points'))||0)),createdAt:new Date().toISOString()};
+   let updated;
+   await firestore.runTransaction(async tx=>{
+    const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('لم توجد قاعدة الصالون');
+    const remote=snap.data()||{},records=Array.isArray(remote.clients)?remote.clients:[],archive=Array.isArray(remote.clientArchive)?remote.clientArchive:[];
+    if([...records,...archive].some(c=>salonClientMatchPhone(c.phone,phone)))throw Error('رقم الجوال مسجل بالفعل؛ حدّثي قائمة العميلات');
+    data.code='CL-'+String(remote.counter||1001);
+    updated={...remote,clients:[...records,data],counter:Number(remote.counter||1001)+1};
+    tx.update(salonDoc,{clients:updated.clients,counter:updated.counter,updatedAt:new Date().toISOString()});
+   });
+   db.clients=updated.clients;db.counter=updated.counter;salonCloudBaseline=updated;renderOwner('clients');toast('تم حفظ العميلة في Firebase');
+  }catch(err){toast('تعذرت الإضافة: '+String(err.message||err))}finally{if(submit.isConnected)submit.disabled=false}
+ });
+ root.addEventListener('click',async e=>{
+  const btn=e.target.closest('[data-client-action]');if(!btn||!root.contains(btn))return;
+  const action=btn.dataset.clientAction,id=btn.dataset.clientId;
+  if(action==='edit'){editClient(id);return}
+  if(action==='points'){adjustClientPoints(id);return}
+  btn.disabled=true;try{await salonManageClient(action,id)}finally{if(btn.isConnected)btn.disabled=false}
+ });
+}
+async function salonClientLookupProfiles(phone){
+ const values=salonClientNumbers({phone});const hits=new Map();
+ for(const value of values){
+  const result=await firestore.collection('clientProfiles').where('phone','==',value).limit(2).get({source:'server'});
+  result.docs.forEach(doc=>hits.set(doc.id,doc.data()));
+ }
+ return [...hits.values()];
+}
+async function salonClientInvoiceExists(c){
+ const queries=[salonInvoicesCollection.where('clientId','==',String(c.id)).limit(1)];
+ for(const phone of salonClientNumbers(c))queries.push(salonInvoicesCollection.where('customerPhone','==',phone).limit(1));
+ for(const query of queries){const snap=await query.get({source:'server'});if(!snap.empty)return true}
+ return false;
+}
+async function salonClientPortalBookingInfo(c){
+ const queries=salonClientNumbers(c).map(phone=>firestore.collection('portalBookings').where('clientPhone','==',phone));
+ if(c.authUid)queries.push(firestore.collection('portalBookings').where('clientUid','==',c.authUid));
+ let any=false,upcoming=false;
+ for(const query of queries){
+  const snapshot=await query.get({source:'server'});
+  for(const record of snapshot.docs){
+   const b=record.data();any=true;
+   if(String(b.date||'')>=today()&&!['cancelled','completed','noShow'].includes(String(b.status||'')))upcoming=true;
+  }
+ }
+ return {any,upcoming};
+}
+async function salonManageClient(action,id){
+ if(!firebaseReady||db.session?.type!=='owner'||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2'){toast('العملية مخصصة للمالكة فقط');return}
+ if(!['delete','archive','restore'].includes(action))return;
+ const local=[...(db.clients||[]),...salonClientsArchive()].find(x=>String(x.id)===String(id));
+ if(!local){toast('العميلة غير موجودة؛ حدّثي الصفحة');return}
+ if(action==='delete'&&!confirm('حذف سجل التجربة «'+local.name+'» من قائمة الصالون نهائيًا؟ لن تُحذف أي فواتير أو حسابات Firebase Authentication. سنفحص المعاملات أولًا.'))return;
+ if(action==='archive'&&!confirm('أرشفة «'+local.name+'» وإخفاؤها من القوائم النشطة؟ يمكن استعادتها لاحقًا.'))return;
+ if(action==='restore'&&!confirm('استعادة «'+local.name+'» إلى قائمة العميلات النشطات؟'))return;
+ try{
+  await saveQueue;
+  // Check separate Firestore documents as well as old salonData/main arrays. Refuse when rules block verification.
+  const portalBookings=action==='delete'||action==='archive'?await salonClientPortalBookingInfo(local):{any:false,upcoming:false};
+  if(action==='archive'&&portalBookings.upcoming)throw Error('للعميلة حجز مستقبلي في بوابة الحجز؛ لا يمكن أرشفتها قبل إتمامه أو إلغائه');
+  if(action==='delete'){
+   if(portalBookings.any)throw Error('للعميلة حجوزات محفوظة في بوابة الحجز؛ لا يمكن حذف السجل نهائيًا');
+   if((await salonClientLookupProfiles(local.phone)).length)throw Error('يوجد سجل مرتبط بهذا الرقم في clientProfiles. احذفي حساب التجربة القديم بشكل آمن من Firebase أولًا، ثم أعيدي المحاولة.');
+   if(await salonClientInvoiceExists(local))throw Error('توجد فواتير محفوظة لهذا الرقم في salonInvoices؛ لا يمكن الحذف النهائي. استخدمي الأرشفة إن لم يبق رصيد أو حجز قائم.');
+  }
+  let updated=null;
+  await firestore.runTransaction(async tx=>{
+   const doc=await tx.get(salonDoc);if(!doc.exists)throw Error('مستند بيانات الصالون غير موجود');
+   const remote=doc.data()||{},active=Array.isArray(remote.clients)?remote.clients:[],archive=Array.isArray(remote.clientArchive)?remote.clientArchive:[];
+   const existing=(action==='restore'?archive:active.find(x=>String(x.id)===String(id))?active:archive).find(c=>String(c.id)===String(id));
+   if(!existing)throw Error('السجل تغيّر من جهاز آخر، أعيدي تحميل القائمة');
+   const report=salonClientReferenceReport(remote,existing);
+   let clients=active.slice(),clientArchive=archive.slice();
+   if(action==='delete'){
+    if(report.points>0||report.hasHistory)throw Error('العميلة لها نقاط أو فواتير أو حجوزات أو سجل خدمات؛ لا يمكن حذفها نهائيًا');
+    clients=clients.filter(x=>String(x.id)!==String(id));clientArchive=clientArchive.filter(x=>String(x.id)!==String(id));
+   }else if(action==='archive'){
+    if(report.points>0||report.activeCredits||report.futureBookings)throw Error('لا يمكن أرشفة عميلة لديها نقاط أو باقة فعالة أو حجز قادم؛ احتفظي بها نشطة');
+    if(archive.some(x=>String(x.id)===String(id)))throw Error('العميلة مؤرشفة مسبقًا');
+    clients=clients.filter(x=>String(x.id)!==String(id));clientArchive.push({...existing,archivedAt:new Date().toISOString()});
+   }else{
+    if(active.some(x=>String(x.id)===String(id)||salonClientMatchPhone(x.phone,existing.phone)))throw Error('الرقم مسجل في قائمة العميلات النشطات بالفعل');
+    clientArchive=clientArchive.filter(x=>String(x.id)!==String(id));const {archivedAt,...rest}=existing;clients.push(rest);
+   }
+   updated={...remote,clients,clientArchive};tx.update(salonDoc,{clients,clientArchive,updatedAt:new Date().toISOString()});
+  });
+  db.clients=updated.clients;db.clientArchive=updated.clientArchive;salonCloudBaseline=updated;
+  renderOwner('clients');toast(action==='delete'?'تم حذف سجل التجربة من Firestore':action==='archive'?'تمت أرشفة العميلة مع الاحتفاظ بسجلها':'تمت استعادة العميلة');
+ }catch(err){toast('لم تُنفذ العملية: '+String(err.message||err));console.error('Client management operation blocked',err)}
+}
+function editClient(id){
+ const c=db.clients.find(x=>String(x.id)===String(id));if(!c)return;
+ const name=prompt('اسم العميلة',c.name);if(name===null)return;
+ const phone=prompt('رقم الجوال',c.phone||'');if(phone===null)return;
+ const email=prompt('البريد الإلكتروني',c.email||'');if(email===null)return;
+ if(!name.trim()||salonClientKey(phone).length!==9){toast('الاسم أو رقم الجوال غير صحيح');return}
+ if([...db.clients,...salonClientsArchive()].some(x=>String(x.id)!==String(id)&&salonClientMatchPhone(x.phone,phone))){toast('رقم الجوال مرتبط بسجل آخر');return}
+ c.name=name.trim();c.phone=phone.trim();c.email=email.trim();persist().then(ok=>{if(ok)toast('تم التعديل')});renderOwner('clients');
+}
+function adjustClientPoints(id){
+ const c=db.clients.find(x=>String(x.id)===String(id));if(!c)return;
+ const n=prompt(`نقاط ${c.name} الحالية ${Number(c.points)||0}. أدخلي العدد الجديد للنقاط:`,String(c.points||0));
+ if(n===null)return;if(!Number.isInteger(Number(n))||Number(n)<0){toast('أدخلي عدد نقاط صحيحًا');return}
+ c.points=Number(n);persist().then(ok=>{if(ok)toast('تم تحديث النقاط')});renderOwner('clients');
+}
 
 
 function ownerBookingPanel(){return `<div class="card"><h2>تسجيل حجز جديد</h2><p class="muted">الحجز مستقل عن الكاشير ولا يصدر فاتورة أو يضيف نقاط ولاء حتى يتم الدفع.</p><form id="ownerBookingForm" class="form-grid"><div class="field"><label>بحث سريع برقم جوال العميلة</label><input id="obPhoneSearch" type="tel" inputmode="tel" placeholder="05xxxxxxxx"><small id="obPhoneResult">اكتبي رقم الجوال لعرض الحساب</small></div><div class="field"><label>اختيار العميلة</label><select id="obClient"><option value="">عميلة جديدة</option>${db.clients.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} — ${esc(c.phone)}</option>`).join("")}</select></div><div class="field"><label>اسم العميلة</label><input id="obName" maxlength="100" required></div><div class="field"><label>رقم الجوال</label><input id="obPhone" maxlength="20" required></div><div class="field full"><label>الخدمات (اختاري أكثر من خدمة)</label><div class="service-grid">${activeServices().map(s=>`<label class="service checkline"><input type="checkbox" class="ob-service" value="${esc(s.id)}"> <span>${esc(textService(s))} — ${money(s.price)} — ${Number(s.duration)||30} دقيقة</span></label>`).join("")}</div></div><div class="field"><label>الموظفة</label><select id="obStaff" required><option value="">اختاري الموظفة</option>${activeStaff().map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")}</select></div><div class="field"><label>التاريخ</label><input type="date" id="obDate" min="${today()}" max="2050-12-31" value="${today()}" required></div><div class="field"><label>الوقت</label><input type="time" id="obTime" value="16:00" required></div><div class="field"><label>مكان الخدمة</label><select id="obLocation"><option value="salon">في الصالون</option><option value="home" ${db.settings.homeServiceEnabled===true?"":"disabled"}>خدمة منزلية ${db.settings.homeServiceEnabled===true?"":"(غير مفعلة)"}</option></select></div><div class="field full hidden" id="obAddressWrap"><label>عنوان الخدمة المنزلية</label><input id="obAddress" maxlength="250"></div><div class="field full"><label>ملاحظات</label><textarea id="obNotes" rows="2" maxlength="300"></textarea></div><div class="notice good full" id="obSummary">اختاري الخدمات لعرض السعر والمدة.</div><button class="btn full" type="submit">حفظ الحجز</button></form></div>`}
@@ -4817,5 +4998,456 @@ if(app){
 })();
 
 </script>
+
+<style id="salon-editorial-2026">
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Tajawal:wght@400;500;600;700;800&display=swap');
+:root{--editorial-ink:#302520;--editorial-brown:#775a4d;--editorial-gold:#b7966a;--editorial-cream:#fffaf6;--editorial-blush:#f7e9e2;--editorial-line:#eadcd2;--editorial-shadow:0 18px 55px rgba(99,64,53,.095)}
+html{scroll-behavior:smooth}
+body{font-family:'Tajawal',Arial,sans-serif!important;color:var(--editorial-ink)}
+body:has(#app.salon-editorial-home),body:has(#app.salon-editorial-auth){background:linear-gradient(135deg,#fffaf5 0%,#fbf1e8 48%,#fff6f3 100%)!important}
+body:has(#app.salon-editorial-home) .wrap{width:min(1480px,100%);max-width:none;padding:0 34px 90px}
+body:has(#app.salon-editorial-home) .topbar,body:has(#app.salon-editorial-auth) .topbar{background:rgba(255,250,246,.93)!important;box-shadow:0 1px 0 rgba(103,72,63,.10)!important;border:0!important;position:sticky;top:0;z-index:40;min-height:82px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:12px max(20px,calc((100vw - 1390px)/2))!important}
+body:has(#app.salon-editorial-home) .topbar .brand,body:has(#app.salon-editorial-auth) .topbar .brand{gap:12px!important}
+body:has(#app.salon-editorial-home) .topbar .brand h1,body:has(#app.salon-editorial-auth) .topbar .brand h1{font-size:20px!important;font-weight:800;letter-spacing:-.5px;color:#43302b!important}
+body:has(#app.salon-editorial-home) .topbar .brand small,body:has(#app.salon-editorial-auth) .topbar .brand small{letter-spacing:.05em;color:var(--editorial-brown)!important;font-size:11px!important}
+body:has(#app.salon-editorial-home) .topbar .logo,body:has(#app.salon-editorial-auth) .topbar .logo{width:43px!important;height:43px!important;background:#f5e8e1!important;color:#987458!important;border:1px solid #eadcd2!important;border-radius:13px!important;display:grid;place-items:center;font-size:22px!important}
+.salon-editorial-home{padding-top:38px}
+.salon-editorial-hero{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);align-items:center;gap:clamp(28px,6vw,100px);min-height:610px;direction:rtl}
+.salon-editorial-copy{padding:48px 12px 48px 0;min-width:0;text-align:right}
+.salon-editorial-kicker{font:600 12px 'DM Sans',sans-serif;letter-spacing:.28em;color:#b08768;display:inline-flex;align-items:center;gap:9px;margin-bottom:18px;direction:ltr}
+.salon-editorial-kicker:before{content:'';display:block;width:34px;height:1px;background:currentColor}
+.salon-editorial-title{font-family:'Tajawal',serif!important;font-size:clamp(43px,5.7vw,82px)!important;line-height:1.15!important;letter-spacing:-2.2px;font-weight:800!important;color:#352723!important;margin:0 0 24px!important}
+.salon-editorial-title em{color:#ad7d6e;font-style:normal;display:block}
+.salon-editorial-lead{font-size:clamp(16px,1.5vw,20px);color:#79675d;max-width:570px;line-height:1.95;margin:0 0 27px}
+.salon-editorial-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.salon-editorial-mainbtn,.salon-editorial-outlinebtn{border-radius:999px!important;cursor:pointer;padding:15px 27px!important;min-height:54px;border:1px solid #392a25!important;font:700 16px 'Tajawal',sans-serif!important;display:inline-flex;align-items:center;justify-content:center;gap:11px;box-shadow:0 7px 17px rgba(59,42,38,.09);transition:transform .2s,box-shadow .2s}
+.salon-editorial-mainbtn{background:#332824!important;color:white!important}.salon-editorial-outlinebtn{background:rgba(255,255,255,.8)!important;color:#46352e!important;border-color:#e4d5cc!important}
+.salon-editorial-mainbtn:hover,.salon-editorial-outlinebtn:hover{transform:translateY(-2px);box-shadow:0 13px 25px rgba(59,42,38,.14)}
+.salon-editorial-points{display:flex;flex-wrap:wrap;gap:18px 24px;padding-top:34px;margin-top:36px;border-top:1px solid #e8d9ce}
+.salon-editorial-point{display:flex;gap:9px;align-items:center;font-size:13px;color:#756357;font-weight:700}.salon-editorial-point span{display:grid;place-items:center;width:29px;height:29px;background:#f3e5d9;color:#8e6a53;border-radius:50%;font-size:14px}
+.salon-editorial-media{position:relative;min-height:545px;max-width:600px;justify-self:stretch;padding:15px 22px 22px}
+.salon-editorial-image-frame{height:100%;min-height:540px;overflow:hidden;background:linear-gradient(135deg,#dec1ba,#f0dfd1);border-radius:48% 48% 20px 20px / 24% 24% 20px 20px;box-shadow:0 28px 70px rgba(124,84,79,.16);position:relative}
+.salon-editorial-image-frame img{width:100%;height:100%;display:block;position:absolute;inset:0;object-fit:cover;object-position:center center;transition:transform .8s ease}
+.salon-editorial-image-frame:hover img{transform:scale(1.04)}
+.salon-editorial-image-frame:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 67%,rgba(39,25,22,.31));pointer-events:none}
+.salon-editorial-image-word{position:absolute;bottom:42px;inset-inline-end:38px;color:#fff;font:600 14px 'DM Sans',sans-serif;letter-spacing:.22em;direction:ltr;z-index:1}
+.salon-editorial-floating{position:absolute;inset-inline-start:-4px;bottom:42px;background:#fffdfa;min-width:181px;box-shadow:0 14px 42px rgba(91,59,49,.15);border:1px solid #f1e4da;border-radius:18px;padding:16px 19px;display:flex;align-items:center;gap:13px;color:#6d554a;z-index:2}
+.salon-editorial-floating .salon-floating-spark{font-size:26px;color:#ba986e}.salon-editorial-floating strong{display:block;color:#47342b;font-size:15px}.salon-editorial-floating small{display:block;color:#9a8376;font-size:11px;margin-top:3px}
+.salon-editorial-deco{position:absolute;top:24px;inset-inline-end:-8px;width:80px;height:80px;border:1px solid #d4b6a0;border-radius:50%;opacity:.55;pointer-events:none}
+.salon-editorial-deco:after{content:'';position:absolute;inset:14px;border:1px solid #d4b6a0;border-radius:50%}
+.salon-editorial-section{padding-top:90px}.salon-editorial-sectionhead{text-align:center;margin-bottom:36px}
+.salon-editorial-eyebrow{display:block;color:#b08c72;font:700 12px 'DM Sans',sans-serif;letter-spacing:.22em;margin-bottom:13px;direction:ltr}
+.salon-editorial-sectionhead h2{color:#40302a!important;font:800 clamp(30px,3vw,45px) 'Tajawal',sans-serif!important;margin:0 0 13px!important}.salon-editorial-sectionhead p{font-size:17px;line-height:1.8;color:#877369;margin:0}
+.salon-editorial-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.salon-editorial-tile{background:#fffdfa!important;border:1px solid #eedfd7!important;border-radius:22px!important;box-shadow:var(--editorial-shadow);padding:0!important;text-align:right!important;overflow:hidden;display:block;cursor:pointer;transition:transform .2s,box-shadow .2s;color:inherit}
+.salon-editorial-tile:hover{transform:translateY(-5px);box-shadow:0 22px 58px rgba(99,64,53,.15)}
+.salon-editorial-tileimage{height:225px;display:block;background-size:cover;background-position:center;position:relative}
+.salon-editorial-tileimage:after{content:'';position:absolute;inset:0;background:linear-gradient(0deg,rgba(64,39,38,.15),transparent 50%)}
+.salon-editorial-tilebody{padding:20px 23px 23px;display:block}.salon-editorial-tilebody strong{display:block;font-size:22px;color:#3d2c28;font-weight:800;margin-bottom:5px}.salon-editorial-tilebody small{display:block;font-size:14px;line-height:1.7;color:#8e796d}.salon-editorial-tilebody b{display:block;margin-top:11px;color:#9e7257;font-size:14px}
+.salon-editorial-featureband{display:grid;grid-template-columns:1.1fr 1fr;gap:32px;align-items:center;margin-top:100px;background:linear-gradient(115deg,#f6e8e0,#fdf5ed);border:1px solid #ead4c4;border-radius:26px;padding:36px 42px}
+.salon-editorial-featureband h2{font:800 clamp(29px,3vw,42px) 'Tajawal',sans-serif!important;color:#443029!important;margin:0 0 10px!important}.salon-editorial-featureband p{color:#81695e;line-height:1.9;font-size:16px}.salon-editorial-featureband .salon-editorial-actions{justify-content:flex-start}
+.salon-editorial-stateless{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.salon-editorial-stateless span{background:#fffaf5;border:1px solid #ecded4;border-radius:15px;padding:23px 15px;font-weight:700;color:#745b50;text-align:center}.salon-editorial-stateless strong{display:block;color:#ae8263;font-size:28px;font-weight:700;margin-bottom:4px}
+.salon-editorial-footer-nav{margin:70px auto 10px;border-top:1px solid #eadbd0;padding:26px 12px;display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:16px;color:#8e786c;font-size:14px}.salon-editorial-footer-nav button{border:none;background:transparent;color:#695247;text-decoration:underline;cursor:pointer;font:inherit}.salon-editorial-footer-nav a{color:#695247}
+.salon-top-link{display:none!important;border:1px solid #eadbd0!important;color:#5e463d!important;background:#fff!important;border-radius:999px!important;font:700 13px 'Tajawal',sans-serif!important;padding:10px 19px!important;min-width:auto!important;cursor:pointer}
+.salon-top-link.salon-top-book{background:#372923!important;color:white!important;border-color:#372923!important}
+body:has(#app.salon-editorial-home) .salon-top-link,body:has(#app.salon-editorial-auth) .salon-top-link{display:inline-flex!important;justify-content:center;align-items:center}
+.salon-editorial-auth{max-width:1050px!important;margin:28px auto!important;padding-bottom:35px!important}.salon-editorial-auth .salon-auth-photo{background:linear-gradient(0deg,rgba(61,37,33,.27),transparent),url('https://images.pexels.com/photos/939834/pexels-photo-939834.jpeg?auto=compress&cs=tinysrgb&w=1050') center/cover;min-height:240px;border-radius:24px;margin-bottom:20px;box-shadow:var(--editorial-shadow);display:flex;align-items:flex-end;padding:25px 30px;color:#fff}.salon-editorial-auth .salon-auth-photo strong{font-size:29px;font-weight:800;text-shadow:0 3px 12px #40262688}.salon-editorial-auth .card{border:1px solid #eadbd1!important;background:#fffcf9!important;border-radius:20px!important;box-shadow:var(--editorial-shadow)!important;padding:clamp(20px,4vw,35px)!important}
+.salon-editorial-auth input,.salon-editorial-auth select{background:#fff!important;border:1px solid #e8d8cf!important;border-radius:12px!important;min-height:46px}.salon-editorial-auth button.btn{border-radius:12px!important}
+body:has(#app.salon-editorial-client),body:has(#app.salon-editorial-employee){background:#fffaf7!important}
+#app.salon-editorial-client,#app.salon-editorial-employee{max-width:1250px;margin:auto}
+#app.salon-editorial-client>.hero,#app.salon-editorial-employee>.hero{background:linear-gradient(115deg,#fff2e8,#f5e0db)!important;border:1px solid #f0d9cc!important;border-radius:25px!important;box-shadow:var(--editorial-shadow);padding:clamp(22px,4vw,45px)!important}
+#app.salon-editorial-client>.hero h2,#app.salon-editorial-employee>.hero h2{color:#51392e!important;font:800 clamp(25px,3vw,40px) 'Tajawal',sans-serif!important}
+#app.salon-editorial-client .card,#app.salon-editorial-employee .card{border-radius:20px!important;border-color:#eddfd6!important;background:#fffefd!important;box-shadow:0 7px 25px rgba(98,71,57,.06)!important}
+#app.salon-editorial-client button.btn,#app.salon-editorial-employee button.btn{border-radius:12px!important}
+#app.salon-editorial-client nav.nav{background:#fffaf7!important;border:1px solid #e9d9d0!important;padding:9px!important;border-radius:15px!important;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+#app.salon-editorial-client nav.nav button{border-radius:12px!important;white-space:nowrap;min-height:40px}
+#app.salon-editorial-client .salon-public-package{border-radius:20px!important;box-shadow:var(--editorial-shadow)!important}
+body:has(#app.salon-luxe-owner){background:#fcf9f6!important}
+#app.salon-luxe-owner .card{border-radius:18px!important}
+#app.salon-luxe-owner button.btn{border-radius:12px!important}
+.salon-brand-hero-control{padding:22px;background:#fff5ef;border:1px solid #e8d2c2;border-radius:20px;display:block!important}
+.salon-brand-hero-control h3{margin:0 0 9px;font-size:21px;color:#6d493e}.salon-brand-hero-control .salon-hero-preview{width:min(100%,520px);height:240px;object-fit:cover;border-radius:17px;border:1px solid #e7d5cb;display:block;margin:13px 0}
+.salon-brand-hero-control input[type=file],.salon-brand-hero-control input[type=url]{max-width:100%;width:100%;background:white;border-radius:9px;padding:10px;margin:8px 0}.salon-brand-hero-control small{display:block;color:#8c6e5e;line-height:1.8}
+.salon-brand-hero-control .salon-upload-status{color:#855c47;font-weight:700;margin-top:8px;min-height:18px}
+.salon-editorial-upload-button{border:1px solid #bfaa9a;border-radius:10px;background:white;color:#614c40;font:700 13px 'Tajawal';padding:9px 16px;cursor:pointer}
+@media(max-width:950px){.salon-editorial-hero{gap:25px;min-height:0}.salon-editorial-copy{padding-right:0}.salon-editorial-media{min-height:460px}.salon-editorial-image-frame{min-height:450px}.salon-editorial-tiles{gap:12px}.salon-editorial-tileimage{height:180px}.salon-editorial-featureband{gap:18px;padding:27px}}
+@media(max-width:700px){body:has(#app.salon-editorial-home) .wrap{padding:0 17px 60px}body:has(#app.salon-editorial-home) .topbar,body:has(#app.salon-editorial-auth) .topbar{padding:10px 14px!important;min-height:66px}.topbar .brand h1{font-size:14px!important}.salon-top-link{padding:8px 10px!important;font-size:12px!important}body:has(#app.salon-editorial-home) .topbar .brand h1{font-size:15px!important}body:has(#app.salon-editorial-home) .topbar .brand small{font-size:9px!important}.salon-editorial-home{padding-top:18px}.salon-editorial-hero{grid-template-columns:1fr;gap:12px}.salon-editorial-copy{padding:24px 2px 18px}.salon-editorial-title{font-size:clamp(38px,10vw,56px)!important;letter-spacing:-1px}.salon-editorial-lead{font-size:15px}.salon-editorial-points{gap:12px;margin-top:24px;padding-top:19px}.salon-editorial-point{font-size:11px}.salon-editorial-media{width:100%;max-width:100%;height:390px;min-height:0;padding:7px 8px 20px}.salon-editorial-image-frame{height:365px;min-height:0;border-radius:180px 180px 18px 18px / 85px 85px 18px 18px}.salon-editorial-floating{bottom:28px;inset-inline-start:-7px;padding:10px;min-width:147px}.salon-editorial-floating strong{font-size:12px}.salon-editorial-floating small{font-size:10px}.salon-editorial-deco{width:46px;height:46px}.salon-editorial-section{padding-top:54px}.salon-editorial-tiles{grid-template-columns:1fr;gap:15px}.salon-editorial-tile{display:grid;grid-template-columns:120px 1fr;min-height:134px}.salon-editorial-tileimage{height:100%;min-height:130px}.salon-editorial-tilebody{padding:16px}.salon-editorial-tilebody strong{font-size:18px}.salon-editorial-tilebody small{font-size:12px}.salon-editorial-featureband{grid-template-columns:1fr;margin-top:60px;padding:22px}.salon-editorial-stateless span{padding:14px 8px}.salon-editorial-stateless strong{font-size:21px}.salon-editorial-footer-nav{margin-top:42px}.salon-editorial-auth{padding:0 10px 32px!important}.salon-editorial-auth .salon-auth-photo{min-height:170px}.salon-editorial-mainbtn,.salon-editorial-outlinebtn{min-height:49px;padding:11px 20px!important}}
+@media(max-width:390px){.salon-editorial-mainbtn,.salon-editorial-outlinebtn{font-size:14px!important;padding:10px 15px!important}.salon-top-link.salon-top-login{display:none!important}.salon-editorial-copy{padding-top:12px}body:has(#app.salon-editorial-home) .topbar .brand .logo{width:32px!important;height:32px!important}.salon-editorial-tile{grid-template-columns:105px 1fr}}
+@media(prefers-reduced-motion:reduce){.salon-editorial-mainbtn,.salon-editorial-outlinebtn,.salon-editorial-tile,.salon-editorial-image-frame img{transition:none!important}}
+</style>
+
+
+<script id="salon-editorial-functional-upgrades">
+(function(){
+'use strict';
+const FALLBACK_HERO='https://images.pexels.com/photos/9775261/pexels-photo-9775261.jpeg?auto=compress&cs=tinysrgb&w=1400';
+const imgManicure='https://images.pexels.com/photos/939834/pexels-photo-939834.jpeg?auto=compress&cs=tinysrgb&w=850';
+const imgCare='https://images.pexels.com/photos/8377206/pexels-photo-8377206.jpeg?auto=compress&cs=tinysrgb&w=850';
+const imgPackages='https://images.pexels.com/photos/17850819/pexels-photo-17850819.jpeg?auto=compress&cs=tinysrgb&w=850';
+const AR=()=>typeof lang==='undefined'||lang!=='en';
+const ownerId='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+function validImageURL(value){
+ try{const u=new URL(String(value||''));return u.protocol==='https:'&&u.hostname.length>3&&u.toString().length<2200?u.toString():''}
+ catch(e){return ''}
+}
+function heroUrl(){return validImageURL(salonTheme?.heroImage)||FALLBACK_HERO}
+function label(a,b){return AR()?a:b}
+function showHomeImage(){
+ const img=document.getElementById('salonHeroMainImage');
+ if(img&&img.getAttribute('src')!==heroUrl())img.src=heroUrl();
+ const preview=document.getElementById('salonThemeHeroPreview');
+ if(preview&&!preview.dataset.localPreview)preview.src=heroUrl();
+}
+function refreshTopActions(){
+ const top=document.querySelector('.top-actions');if(!top)return;
+ if(!document.getElementById('salonHeaderLogin')){
+  const a=document.createElement('button');a.id='salonHeaderLogin';a.type='button';a.className='salon-top-link salon-top-login';a.onclick=()=>portalLogin('client');top.prepend(a);
+  const b=document.createElement('button');b.id='salonHeaderBook';b.type='button';b.className='salon-top-link salon-top-book';b.onclick=()=>portalLogin('client');top.append(b);
+ }
+ document.getElementById('salonHeaderLogin').textContent=label('تسجيل الدخول','Sign in');
+ document.getElementById('salonHeaderBook').textContent=label('احجزي الآن','Book now');
+}
+function serviceTile(title,description,image){return `<button class="salon-editorial-tile" type="button" onclick="portalLogin('client')"><span class="salon-editorial-tileimage" style="background-image:url('${image}')"></span><span class="salon-editorial-tilebody"><strong>${title}</strong><small>${description}</small><b>${label('اكتشفي الخدمات ←','Explore services →')}</b></span></button>`}
+const lastHome=renderHome;
+renderHome=function(){
+ lastHome();refreshTopActions();
+ const app=document.getElementById('app');if(!app)return;
+ const customWelcome=AR()?(salonTheme?.welcomeAr||''):(salonTheme?.welcomeEn||'');
+ const defaultWelcome=AR()?'مرحبًا بكِ في صالون جودة الأظافر':'Welcome to Quality Nail Salon';
+ const personalized=customWelcome&&customWelcome!==defaultWelcome;
+ const title=personalized?esc(customWelcome):label('جمال أظافركِ،','Nails that make');
+ const sub=personalized?'':label('بتفاصيل تليق بكِ.','you feel beautiful.');
+ app.className='wrap salon-editorial-home';
+ app.innerHTML=`<section class="salon-editorial-hero">
+  <div class="salon-editorial-copy"><span class="salon-editorial-kicker">QUALITY NAILS — BEAUTY STUDIO</span>
+   <h1 class="salon-editorial-title">${title}${sub?` <em>${sub}</em>`:''}</h1>
+   <p class="salon-editorial-lead">${label('لحظات من الجمال والعناية مصممة لكِ. اكتشفي خدمات الأظافر والباقات، واختاري الوقت الذي يناسب يومكِ بكل سهولة.','A refined beauty experience made just for you. Explore services, discover packages and book your perfect appointment.')}</p>
+   <div class="salon-editorial-actions"><button class="salon-editorial-mainbtn" type="button" onclick="portalLogin('client')">${label('احجزي موعدكِ','Book an appointment')} <span aria-hidden="true">↗</span></button><button class="salon-editorial-outlinebtn" type="button" onclick="portalLogin('client')">${label('تسجيل الدخول / حساب جديد','Sign in / Create account')}</button></div>
+   <div class="salon-editorial-points"><span class="salon-editorial-point"><span>✦</span>${label('عناية باهتمام','Thoughtful care')}</span><span class="salon-editorial-point"><span>♡</span>${label('باقات تناسبكِ','Flexible packages')}</span><span class="salon-editorial-point"><span>✧</span>${label('حجز إلكتروني','Online booking')}</span></div>
+  </div>
+  <div class="salon-editorial-media"><i class="salon-editorial-deco" aria-hidden="true"></i><div class="salon-editorial-image-frame"><img id="salonHeroMainImage" src="${esc(heroUrl())}" alt="${label('أظافر أنيقة وعناية فاخرة','Beautiful manicure')}" loading="eager" decoding="async" onerror="this.onerror=null;this.style.opacity='0'"/><span class="salon-editorial-image-word">NAIL QUALITY · MEDINA</span></div><div class="salon-editorial-floating"><span class="salon-floating-spark">✧</span><span><strong>${label('لأنكِ تستحقين','Made for you')}</strong><small>${label('تجربة عناية مميزة','Your beauty, elevated')}</small></span></div></div>
+ </section>
+ <section class="salon-editorial-section" id="salonExploreServices"><div class="salon-editorial-sectionhead"><span class="salon-editorial-eyebrow">THE ART OF SELF-CARE</span><h2>${label('تفاصيل جميلة لكل إطلالة','Beauty in every detail')}</h2><p>${label('من العناية اليومية إلى الإطلالات المميزة، اختاري ما تحبين.','From everyday care to special moments, find your favorite service.')}</p></div><div class="salon-editorial-tiles">${serviceTile(label('فن الأظافر','Nail styling'),label('ألوان وتفاصيل تعكس ذوقكِ','Colors and designs made for you'),imgManicure)}${serviceTile(label('العناية باليدين والقدمين','Hands & feet care'),label('لحظات هدوء وعناية تبقى معكِ','Thoughtful treatment and care'),imgCare)}${serviceTile(label('العروض والباقات','Offers & packages'),label('باقة زيارة واحدة أو خدمات تستخدمينها بوقتكِ','One-time offers and flexible service credits'),imgPackages)}</div></section>
+ <section class="salon-editorial-featureband"><div><span class="salon-editorial-eyebrow">YOUR BEAUTY JOURNEY</span><h2>${label('باقات تمنحكِ حرية الاختيار','Beauty at your pace')}</h2><p>${label('اختاري عرضًا لزيارة واحدة، أو اشتري باقة رصيد خدمات لتستخدميها في أوقات مختلفة وفق صلاحيتها. ويمكنكِ متابعة رصيدكِ من حسابكِ.','Enjoy one-time experiences or flexible packages you can use across different visits.')}</p><div class="salon-editorial-actions"><button type="button" class="salon-editorial-mainbtn" onclick="portalLogin('client')">${label('تصفحي الباقات واحجزي','Explore packages')}</button></div></div><div class="salon-editorial-stateless"><span><strong>01</strong>${label('زيارة واحدة','One-time offers')}</span><span><strong>05+</strong>${label('باقة استخدامات','Multi-use packages')}</span><span><strong>♡</strong>${label('نقاط المكافآت','Loyalty points')}</span><span><strong>✦</strong>${label('حجز من الجوال','Mobile booking')}</span></div></section>
+ <nav class="salon-editorial-footer-nav" aria-label="${label('روابط الموقع','Site links')}"><span>${label('هل أنتِ من فريق الصالون؟','Salon team access')}</span><button type="button" onclick="portalLogin('employee')">${label('دخول الموظفة','Employee login')}</button><button type="button" onclick="renderOwnerLogin()">${label('دخول المالكة','Owner login')}</button><a href="https://wa.me/${String(db?.settings?.whatsapp||WA_NUMBER).replace(/[^0-9]/g,'')}" target="_blank" rel="noopener noreferrer">${label('التواصل واتساب','WhatsApp support')}</a></nav>`;
+ showHomeImage();
+};
+function decorateAuth(){
+ const app=document.getElementById('app');if(!app)return;
+ app.classList.add('salon-editorial-auth');
+ if(app.querySelector('.salon-auth-photo'))return;
+ if(!app.querySelector('input'))return;
+ const art=document.createElement('div');art.className='salon-auth-photo';
+ const text=document.createElement('strong');text.textContent=label('أهلًا بكِ في عالم الجمال','Welcome to your beauty space');art.append(text);app.prepend(art);
+ refreshTopActions();
+}
+const lastPortalLogin=portalLogin;
+portalLogin=function(...args){const x=lastPortalLogin.apply(this,args);decorateAuth();return x};
+const lastRecovery=typeof salonShowPasswordRecovery==='function'?salonShowPasswordRecovery:null;
+if(lastRecovery)salonShowPasswordRecovery=function(...args){const x=lastRecovery.apply(this,args);decorateAuth();return x};
+const lastOwnerLogin=renderOwnerLogin;
+renderOwnerLogin=function(...args){const x=lastOwnerLogin.apply(this,args);decorateAuth();return x};
+const lastClient=renderPortalClient;
+renderPortalClient=function(...args){const x=lastClient.apply(this,args);const app=document.getElementById('app');if(app)app.classList.add('salon-editorial-client');return x};
+const lastEmployee=renderPortalEmployee;
+renderPortalEmployee=function(...args){const x=lastEmployee.apply(this,args);const app=document.getElementById('app');if(app)app.classList.add('salon-editorial-employee');return x};
+const lastApplyTheme=applySalonTheme;
+applySalonTheme=function(...args){const x=lastApplyTheme.apply(this,args);showHomeImage();return x};
+// The image belongs to the public theme doc; nothing is written from the client pages.
+const oldThemeMarkup=themeFormMarkup;
+themeFormMarkup=function(){
+ const original=oldThemeMarkup();
+ const custom=`<div class="field full salon-brand-hero-control"><h3>🖼️ صورة العرض الرئيسية</h3><small>صورة الافتتاحية الكبيرة التي تظهر للعميلات. ارفعي صورتكِ من الجوال، أو أضيفي رابط HTTPS، ثم اختاري «حفظ ونشر لجميع الأجهزة».</small>
+ <img id="salonThemeHeroPreview" class="salon-hero-preview" src="${esc(heroUrl())}" alt="معاينة صورة واجهة الموقع">
+ <label for="salonHeroFile">اختيار صورة من الجهاز</label><input type="file" id="salonHeroFile" name="heroFile" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">
+ <label for="salonHeroUrl">أو رابط الصورة (HTTPS)</label><input type="url" id="salonHeroUrl" name="heroUrl" placeholder="https://..." value="${esc(salonTheme?.heroImage||'')}">
+ <div class="row"><button class="salon-editorial-upload-button" id="salonHeroRestore" type="button">استعادة صورة العرض الافتراضية</button></div>
+ <small>رفع الصورة من الجهاز يحتاج تفعيل Firebase Storage مع السماح للمالكة فقط بالرفع. رابط الصورة HTTPS يعمل كبديل بدون رفع.</small><div class="salon-upload-status" aria-live="polite" id="salonHeroUploadStatus"></div></div>`;
+ return original.replace('<div class="field full"><label>رفع شعار',custom+'<div class="field full"><label>رفع شعار');
+};
+const originalThemeData=getThemeFormData;
+getThemeFormData=function(form){const data=originalThemeData(form);const raw=String(form.elements.namedItem('heroUrl')?.value||'').trim();return {...data,heroImage:raw?validImageURL(raw):''}};
+async function prepareImage(file){
+ if(!file||!String(file.type||'').startsWith('image/'))throw Error('اختاري صورة صحيحة.');
+ if(file.size>15*1024*1024)throw Error('الصورة أكبر من 15 ميجابايت؛ اختاري صورة أصغر.');
+ let bitmap=null,img=null,object=null;
+ try{if(typeof createImageBitmap==='function')bitmap=await createImageBitmap(file)}catch(e){bitmap=null}
+ if(!bitmap){
+  object=URL.createObjectURL(file);img=new Image();img.src=object;
+  try{await img.decode()}catch(e){URL.revokeObjectURL(object);throw Error('لم نستطع قراءة الصورة. احفظيها بصيغة JPG أو PNG ثم أعيدي المحاولة.')}
+ }
+ const w=bitmap?.width||img.naturalWidth,h=bitmap?.height||img.naturalHeight;
+ if(!w||!h)throw Error('ملف الصورة غير مدعوم.');
+ const scale=Math.min(1,1800/Math.max(w,h)),canvas=document.createElement('canvas');
+ canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+ const context=canvas.getContext('2d');context.fillStyle='#f5e9e4';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(bitmap||img,0,0,canvas.width,canvas.height);
+ if(object)URL.revokeObjectURL(object);bitmap?.close?.();
+ const blob=await new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(Error('تعذّر معالجة الصورة')), 'image/jpeg',.88));
+ if(blob.size>8*1024*1024)throw Error('حجم الصورة بعد المعالجة كبير جدًا.');
+ return blob;
+}
+async function uploadImageForOwner(file){
+ if(!firebase?.storage)throw Error('أداة Firebase Storage غير محملة. يمكنكِ استخدام رابط صورة HTTPS بدلًا من الرفع.');
+ if(!auth.currentUser||auth.currentUser.uid!==ownerId||db.session?.type!=='owner')throw Error('رفع الصور متاح لحساب المالكة فقط.');
+ const blob=await prepareImage(file);
+ const path='salonBrand/hero/'+ownerId+'/hero-'+Date.now()+'.jpg';
+ const ref=firebase.storage().ref(path);
+ await ref.put(blob,{contentType:'image/jpeg',cacheControl:'public,max-age=3600'});
+ return await ref.getDownloadURL();
+}
+const previousOpenSettings=openSalonThemeSettings;
+openSalonThemeSettings=function(...args){
+ document.getElementById('salonThemeSettings')?.remove();
+ const out=previousOpenSettings.apply(this,args);
+ const host=document.getElementById('salonThemeSettings');const form=host?.querySelector('form');if(!form)return out;
+ const file=form.querySelector('#salonHeroFile'),url=form.querySelector('#salonHeroUrl'),preview=form.querySelector('#salonThemeHeroPreview'),status=form.querySelector('#salonHeroUploadStatus');
+ let tempURL='';
+ file?.addEventListener('change',()=>{
+  if(tempURL)URL.revokeObjectURL(tempURL);
+  if(file.files?.[0]){tempURL=URL.createObjectURL(file.files[0]);preview.src=tempURL;preview.dataset.localPreview='1';status.textContent='معاينة فقط؛ اضغطي «حفظ ونشر لجميع الأجهزة» لرفع الصورة.'}
+  else {tempURL='';delete preview.dataset.localPreview;preview.src=validImageURL(url.value)||heroUrl()}
+ });
+ url?.addEventListener('input',()=>{if(!file.files?.[0]){delete preview.dataset.localPreview;preview.src=validImageURL(url.value)||FALLBACK_HERO}});
+ host.querySelector('#salonHeroRestore')?.addEventListener('click',()=>{
+  if(tempURL)URL.revokeObjectURL(tempURL);tempURL='';file.value='';url.value='';delete preview.dataset.localPreview;preview.src=FALLBACK_HERO;status.textContent='تم اختيار الصورة الافتراضية للمعاينة. اضغطي حفظ ونشر لتطبيقها.';
+ });
+ // In capture phase, upload selected image BEFORE the existing theme publish handler.
+ form.addEventListener('submit',async event=>{
+  if(!file.files?.length&&url.value.trim()&&!validImageURL(url.value.trim())){
+   event.preventDefault();event.stopImmediatePropagation();status.textContent='الرابط غير صالح؛ استخدمي رابط صورة يبدأ بـ https://';return;
+  }
+  if(!file.files?.length)return;
+  event.preventDefault();event.stopImmediatePropagation();
+  const candidate=file.files[0],button=form.querySelector('button[type="submit"]');if(button?.disabled)return;
+  if(button)button.disabled=true;
+  status.textContent='جارٍ ضغط الصورة ورفعها إلى Firebase Storage…';
+  try{
+   const newUrl=await uploadImageForOwner(candidate);
+   url.value=newUrl;file.value='';delete preview.dataset.localPreview;
+   if(tempURL){URL.revokeObjectURL(tempURL);tempURL=''}
+   preview.src=newUrl;status.textContent='تم رفع الصورة. جارٍ نشر رابطها مع التصميم…';
+   if(button)button.disabled=false;
+   form.requestSubmit();
+  }catch(error){status.textContent='تعذّر رفع الصورة: '+(error?.message||error)+'. يمكنكِ استخدام رابط صورة HTTPS.';if(button)button.disabled=false}
+ },true);
+ return out;
+};
+const oldOwner=renderOwner;
+renderOwner=function(...args){
+ const out=oldOwner.apply(this,args);
+ if(db.session?.type!=='owner')return out;
+ const app=document.getElementById('app');if(!app)return out;
+ if(!app.querySelector('#salonOwnerChangeHero')){
+  const button=document.createElement('button');button.id='salonOwnerChangeHero';button.type='button';button.className='btn secondary';button.style.margin='12px 8px';button.textContent='🖼️ تغيير صورة واجهة الموقع';
+  button.onclick=()=>{openSalonThemeSettings();document.getElementById('salonHeroFile')?.focus()};
+  app.append(button);
+ }
+ return out;
+};
+refreshTopActions();
+// The initial portal choice screen may have been rendered before this extension loaded.
+if(document.querySelector('#app .grid .portal'))renderHome();
+else if(document.querySelector('#app input[type="password"]'))decorateAuth();
+})();
+</script>
+
+<!-- Cloudflare Workers AI owner-only designer and local CRM helper. -->
+<style id="salonCloudAIStyle">
+:root{--salon-ai-primary:#47352e;--salon-ai-accent:#ad7d6e;--salon-ai-paper:#fffdfb;--salon-ai-background:#fffaf7;--salon-ai-rose:#f4e7e1;--salon-ai-gold:#bc9568;--salon-ai-ink:#352723;--salon-ai-muted:#79675d;--salon-ai-line:#ead8cc;--salon-ai-font:'Tajawal',sans-serif}
+body.salon-ai-enabled:has(#app.salon-editorial-home),body.salon-ai-enabled:has(#app.salon-editorial-auth){background:var(--salon-ai-background)!important}
+body.salon-ai-enabled .salon-editorial-title,body.salon-ai-enabled .salon-editorial-sectionhead h2,body.salon-ai-enabled .salon-editorial-featureband h2{color:var(--salon-ai-ink)!important;font-family:var(--salon-ai-font)!important}
+body.salon-ai-enabled .salon-editorial-title em{color:var(--salon-ai-accent)!important}
+body.salon-ai-enabled .salon-editorial-lead,body.salon-ai-enabled .salon-editorial-sectionhead p{color:var(--salon-ai-muted)!important}
+body.salon-ai-enabled .salon-editorial-kicker,body.salon-ai-enabled .salon-editorial-eyebrow,body.salon-ai-enabled .salon-editorial-tilebody b{color:var(--salon-ai-gold)!important}
+body.salon-ai-enabled .salon-editorial-mainbtn,body.salon-ai-enabled .salon-top-link.salon-top-book{background:var(--salon-ai-primary)!important;border-color:var(--salon-ai-primary)!important;color:#fff!important}
+body.salon-ai-enabled .salon-editorial-outlinebtn{background:var(--salon-ai-paper)!important;border-color:var(--salon-ai-line)!important;color:var(--salon-ai-ink)!important}
+body.salon-ai-enabled .salon-editorial-tile,body.salon-ai-enabled #app.salon-editorial-client .card{background:var(--salon-ai-paper)!important;border-color:var(--salon-ai-line)!important}
+body.salon-ai-enabled .salon-editorial-tilebody strong{color:var(--salon-ai-ink)!important}
+body.salon-ai-enabled .salon-editorial-tilebody small{color:var(--salon-ai-muted)!important}
+body.salon-ai-enabled .salon-editorial-featureband,body.salon-ai-enabled #app.salon-editorial-client>.hero{background:linear-gradient(125deg,var(--salon-ai-rose),var(--salon-ai-paper))!important;border-color:var(--salon-ai-line)!important}
+body.salon-ai-enabled .salon-editorial-stateless span,body.salon-ai-enabled .salon-editorial-floating{background:var(--salon-ai-paper)!important;color:var(--salon-ai-ink)!important;border-color:var(--salon-ai-line)!important}
+body.salon-ai-enabled .salon-editorial-image-frame{background:var(--salon-ai-rose)!important}
+body.salon-ai-enabled.ai-layout-minimal .salon-editorial-image-frame{border-radius:25px!important}
+body.salon-ai-enabled.ai-layout-minimal .salon-editorial-tile,body.salon-ai-enabled.ai-layout-minimal .salon-editorial-featureband{border-radius:12px!important}
+body.salon-ai-enabled.ai-layout-boutique .salon-editorial-image-frame{border-radius:50% 50% 16px 16px / 30% 30% 16px 16px!important}
+body.salon-ai-enabled.ai-layout-boutique .salon-editorial-tile,body.salon-ai-enabled.ai-layout-boutique .salon-editorial-featureband{border-radius:28px!important}
+body.salon-ai-enabled .salon-editorial-auth .card{background:var(--salon-ai-paper)!important;border-color:var(--salon-ai-line)!important}
+.salon-ai-panel{--ai-board:#fffdfa;color:#493d3c;direction:rtl;text-align:right;padding-bottom:25px}
+.salon-ai-intro{background:linear-gradient(120deg,#f5e6de,#fdf9f7);border:1px solid #e8d8ce;border-radius:22px;padding:24px 25px;margin-bottom:18px;box-shadow:0 7px 32px #8f5c4512}
+.salon-ai-intro h2{margin:0 0 10px;font-size:clamp(21px,2.8vw,30px);color:#563b3f}
+.salon-ai-intro p{margin:0;line-height:1.9;color:#806d6c;font-size:14px}
+.salon-ai-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(250px,.75fr);gap:16px}
+.salon-ai-box{background:var(--ai-board);border:1px solid #ebdbd3;border-radius:20px;padding:21px;box-shadow:0 8px 30px #9071600d;min-width:0;margin-bottom:15px}
+.salon-ai-box h3{font-size:18px;color:#60424d;margin:0 0 7px}.salon-ai-box p{font-size:13px;color:#8a747b;line-height:1.85;margin:0 0 12px}
+.salon-ai-box label{font-size:13px;font-weight:750;display:block;margin:10px 0 7px;color:#4e4050}
+.salon-ai-box textarea,.salon-ai-box input{border:1px solid #e6d6d2;border-radius:12px;background:#fff;padding:12px 14px;width:100%;max-width:100%;font:inherit;min-height:45px;color:#44383b;box-sizing:border-box}
+.salon-ai-box textarea{min-height:107px;resize:vertical;line-height:1.8}
+.salon-ai-actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:12px}
+.salon-ai-button{background:#75485f;color:white;border:0;border-radius:12px;padding:12px 17px;font:700 13px 'Tajawal',sans-serif;cursor:pointer;min-height:43px}
+.salon-ai-button.secondary{background:#fff;color:#6b4e56;border:1px solid #d8c2c8}
+.salon-ai-button:disabled{opacity:.55;cursor:not-allowed}
+.salon-ai-notice{font-size:12px;color:#84676f;line-height:1.85;margin-top:12px;overflow-wrap:anywhere}
+.salon-ai-status{min-height:22px;margin-top:10px;color:#655264;font-size:13px;font-weight:700;overflow-wrap:anywhere}
+.salon-ai-swatches{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px}
+.salon-ai-swatch{min-width:0}.salon-ai-swatch-color{height:57px;border:1px solid #d5c8c6;border-radius:11px;box-shadow:inset 0 0 0 3px #fff4}.salon-ai-swatch span{display:block;font-size:10px;color:#826d6a;margin-top:5px;text-align:center}
+.salon-ai-badge{display:inline-block;padding:7px 11px;border-radius:99px;background:#f8ebf0;color:#8c526b;font-size:11px;font-weight:750}
+.salon-ai-helper{background:#faf5f2;border:1px solid #e9d9d2;border-radius:13px;padding:12px;margin-top:12px;font-size:12px;line-height:1.8;color:#6e5860}
+.salon-ai-sep{border:0;border-top:1px solid #ead9d4;margin:19px 0}
+@media(max-width:900px){.salon-ai-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.salon-ai-intro,.salon-ai-box{padding:17px}.salon-ai-swatches{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.salon-ai-swatch-color{height:39px}}
+</style>
+<script id="salonCloudAIIntegration">
+(function(){
+ 'use strict';
+ const OWNER_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+ const STORE_KEY='qualitySalon.ownerCloudflareWorkerURL';
+ let pending=null, beforePreview=null, previousSignature='', busy=false;
+ const safeHex=v=>/^#[0-9A-Fa-f]{6}$/.test(String(v||''));
+ const THEME_KEYS=['plum','plum2','rose','pink','gold','ink','muted','paper','line','background'];
+ const isOwnerNow=()=>typeof hasOwner==='function'&&hasOwner()&&auth.currentUser?.uid===OWNER_UID&&firebaseReady===true;
+ function themeSignature(v){const safe={...SALON_THEME_DEFAULT,...(v||{}),colors:{...SALON_THEME_DEFAULT.colors,...(v?.colors||{})}};return JSON.stringify({colors:safe.colors,radius:safe.radius||18,aiStyle:safe.aiStyle||null,heroImage:safe.heroImage||'',logo:safe.logo||'',welcomeAr:safe.welcomeAr||'',announcementAr:safe.announcementAr||''});}
+ function clone(v){return JSON.parse(JSON.stringify(v));}
+ function applyAIStyle(v){
+  const c=v?.colors||{};
+  const root=document.documentElement;
+  const css={primary:c.plum,accent:c.pink,paper:c.paper,background:c.background,rose:c.rose,gold:c.gold,ink:c.ink,muted:c.muted,line:c.line};
+  for(const [k,color] of Object.entries(css))if(safeHex(color))root.style.setProperty('--salon-ai-'+k,color);
+  const layout=['minimal','boutique','editorial'].includes(v?.aiStyle?.layout)?v.aiStyle.layout:'editorial';
+  const font=['classic','modern','soft'].includes(v?.aiStyle?.font)?v.aiStyle.font:'modern';
+  const f={classic:"'Amiri','Tajawal',serif",modern:"'Tajawal',sans-serif",soft:"'Cairo','Tajawal',sans-serif"};
+  root.style.setProperty('--salon-ai-font',f[font]);
+  document.body.classList.remove('ai-layout-minimal','ai-layout-boutique','ai-layout-editorial');
+  document.body.classList.add('ai-layout-'+layout);
+  document.body.classList.toggle('salon-ai-enabled',!!v?.aiStyle);
+ }
+ const oldApply=applySalonTheme;
+ applySalonTheme=function(value){const result=oldApply(value);applyAIStyle(salonTheme);return result;};
+ try{applyAIStyle(salonTheme)}catch(e){}
+ function panelHtml(){return `<div class="salon-ai-panel">
+  <div class="salon-ai-intro"><span class="salon-ai-badge">✦ Cloudflare Workers AI</span><h2>مساعد جودة الذكي لتصميم الموقع</h2><p>اكتبي كيف تتخيلين شكل صالونك، والمساعد يصمّم الألوان ونمط الخطوط والواجهة. تعرضين النتيجة أولًا، ثم تقررين نشرها لجميع العميلات.</p></div>
+  <div class="salon-ai-layout"><div>
+   <section class="salon-ai-box"><h3>🎨 صممي الثيم بالكلام</h3><p>مثال: «أبي ثيم وردي سُكري فاخر، خط عربي ناعم، أزرار داكنة، وخلفية عاجية».</p>
+    <label for="salonAiBrief">وصف الثيم</label><textarea id="salonAiBrief" maxlength="700" placeholder="أبي الموقع بألوان كريمية وذهبية مع لمسة وردية، والصورة كبيرة والخط فاخر..." spellcheck="true"></textarea>
+    <div class="salon-ai-actions"><button class="salon-ai-button" id="salonAiGenerate" type="button">✦ تصميم بالذكاء الاصطناعي</button><button class="salon-ai-button secondary" id="salonAiPreview" disabled type="button">معاينة الثيم</button><button class="salon-ai-button" id="salonAiPublish" disabled type="button">نشر الثيم</button><button class="salon-ai-button secondary" id="salonAiRestore" disabled type="button">التراجع عن المعاينة</button></div>
+    <div id="salonAiStatus" class="salon-ai-status" role="status" aria-live="polite"></div><div id="salonAiColors" class="salon-ai-swatches" aria-label="ألوان الثيم"></div>
+    <div class="salon-ai-notice">يتطلب التصميم الفعلي نشر Cloudflare Worker وربطه أدناه. يُرسل وصف الثيم فقط إلى النموذج، وليس أسماء العميلات أو فواتيرهن. لا يغيّر الذكاء الاصطناعي ملفات الموقع أو قاعدة بيانات المبيعات.</div>
+   </section>
+   <section class="salon-ai-box"><h3>👩‍🦰 تسجيل العميلات بدون مشاركة بياناتهن مع AI</h3><p>ألصقي مثلًا «اسم العميلة سارة محمد، جوال 05xxxxxxxx»، وسنملأ نموذج تسجيل العميلة في الصالون محليًا للمراجعة.</p><label for="salonAiClientNote">بيانات عميلة جديدة</label><textarea id="salonAiClientNote" placeholder="الاسم: سارة محمد، رقم الجوال: 05xxxxxxxx"></textarea><div class="salon-ai-actions"><button class="salon-ai-button secondary" type="button" id="salonAiClientFill">تجهيز نموذج العميلة</button><button class="salon-ai-button secondary" type="button" id="salonAiOpenInvoices">الفواتير القديمة</button><button class="salon-ai-button secondary" type="button" id="salonAiOpenPackages">الباقات</button></div><div class="salon-ai-notice">التسجيل يعتمد على نموذج العميلات الموجود في Firebase. لا تُحفظ عميلة أو فاتورة إلا بعد مراجعتك والضغط على زر الحفظ الأصلي.</div></section>
+  </div><div>
+   <section class="salon-ai-box"><h3>⚙️ إعداد Cloudflare مرة واحدة</h3><p>بعد نشر Worker على حسابك، انسخي عنوانه هنا. يجب أن يكون من حساب Cloudflare الذي تثقين به.</p><label for="salonAiWorkerURL">رابط Cloudflare Worker</label><input id="salonAiWorkerURL" type="url" dir="ltr" autocomplete="off" placeholder="https://quality-nails-ai-designer.xxx.workers.dev"><div class="salon-ai-actions"><button class="salon-ai-button secondary" id="salonAiSaveURL" type="button">حفظ رابط المساعد على هذا الجهاز</button></div><div class="salon-ai-notice">حساب Cloudflare وخدمة Workers AI يُضبطان من ملفات ZIP المرفقة. لا تضعي أي مفاتيح سرية هنا؛ الصفحة تستعمل تسجيل دخول المالكة الموثق عبر Firebase.</div></section>
+   <section class="salon-ai-box"><h3>↶ تصاميم سابقة</h3><p>يمكنك معاينة آخر ثيم منشور قبل الرجوع إليه.</p><div class="salon-ai-actions"><button class="salon-ai-button secondary" id="salonAiUndoPublished" type="button">استرجاع آخر ثيم منشور</button><button class="salon-ai-button secondary" id="salonAiManualTheme" type="button">فتح التعديل اليدوي للثيم والصورة</button></div><div id="salonAiHistoryStatus" class="salon-ai-status" aria-live="polite"></div></section>
+  </div></div>
+ </div>`;}
+ function status(t){const n=document.getElementById('salonAiStatus');if(n)n.textContent=t;}
+ function buttons(){const get=id=>document.getElementById(id);if(get('salonAiGenerate'))get('salonAiGenerate').disabled=busy;if(get('salonAiPreview'))get('salonAiPreview').disabled=!pending||busy;if(get('salonAiPublish'))get('salonAiPublish').disabled=!pending||busy;if(get('salonAiRestore'))get('salonAiRestore').disabled=!beforePreview||busy;}
+ function renderSwatches(c){const root=document.getElementById('salonAiColors');if(!root)return;root.replaceChildren();for(const [key,label] of [['plum','أساسي'],['pink','وردي'],['gold','ذهبي'],['background','خلفية'],['paper','بطاقات']]){const color=c?.[key];if(!safeHex(color))continue;const cell=document.createElement('div');cell.className='salon-ai-swatch';const square=document.createElement('div');square.className='salon-ai-swatch-color';square.style.backgroundColor=color;const span=document.createElement('span');span.textContent=label;cell.append(square,span);root.append(cell);}}
+ function validTheme(data){
+  if(!data||typeof data!=='object'||!data.colors)throw Error('تعذّر استلام الثيم من المساعد');
+  const clean={};for(const k of THEME_KEYS){const c=data.colors[k];if(!safeHex(c))throw Error('لون غير صالح: '+k);clean[k]=c;}
+  return {colors:clean,radius:Math.min(30,Math.max(10,Number(data.radius)||18)),aiStyle:{layout:['minimal','boutique','editorial'].includes(data.aiStyle?.layout)?data.aiStyle.layout:'editorial',font:['classic','modern','soft'].includes(data.aiStyle?.font)?data.aiStyle.font:'modern'}};
+ }
+ function urlValue(){const v=document.getElementById('salonAiWorkerURL')?.value.trim()||localStorage.getItem(STORE_KEY)||'';
+  if(!v)throw Error('أضيفي رابط Cloudflare Worker أولًا.');const u=new URL(v);
+  if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.port||u.pathname!=='/'||!u.hostname.endsWith('.workers.dev'))throw Error('استخدمي رابط HTTPS الأصلي من Cloudflare Workers بدون مسار أو رموز إضافية.');
+  return u.origin;
+ }
+ async function generate(){
+  if(!isOwnerNow()){status('ادخلي حساب المالكة أولًا.');return}
+  if(busy)return;let endpoint;
+  try{endpoint=urlValue()}catch(err){status(err.message);return}
+  const brief=String(document.getElementById('salonAiBrief')?.value||'').trim();
+  if(brief.length<12||brief.length>700){status('اكتبي وصفًا واضحًا للثيم لا يقل عن 12 حرفًا.');return}
+  if(/\b05\d{8}\b|\+?9665\d{8}|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(brief)){status('احذفي أسماء وأرقام العميلات والبريد من وصف الثيم.');return}
+  busy=true;buttons();status('جارٍ تصميم الثيم عبر Cloudflare AI...');
+  try{
+   const token=await auth.currentUser.getIdToken();
+   const controller=new AbortController();const deadline=setTimeout(()=>controller.abort(),45000);
+   let response;try{response=await fetch(endpoint+'/api/theme',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+token},body:JSON.stringify({brief}),signal:controller.signal,cache:'no-store'});}finally{clearTimeout(deadline)}
+   const result=await response.json();if(!response.ok||!result.ok)throw Error(String(result.error||'تأكدي من إعداد Worker ونطاق الموقع'));
+   const theme=validTheme(result.theme);
+   beforePreview=clone(salonTheme);previousSignature=themeSignature(beforePreview);
+   pending={...clone(beforePreview),...theme,colors:{...beforePreview.colors,...theme.colors}};
+   renderSwatches(theme.colors);
+   status('جاهز: '+String(result.theme.title||'ثيم جديد')+' — '+String(result.theme.reason||'')+'، اضغطي «معاينة الثيم».');
+  }catch(err){status('تعذر التصميم: '+(err?.name==='AbortError'?'انتهت مهلة الاتصال.':String(err.message||err)))}
+  finally{busy=false;buttons()}
+ }
+ function preview(){if(!pending||!isOwnerNow())return;applySalonTheme(pending);status('هذه معاينة على جهازك فقط. لم يتم النشر بعد.');buttons()}
+ async function publish(){
+  if(!pending||!beforePreview||!isOwnerNow()||busy)return;
+  if(!confirm('هل تريدين نشر الثيم الجديد لجميع الزائرات؟ ستبقى الفواتير والنقاط والخدمات كما هي.'))return;
+  busy=true;buttons();status('جارٍ حفظ الثيم في Firebase...');
+  try{
+   const snap=await salonThemeRef.get({source:'server'});
+   const remote=snap.exists?snap.data():clone(SALON_THEME_DEFAULT);
+   if(themeSignature(remote)!==previousSignature)throw Error('تغيّر الثيم من جهاز آخر. أعيدي توليد التصميم أولًا.');
+   const backup=clone(remote);delete backup.aiHistory;
+   const history=[backup,...(Array.isArray(remote.aiHistory)?remote.aiHistory:[])].slice(0,5);
+   const update={...pending,aiHistory:history,aiLastPublishedAt:new Date().toISOString()};
+   await salonThemeRef.set(update,{merge:true});
+   applySalonTheme(update);pending=null;beforePreview=null;previousSignature='';status('تم نشر الثيم بنجاح. افتحي الصفحة الرئيسية لمشاهدته.');
+  }catch(e){status('لم يتم النشر: '+String(e.message||e))}
+  finally{busy=false;buttons()}
+ }
+ function restorePreview(){if(!beforePreview||!isOwnerNow())return;applySalonTheme(beforePreview);beforePreview=null;pending=null;previousSignature='';status('تم إرجاع المعاينة دون تغيير التصميم المنشور.');buttons();}
+ async function undoPublished(){
+  if(!isOwnerNow())return;const host=document.getElementById('salonAiHistoryStatus');
+  try{
+   const snap=await salonThemeRef.get({source:'server'});const active=snap.data()||{};const history=Array.isArray(active.aiHistory)?active.aiHistory:[];
+   if(!history.length){host.textContent='ما فيه ثيم محفوظ سابقًا للرجوع إليه.';return}
+   if(!confirm('هل تريدين استعادة الثيم المنشور السابق لكل الأجهزة؟'))return;
+   const previous=clone(history[0]);const current=clone(active);delete current.aiHistory;
+   const updated={...previous,aiHistory:[current,...history.slice(1)].slice(0,5),aiLastPublishedAt:new Date().toISOString()};
+   await salonThemeRef.set(updated);applySalonTheme(updated);pending=null;beforePreview=null;buttons();host.textContent='تم استرجاع التصميم السابق.';
+  }catch(err){host.textContent='تعذر الاسترجاع: '+String(err.message||err)}
+ }
+ function fillClientForm(){
+  if(!isOwnerNow())return;
+  const text=String(document.getElementById('salonAiClientNote')?.value||'').trim();
+  const phone=(text.match(/(?:\+?966[\s-]?5\d{8}|05\d{8})/)||[])[0];
+  if(!phone){status('اكتبي اسم العميلة ورقم جوالها السعودي الصحيح 05xxxxxxxx.');return}
+  const rawName=(text.match(/(?:الاسم|اسم العميلة|العميلة|اسمها)\s*[:：]?\s*([\p{Script=Arabic} ]{3,85}?)(?=\s*(?:،|,|رقم|جوال|هاتف|$))/u)||[])[1]||'';
+  let name=rawName.trim().replace(/^(?:هي|اسمها|اسم)\s+/,'').trim();
+  if(!name){const rest=text.replace(phone,'').replace(/(?:الاسم|اسم العميلة|العميلة|جوال|رقم|الهاتف|اسمها|سجلي|سجل)\s*[:：]?/g,'').replace(/[،,:：]/g,' ').trim();if(/^[\p{Script=Arabic} ]{3,85}$/u.test(rest))name=rest;}
+  if(!name){status('ما قدرت أحدد الاسم. اكتبيه مثل: «الاسم: سارة محمد، رقم الجوال: 05xxxxxxxx».');return}
+  // Existing CRM form handles Firebase persistence, uniqueness, and loyalty points.
+  ownerTab('clients');
+  const form=document.getElementById('clientAddForm');if(!form){toast('تعذر فتح نموذج العميلة');return}
+  form.elements.namedItem('name').value=name;
+  form.elements.namedItem('phone').value=phone;
+  form.elements.namedItem('points').value='0';
+  form.scrollIntoView({behavior:'smooth',block:'center'});
+  toast('راجعي الاسم والجوال ثم اضغطي «إضافة عميلة» للحفظ. لم تُرسل البيانات إلى Cloudflare.');
+ }
+ function activate(){
+  const q=id=>document.getElementById(id);
+  q('salonAiWorkerURL').value=localStorage.getItem(STORE_KEY)||'';
+  q('salonAiGenerate').onclick=generate;q('salonAiPreview').onclick=preview;q('salonAiPublish').onclick=publish;q('salonAiRestore').onclick=restorePreview;
+  q('salonAiUndoPublished').onclick=undoPublished;
+  q('salonAiClientFill').onclick=fillClientForm;
+  q('salonAiOpenInvoices').onclick=()=>ownerTab('assistant');
+  q('salonAiOpenPackages').onclick=()=>ownerTab('packages');
+  q('salonAiManualTheme').onclick=()=>openSalonThemeSettings();
+  q('salonAiSaveURL').onclick=()=>{if(!isOwnerNow())return;try{const u=urlValue();localStorage.setItem(STORE_KEY,u);status('تم حفظ رابط المساعد على هذا الجهاز فقط.')}catch(err){status(err.message)}};
+  buttons();
+ }
+ try{if(typeof OWNER_MENU!=='undefined'&&!OWNER_MENU.some(item=>item[0]==='cloudAI'))OWNER_MENU.push(['cloudAI','مساعد جودة الذكي','✦'])}catch(e){}
+ const originalRender=renderOwner;
+ renderOwner=function(tab=ownerActiveTab){
+  if(tab!=='cloudAI')return originalRender.apply(this,arguments);
+  if(!isOwnerNow())return renderHome();
+  originalRender('dashboard');
+  ownerActiveTab='cloudAI';
+  const content=document.querySelector('#app .owner-content');
+  if(!content)return;
+  content.innerHTML=panelHtml();
+  for(const button of document.querySelectorAll('.owner-menu button')){
+   button.classList.toggle('selected',button.getAttribute('onclick')?.includes("'cloudAI'"));
+  }
+  activate();
+ };
+})();
+</script>
+
 </body>
 </html>
