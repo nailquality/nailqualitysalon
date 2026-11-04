@@ -1740,7 +1740,7 @@ async function loadPortalCatalog(){
  const catalogItems=Array.isArray(data.services)?data.services:[];
  const publicPackages=Array.isArray(data.packages)?data.packages:[];
  const fallbackPackages=catalogItems.filter(x=>x?.isPackage===true||String(x?.id||'').startsWith('bundle_')).map(x=>({id:String(x.packageId||x.id),name:x.name,nameEn:x.nameEn||x.name,price:Number(x.price)||0,description:x.packageDescription||'',kind:x.packageType==='credit'?'credit':'instant',creditsTotal:Number(x.creditsTotal)||0,validityMonths:Number(x.validityMonths??12),eligibleServiceIds:x.eligibleServiceIds||[]}));
- portalCatalog={services:catalogItems.filter(x=>!x?.isPackage&&!String(x?.id||'').startsWith('bundle_')),packages:publicPackages.length?publicPackages:fallbackPackages,staff:Array.isArray(data.staff)?data.staff:[],settings:data.settings||{redeemPoints:50,redeemRiyals:10,homeServiceEnabled:false}};
+ portalCatalog={services:catalogItems.filter(x=>!x?.isPackage&&!String(x?.id||'').startsWith('bundle_')),packages:publicPackages.length?publicPackages:fallbackPackages,staff:Array.isArray(data.staff)?data.staff:[],settings:data.settings||{redeemPoints:50,redeemRiyals:10,homeServiceEnabled:false},bookingControl:data.bookingControl||{acceptingBookings:false,blocks:[]}};
 }
 async function loadPortalBookings(){if(portalRole==='employee'){portalBookings=[];return}const q=firestore.collection('portalBookings').where('clientUid','==',auth.currentUser.uid);portalBookings=(await q.get()).docs.map(d=>({id:d.id,...d.data()}))}
 function renderPortalClient(){applyLang();$("#homeBtn").classList.remove('hidden');const p=portalCatalog.settings||{},points=Number(portalUser.points)||0,threshold=Number(p.redeemPoints)||50,discount=Number(p.redeemRiyals)||10;$("#app").innerHTML=`${headerPanel(t('clientPortal'),portalUser.name||'')}<div class="stats"><div class="stat"><span>${t('points')}</span><strong>${points}</strong></div><div class="stat"><span>الخصم المتاح</span><strong>${money(Math.floor(points/threshold)*discount)}</strong></div></div><div class="card" style="margin-top:16px"><h3>${t('book')}</h3><form id="portalBooking" class="form-grid"><div class="field full"><label>${t('chooseService')}</label><div class="service-grid">${(portalCatalog.services||[]).filter(x=>x.active!==false).map(x=>`<label class="service checkline"><span>${servicePicture(x)}<strong>${esc(lang==='en'?(x.nameEn||x.name):x.name)}</strong><br>${money(x.price)} (${Number(x.duration)||30} دقيقة)</span><span style="display:block;margin-top:8px">العدد <input type="number" name="serviceQty_${esc(x.id)}" min="0" max="20" value="0" inputmode="numeric" style="width:75px" aria-label="عدد ${esc(x.name)}"></span></label>`).join('')}</div></div><div class="field"><label>${t('chooseEmployee')}</label><select name="staff" required><option value="">${t('choose')}</option>${(portalCatalog.staff||[]).filter(x=>x.active!==false).map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></div><div class="field"><label>${t('date')}</label><input type="date" name="date" min="${today()}" required></div><div class="field"><label>${t('time')}</label><input type="time" name="time" required></div><div class="field"><label>مكان الخدمة</label><select name="location" onchange="$('#homeAddress').classList.toggle('hidden',this.value!=='home')"><option value="salon">في الصالون</option>${p.homeServiceEnabled===true?`<option value="home">${lang==='en'?'At home':'خدمة منزلية'}</option>`:""}</select></div><div class="field full hidden" id="homeAddress"><label>العنوان</label><input name="address" maxlength="200"></div><div class="field full"><label class="checkline"><input type="checkbox" name="redeem"> استخدام خصم النقاط عند الدفع (يحتاج تأكيد المالكة)</label><small>${threshold} نقطة = ${money(discount)}؛ لا تُخصم النقاط عند طلب الحجز</small></div><div class="field full"><label>${t('notes')}</label><textarea name="notes" maxlength="300"></textarea></div><div class="notice full" id="portalQuantitySummary">حددي عدد الخدمات المطلوبة ثم احفظي الحجز.</div><button class="btn full" type="submit">إرسال طلب الحجز</button></form></div><div class="section-head"><h3>${t('myBookings')}</h3></div>${portalBookings.map(b=>`<div class="card" style="margin-bottom:8px">${esc(b.date)} ${esc(b.time)} — ${esc(b.serviceName)} — ${esc(b.status||'pending')}</div>`).join('')||'<div class="empty">لا توجد حجوزات</div>'}<button class="btn danger" onclick="clearSession()">${t('logout')}</button>`;$("#portalBooking").onsubmit=submitPortalBooking}
@@ -1751,7 +1751,33 @@ async function submitPortalBooking(e){e.preventDefault();const f=new FormData(e.
  const duration=services.reduce((n,s)=>n+(Number(s.duration)||30),0);if(timeToMin(time)+duration>1440){toast('المدة تتجاوز نهاية اليوم');return}
  const record={clientUid:auth.currentUser.uid,clientName:String(portalUser.nameAr||portalUser.name||''),clientNameEn:String(portalUser.nameEn||''),clientPhone:String(portalUser.phone||''),staffUid:String(staff.authUid||staff.id),staffName:String(staff.name),serviceIds:services.map(s=>String(s.id)),serviceName:services.map(s=>String(s.name)).join('، '),price:services.reduce((n,s)=>n+salonEffectivePrice(s.originalPrice??s.price,s.sale),0),duration,date,time,location,address,notes:String(f.get('notes')||''),redeemRequested:!!f.get('redeem'),status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
  const btn=e.target.querySelector('button[type=submit]');if(btn)btn.disabled=true;
- try{await firestore.collection('portalBookings').add(record);await loadPortalBookings();renderPortalClient();toast('تم إرسال الحجز بنجاح؛ بانتظار التأكيد')}
+ try{
+   // Recheck the LIVE booking control in the SAME Firestore transaction as creating the request.
+   // This prevents a booking from slipping through if the owner closes bookings between
+   // the preliminary UI check and the actual write. Firestore rules are still required.
+   const catalogRef=firestore.collection('portal').doc('catalog');
+   const bookingRef=firestore.collection('portalBookings').doc();
+   await firestore.runTransaction(async tx=>{
+    const catalogSnap=await tx.get(catalogRef);
+    const control=catalogSnap.exists?catalogSnap.data()?.bookingControl:null;
+    if(control?.acceptingBookings!==true){
+      throw Error(lang==='ar'?'الحجوزات مغلقة حاليًا. لا يمكن إرسال حجز جديد.':'Bookings are currently closed. New booking requests are unavailable.');
+    }
+    const start=timeToMin(time),end=start+duration;
+    const blocks=Array.isArray(control.blocks)?control.blocks:[];
+    const closed=blocks.some(b=>{
+      if(String(b?.date||'')!==date)return false;
+      if(String(b.staffId||'all')!=='all'&&String(b.staffId)!==String(staffId))return false;
+      if(b.fullDay===true)return true;
+      const blockStart=timeToMin(String(b.startTime||'00:00'));
+      const blockEnd=timeToMin(String(b.endTime||'23:59'));
+      return start<blockEnd&&end>blockStart;
+    });
+    if(closed)throw Error(lang==='ar'?'الموعد المحدد مغلق. اختاري يومًا أو وقتًا آخر.':'This date or time is blocked. Choose a different appointment.');
+    tx.set(bookingRef,record);
+   });
+   await loadPortalBookings();renderPortalClient();toast(lang==='ar'?'تم إرسال الحجز بنجاح؛ بانتظار التأكيد':'Appointment requested; awaiting confirmation');
+  }
  catch(err){toast('تعذر حفظ الحجز: '+err.message)}finally{if(btn&&btn.isConnected)btn.disabled=false}
 }
 function renderPortalEmployee(){
@@ -1786,7 +1812,9 @@ async function publishPortalCatalog(){
    redeemRiyals:cleanNumber(db.settings?.redeemRiyals)||10,
    homeServiceEnabled:db.settings?.homeServiceEnabled===true
   },publishedAt:firebase.firestore.FieldValue.serverTimestamp()};
-  await firestore.collection('portal').doc('catalog').set(catalog);
+  // Preserve other public catalog sections including packages, and publish current booking closure.
+  catalog.bookingControl={acceptingBookings:db.settings?.onlineBookingOpen!==false,blocks:(db.blocks||[]).filter(b=>b?.date).map(b=>({date:String(b.date),staffId:String(b.staffId||'all'),fullDay:b.fullDay===true,startTime:String(b.startTime||'00:00'),endTime:String(b.endTime||'23:59')}))};
+  await firestore.collection('portal').doc('catalog').set(catalog,{merge:true});
   toast('تم نشر '+services.length+' خدمة للعميلات بنجاح');
   return true;
  }catch(e){console.error('Catalog publish failed',e);toast('تعذر نشر الخدمات: '+(e.message||'خطأ غير معروف'));return false;}
@@ -2132,7 +2160,7 @@ function salonThemeContent(){
  const audience=salonAudience();if(salonTheme.showFor?.[audience]===false)return;
  const app=document.querySelector('#app');if(!app)return;
  const h=lang==='en'?(salonTheme.welcomeEn||salonTheme.welcomeAr):(salonTheme.welcomeAr||salonTheme.welcomeEn);
- const a=lang==='en'?(salonTheme.announcementEn||salonTheme.announcementAr):(salonTheme.announcementAr||salonTheme.announcementEn);
+ const a=lang==='en'?(salonTheme.announcementEn||''):(salonTheme.announcementAr||'');
  if(a){const section=document.createElement('section');section.className='notice';section.dataset.themeAnnouncement='1';section.style.marginBottom='14px';section.textContent=a;app.prepend(section)}
  if(h){const hero=app.querySelector('.hero h2');if(hero&&audience==='client'&&!auth.currentUser)hero.textContent=h}
 }
@@ -2174,7 +2202,7 @@ const salonOriginalOwnerLogin=renderOwnerLogin;
 renderOwnerLogin=function(){salonOriginalOwnerLogin();syncSalonTheme()};
 const salonOriginalApplyLang=applyLang;
 applyLang=function(){salonOriginalApplyLang();applySalonTheme(salonTheme)};
-try{themeUnsubscribe=salonThemeRef.onSnapshot(snap=>{applySalonTheme(snap.exists?snap.data():SALON_THEME_DEFAULT);const app=document.querySelector('#app');if(app){app.querySelectorAll('[data-theme-announcement]').forEach(x=>x.remove());const a=lang==='en'?(salonTheme.announcementEn||salonTheme.announcementAr):(salonTheme.announcementAr||salonTheme.announcementEn);if(a&&salonTheme.showFor[salonAudience()]!==false){const el=document.createElement('section');el.dataset.themeAnnouncement='1';el.className='notice';el.style.marginBottom='14px';el.textContent=a;app.prepend(el)}}},err=>console.warn('Theme read blocked by Firestore rules:',err.message))}catch(err){console.warn('Theme sync unavailable',err)}
+try{themeUnsubscribe=salonThemeRef.onSnapshot(snap=>{applySalonTheme(snap.exists?snap.data():SALON_THEME_DEFAULT);const app=document.querySelector('#app');if(app){app.querySelectorAll('[data-theme-announcement]').forEach(x=>x.remove());const a=lang==='en'?(salonTheme.announcementEn||''):(salonTheme.announcementAr||'');if(a&&salonTheme.showFor[salonAudience()]!==false){const el=document.createElement('section');el.dataset.themeAnnouncement='1';el.className='notice';el.style.marginBottom='14px';el.textContent=a;app.prepend(el)}}},err=>console.warn('Theme read blocked by Firestore rules:',err.message))}catch(err){console.warn('Theme sync unavailable',err)}
 applySalonTheme(salonTheme);
 </script>
 
@@ -2206,7 +2234,7 @@ renderPortalClient=function(){
  const settings=portalCatalog.settings||{};const pts=Math.max(0,Number(portalUser.points)||0);const threshold=Math.max(1,Number(settings.redeemPoints)||50);const riyals=Math.max(0,Number(settings.redeemRiyals)||10);
  if(salonClientPage==='bookings'){
   const rows=portalBookings.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  panel.innerHTML='<div class="section-head"><h3>📅 '+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(b.status||'pending')} • ${b.depositStatus==='paid'?'✅ مدفوع':'🕒 لم يُدفع العربون'}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p><small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد حجوزات مؤكدة في النظام حاليًا. الطلبات المرسلة عبر واتساب تنتظر تأكيد الصالون ولا تُضاف تلقائيًا إلى مواعيدي.</div>');
+  panel.innerHTML='<div class="section-head"><h3>📅 '+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(b.status||'pending')} • ${b.packageUseRequested?'🎁 موعد باقة — بانتظار تأكيد الصالون':(b.depositStatus==='paid'?'✅ مدفوع':'🕒 لم يُدفع العربون')}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p><small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد حجوزات مؤكدة في النظام حاليًا. الطلبات المرسلة عبر واتساب تنتظر تأكيد الصالون ولا تُضاف تلقائيًا إلى مواعيدي.</div>');
  }else if(salonClientPage==='points'){
   panel.innerHTML=`<div class="section-head"><h3>🎁 ${lang==='ar'?'نقاطي ومكافآتي':'My points & rewards'}</h3></div><div class="stats"><div class="stat"><span>رصيد النقاط</span><strong>${pts}</strong></div><div class="stat"><span>خصم متاح عند الاستبدال</span><strong>${money(Math.floor(pts/threshold)*riyals)}</strong></div></div><div class="card" style="margin-top:14px"><h3>كيف أستخدم نقاطي؟</h3><p>كل ${threshold} نقطة = خصم ${money(riyals)} حسب سياسة الصالون.</p><p>يمكنك اختيار «نعم، أريد استخدام نقاطي» أثناء طلب الحجز. يراجع الصالون الرصيد ويؤكد قيمة الخصم قبل إصدار الفاتورة.</p><p class="notice">لا تُخصم أي نقاط بمجرد إرسال طلب واتساب. يُعتمد الخصم عند تأكيد الصالون والدفع.</p><button type="button" class="btn" onclick="salonClientPage='home';renderPortalClient()">احجزي واستخدمي نقاطك</button></div>`;
  }
@@ -2428,7 +2456,7 @@ submitPortalBooking=async function(event){
 };
 function ownerBookingCard(b){
  const id=esc(b.id),pending=b.status==='pending',closed=['cancelled','completed'].includes(b.status);
- return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · العربون: ${b.depositStatus==='paid'?'مدفوع':'غير مدفوع'}</p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">${pending?'تأكيد بعد العربون':'تحديث تأكيد العربون'}</button><button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}</div></div>`;
+ return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${b.packageUseRequested?'🎁 طلب استخدام باقة «'+esc(b.packageName||'')+'» — مشمول بالرصيد':money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · ${b.packageUseRequested?'طلب من باقاتي — لا يتم الخصم إلا عند تسجيل الخدمة في الكاشير':('العربون: '+(b.depositStatus==='paid'?'مدفوع':'غير مدفوع'))}</p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">${b.packageUseRequested?'تأكيد موعد الباقة':(pending?'تأكيد بعد العربون':'تحديث تأكيد العربون')}</button><button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}</div></div>`;
 }
 showPortalBookingsOwner=async function(){
  const host=document.querySelector('#portalBookingsOwner');if(!host)return;
@@ -2438,9 +2466,24 @@ showPortalBookingsOwner=async function(){
  }catch(err){host.textContent='تعذر تحميل الحجوزات: '+err.message}
 };
 window.ownerConfirmSavedBooking=async id=>{
- if(!confirm('هل استلمتِ العربون وتريدين تأكيد الحجز؟'))return;
- try{await bookingCollection.doc(id).update({status:'confirmed',depositStatus:'paid',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم تأكيد الحجز والعربون')}
- catch(err){toast('تعذر التأكيد: '+err.message)}
+ try{
+  const ref=bookingCollection.doc(id),snapshot=await ref.get({source:'server'});
+  if(!snapshot.exists)throw Error('الطلب غير موجود');
+  const booking=snapshot.data();
+  if(booking.packageUseRequested){
+   const owned=await firestore.collection('clientPackageViews').doc(String(booking.clientUid)).get({source:'server'});
+   const balance=(owned.data()?.balances||[]).find(x=>String(x.id)===String(booking.packageBalanceId));
+   if(!balance||Number(balance.used||0)>=Number(balance.total||0)||(balance.expiresOn&&balance.expiresOn<today())||!(balance.eligibleServiceIds||[]).map(String).includes(String((booking.serviceIds||[])[0]))){
+     throw Error('رصيد الباقة غير متاح أو غير مطابق؛ لا يمكن تأكيد موعدها');
+   }
+   if(!confirm('تأكيد موعد العميلة باستخدام باقتها؟ لن يُخصم الرصيد حتى تسجيل الخدمة في الكاشير.'))return;
+   await ref.update({status:'confirmed',depositStatus:'not_required',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+   await showPortalBookingsOwner();toast('تم تأكيد موعد الباقة دون تسجيل دفعة أو خصم رصيد');return;
+  }
+  if(!confirm('هل استلمتِ العربون وتريدين تأكيد الحجز؟'))return;
+  await ref.update({status:'confirmed',depositStatus:'paid',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  await showPortalBookingsOwner();toast('تم تأكيد الحجز والعربون');
+ }catch(err){toast('تعذر التأكيد: '+err.message)}
 };
 window.ownerCancelSavedBooking=async id=>{
  if(!confirm('هل تريدين إلغاء طلب الحجز؟'))return;
@@ -5670,14 +5713,14 @@ function renderShop(){
  const all=listedPackages(),instant=all.filter(x=>x.kind!=='credit'),credits=all.filter(x=>x.kind==='credit');
  const section=document.createElement('section');section.id='salonCustomerPackagesShop';section.className='salon-pkg-shop';
  const renderCard=p=>{
-  const name=esc(packageName(p)),kind=p.kind==='credit',desc=esc(p.description||p.details||'');
+  const name=esc(packageName(p)),kind=p.kind==='credit',desc=esc(lang==='en'?(p.descriptionEn||p.detailsEn||p.description||p.details||''):(p.description||p.details||''));
   const creditLine=kind?'رصيد '+p.creditsTotal+' استخدامات · '+(Number(p.validityMonths)===0?'بدون تاريخ انتهاء':'صلاحية '+(Number(p.validityMonths)||12)+' شهر'):'عرض يُنفذ في زيارة واحدة';
   return '<article class="salon-pkg-card" data-shop-kind="'+(kind?'credit':'instant')+'"><span class="salon-pkg-label '+(kind?'credit':'')+'">'+(kind?'باقة رصيد استخدامات':'عرض استخدام واحد')+'</span><h3>'+name+'</h3><p>'+desc+'</p><p>'+esc(creditLine)+'</p><b class="price">'+money(p.price)+'</b><button type="button" class="btn" data-package-buy="'+esc(p.id)+'">طلب الشراء عبر واتساب</button></article>';
  };
  section.innerHTML='<h2>✦ عروضنا وباقاتنا</h2><p class="salon-pkg-shop-intro">اختاري الباقة المناسبة وارسلي طلب الشراء إلى واتساب الصالون. الدفع واعتماد رصيد الباقة يتمان بعد تأكيد الصالون، وليس بمجرد فتح واتساب.</p>'+
   '<div class="salon-pkg-tabs" role="group" aria-label="تصفية الباقات"><button type="button" class="active" data-pkg-filter="all">كل الباقات ('+all.length+')</button><button type="button" data-pkg-filter="instant">استخدام واحد ('+instant.length+')</button><button type="button" data-pkg-filter="credit">رصيد استخدامات ('+credits.length+')</button></div>'+
   '<div class="salon-pkg-grid">'+(all.length?all.map(renderCard).join(''):'<p class="salon-pkg-note">لا توجد باقات منشورة الآن. تستطيع المالكة إضافتها من صفحة الباقات ثم إعادة نشرها للعميلات.</p>')+'</div>'+
-  '<div class="salon-pkg-use"><h3>📅 أريد استخدام باقتي</h3><p class="salon-pkg-note">اختاري الباقة المشتراة والخدمة واليوم والوقت. تفتح رسالة واتساب جاهزة لطلب الموعد؛ يتحقق الصالون من الشراء والرصيد وتوفر الموعد قبل التأكيد. لا يُخصم الرصيد عند إرسال الطلب.</p><form id="salonUsePackageRequest"><div class="field"><label>الباقة المشتراة</label><select name="package" required><option value="">اختاري الباقة</option>'+all.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('')+'<option value="older">باقة اشتريتها سابقًا وغير معروضة</option></select></div><div class="field"><label>اسم الباقة القديمة (عند الحاجة)</label><input name="olderName" maxlength="90" placeholder="اكتبي اسم الباقة فقط"></div><div class="field"><label>الخدمة المطلوبة من الباقة</label><select name="service" required><option value="">اختاري الخدمة</option></select></div><div class="field"><label>التاريخ المطلوب</label><input name="date" type="date" min="'+today()+'" required></div><div class="field"><label>الوقت المطلوب</label><input name="time" type="time" required></div><div class="field"><label>الملاحظات (اختياري)</label><textarea name="notes" maxlength="220" rows="2" placeholder="مثال: أفضل موعد مسائي"></textarea></div><div class="full"><button type="submit" class="btn">إرسال طلب استخدام الباقة عبر واتساب</button></div></form></div>';
+   '';
  panel.append(section);
  section.querySelectorAll('[data-pkg-filter]').forEach(btn=>btn.addEventListener('click',()=>{
   section.querySelectorAll('[data-pkg-filter]').forEach(x=>x.classList.toggle('active',x===btn));
@@ -5686,38 +5729,10 @@ function renderShop(){
  }));
  section.querySelectorAll('[data-package-buy]').forEach(btn=>btn.addEventListener('click',()=>{
   const p=all.find(x=>x.id===btn.dataset.packageBuy);if(!p)return;
-  const msg=['🌸 طلب شراء باقة — صالون جودة الأظافر','الاسم: '+customerLabel(),'الباقة: '+p.name,'النوع: '+(p.kind==='credit'?'رصيد استخدامات':'استخدام واحد'),'السعر المعلن: '+money(p.price),p.kind==='credit'?'عدد الاستخدامات: '+p.creditsTotal:'','أرغب بإتمام شراء الباقة ومعرفة طريقة الدفع.','يرجى تأكيد الدفع وتفعيل الباقة بعد التحقق.'].filter(Boolean).join('\n');
+  const msg=(lang==='en'?['🌸 Package purchase request — Quality Nail Salon','Client: '+customerLabel(),'Package: '+packageName(p),'Type: '+(p.kind==='credit'?'Multi-use credit':'One-time offer'),'Listed price: '+money(p.price),p.kind==='credit'?'Uses included: '+p.creditsTotal:'','I would like to purchase this package. Please share payment instructions.','Please confirm payment before activating the package.']:['🌸 طلب شراء باقة — صالون جودة الأظافر','الاسم: '+customerLabel(),'الباقة: '+p.name,'النوع: '+(p.kind==='credit'?'رصيد استخدامات':'استخدام واحد'),'السعر المعلن: '+money(p.price),p.kind==='credit'?'عدد الاستخدامات: '+p.creditsTotal:'','أرغب بإتمام شراء الباقة ومعرفة طريقة الدفع.','يرجى تأكيد الدفع وتفعيل الباقة بعد التحقق.']).filter(Boolean).join('\n');
   openSalonPackageWhatsApp(msg);
  }));
- const form=section.querySelector('#salonUsePackageRequest');const picker=form.elements.package;const service=form.elements.service;
- function updateEligible(){
-  const selected=all.find(p=>p.id===picker.value),legacy=picker.value==='older';
-  form.elements.olderName.required=legacy;
-  form.elements.olderName.closest('.field').classList.toggle('hidden',!legacy);
-  service.replaceChildren(new Option('اختاري الخدمة',''));
-  if(!selected){service.add(new Option('الخدمة المطلوبة (يحددها الصالون)','other'));service.value='other';return}
-  const seen=new Set();
-  selected.eligibleServiceIds.forEach((id,i)=>{
-   const catalogService=(portalCatalog.services||[]).find(s=>String(s.id)===String(id));
-   const name=String(selected.eligibleServiceNames[i]||catalogService?.name||id).trim();
-   if(!name||seen.has(name))return;seen.add(name);service.add(new Option(name,name));
-  });
-  if(!seen.size){service.add(new Option('تحديد الخدمة مع الصالون','other'));service.value='other'}
- }
- picker.addEventListener('change',updateEligible);updateEligible();
- form.addEventListener('submit',e=>{
-  e.preventDefault();
-  const p=all.find(x=>x.id===picker.value),old=picker.value==='older';
-  if(!p&&!old){toast('اختاري باقة لاستخدامها');return}
-  const plan=old?form.elements.olderName.value.trim():p.name;
-  const date=form.elements.date.value,time=form.elements.time.value;
-  if(!plan||!date||!time||date<today()||!/^\d{2}:\d{2}$/.test(time)) {toast('اكتبي اسم الباقة وحددي تاريخًا ووقتًا صحيحين');return}
-  const when=new Date(date+'T'+time+':00');if(!Number.isFinite(when.getTime())||when.getTime()<=Date.now()){toast('حددي موعدًا مستقبليًا');return}
-  const svc=service.selectedOptions[0]?.textContent||'حسب الباقة';
-  const notes=form.elements.notes.value.trim();
-  const msg=['🌸 أريد استخدام باقتي — صالون جودة الأظافر','العميلة: '+customerLabel(),'اسم الباقة: '+plan,'الخدمة: '+svc,'التاريخ: '+date,'الوقت: '+time,notes?'ملاحظات: '+notes:'','أرجو التحقق من الرصيد المتبقي وتأكيد توفر الموعد. لا أعتبر الطلب مؤكدًا قبل رد الصالون.'].filter(Boolean).join('\n');
-  openSalonPackageWhatsApp(msg);
- });
+
 }
 const previousRender=window.renderPortalClient;
 window.renderPortalClient=function(...args){
@@ -5818,6 +5833,369 @@ window.addEventListener('pageshow',function(event){
 });
 cleanOldLogoutQuery();
 document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
+})();
+</script>
+
+
+<!-- Customer-facing language completion. Keeps user-supplied names and free-form text unchanged. -->
+<script id="salon-bilingual-ui-completion-20261104">
+(function(){
+ 'use strict';
+ const exact={"الخصم المتاح":"Available discount","نقاط مشترياتي السابقة":"Points from previous purchases","✦ نقاط مشترياتي السابقة":"✦ Points from previous purchases","✦ رصيد نقاطي":"✦ My points balance","جارٍ تحديث معلومات نقاطك…":"Checking your points…","جارٍ تحديث معلومات نقاطك...":"Checking your points…","أكّدي بريدك الإلكتروني أولًا من إعدادات حسابك. تأكيد البريد لا ينقل نقاط رقم الجوال تلقائيًا.":"Verify your email first in Account Settings. Email verification does not automatically transfer points linked to a phone number.","تم استلام طلب ربط النقاط. سيظهر الرصيد بعد مراجعة صاحبة الصالون والتحقق من ملكية المشتريات.":"Your points transfer request has been received. Your balance will appear once the salon has verified and approved it.","تعذر اعتماد الربط. تواصلي مع الصالون لمراجعة بيانات الشراء.":"Your request was not approved. Contact the salon to review your purchase details.","إذا جمعتِ نقاطًا قبل التسجيل، يمكنك طلب ربطها بعد تأكيد بريدك. ستراجع المالكة الطلب حفاظًا على خصوصية النقاط.":"If you earned points before registering, you can request a transfer after verifying your email. The salon will review it to protect your points.","إعدادات البريد":"Email settings","تحديث حالة الطلب":"Refresh request status","تحديث الرصيد":"Refresh balance","طلب ربط نقاطي":"Request my previous points","نقاطك المرتبطة بحسابك":"Points linked to your account","نقطة.":"points.","جارٍ تحديث الخدمات والموظفات…":"Updating services and staff…","↻ تحديث الخدمات والموظفات":"↻ Refresh services & staff","تحديث الخدمات والموظفات":"Refresh services & staff","تم تحديث الخدمات من Firebase":"Services refreshed from Firebase","تعذر تحميل الخدمات:":"Unable to load services:","ابحثي عن الخدمة وأضيفيها للسلة":"Find services and add them to your basket","ابحثي عن الخدمة وأضيفيها للسلة.":"Find services and add them to your basket.","مثلاً: بدكير أو جل أو رموش":"E.g. pedicure, gel, or lashes","اكتبي اسم الخدمة لتظهر الخيارات.":"Type a service name to see the available options.","اكتبي اسم الخدمة لتظهر الخيارات":"Type a service name to see the available options","اكتبي اسم الخدمة، مثل جل أو باديكير":"Search for a service, e.g. gel or pedicure","🔎 ابحثي عن الخدمة بالاسم":"🔎 Search services by name","اكتبي حرفًا أو جزءًا من اسم الخدمة لتظهر النتائج.":"Enter part of a service name to see results.","اضغطي إضافة لإرسال الخدمة إلى سلة الحجز.":"Select Add to put this service in your basket.","لا توجد خدمات مطابقة.":"No matching services found.","إضافة +":"Add +","🛍️ سلة خدمات الحجز":"🛍️ Booking basket","السلة فارغة. ابحثي عن خدمة وأضيفيها.":"Your basket is empty. Search for a service and add it.","الخدمات المختارة":"Selected services","الحد الأقصى 10 مرات للخدمة الواحدة":"Maximum 10 of each service","أضيفي خدمة واحدة على الأقل إلى السلة":"Add at least one service to your basket","اختاري الموظفة والتاريخ والوقت بعد إضافة الخدمات إلى السلة.":"Choose your specialist, date, and time after adding services.","العدد":"Quantity","مكان الخدمة":"Service location","في الصالون":"At the salon","داخل الصالون":"At the salon","خدمة منزلية":"Home service","في المنزل":"At home","العنوان":"Address","استخدام خصم النقاط عند الدفع (يحتاج تأكيد المالكة)":"Apply loyalty points at checkout (requires salon approval)","لا تُخصم النقاط عند طلب الحجز":"Points are not deducted when requesting a booking","حددي عدد الخدمات المطلوبة ثم احفظي الحجز.":"Choose your services and then submit the booking request.","إرسال طلب الحجز":"Send booking request","إرسال طلب الحجز للصالون":"Send booking request to salon","لا توجد حجوزات":"No bookings yet","لا توجد حجوزات مؤكدة في النظام حاليًا. الطلبات المرسلة عبر واتساب تنتظر تأكيد الصالون ولا تُضاف تلقائيًا إلى مواعيدي.":"There are no confirmed bookings. WhatsApp requests require salon confirmation before appearing here.","الرئيسية والحجز":"Home & booking","نقاطي ومكافآتي":"My points & rewards","رصيد النقاط":"Points balance","خصم متاح عند الاستبدال":"Available loyalty discount","كيف أستخدم نقاطي؟":"How do I use my points?","حسب سياسة الصالون.":"Subject to salon policy.","يمكنك اختيار «نعم، أريد استخدام نقاطي» أثناء طلب الحجز. يراجع الصالون الرصيد ويؤكد قيمة الخصم قبل إصدار الفاتورة.":"You can request to redeem points when booking. The salon verifies your balance before applying a discount to the invoice.","لا تُخصم أي نقاط بمجرد إرسال طلب واتساب. يُعتمد الخصم عند تأكيد الصالون والدفع.":"Points are not deducted just by sending a WhatsApp request. The discount is applied after confirmation and payment.","احجزي واستخدمي نقاطك":"Book and use your points","يُرسل طلب الحجز إلى إدارة الصالون ويظل بانتظار التأكيد أو الإلغاء. لا تُخصم النقاط إلا بعد موافقة الإدارة.":"Your booking request is sent for confirmation. Points are only deducted after the salon approves the request.","نعم، أريد استخدام نقاطي في هذا الحجز":"Yes, I'd like to use my points for this booking","اختاري الخدمة والموظفة والتاريخ والوقت":"Choose a service, specialist, date, and time","رقم الطلب:":"Booking reference:","رقم الفاتورة:":"Invoice number:","لا يوجد":"None","✅ مدفوع":"✅ Paid","🕒 لم يُدفع العربون":"🕒 Deposit unpaid","· أُلغي بسبب عدم الدفع":"· Cancelled due to nonpayment","خدمة":"Service","دقيقة":"min","دقائق":"mins","الرصيد المتبقي":"Remaining balance","عرض خاص":"Special offer","✦ عروض الخدمات الحالية":"✦ Current service offers","الخدمات المخفضة":"Discounted services","🎀 الباقات":"🎀 Packages","✦ عروضنا وباقاتنا":"✦ Our offers & packages","باقة رصيد استخدامات":"Multi-use package","عرض استخدام واحد":"One-time offer","عرض يُنفذ في زيارة واحدة":"An offer redeemed in one visit","طلب الشراء عبر واتساب":"Buy via WhatsApp","رصيد استخدامات":"Multi-use credits","استخدام واحد":"One-time use","كل الباقات":"All packages","تصفية الباقات":"Filter packages","بدون تاريخ انتهاء":"No expiry date","صلاحية":"Valid for","شهر":"months","استخدامات":"uses","رصيد":"Credit","اختاري الباقة المناسبة وارسلي طلب الشراء إلى واتساب الصالون. الدفع واعتماد رصيد الباقة يتمان بعد تأكيد الصالون، وليس بمجرد فتح واتساب.":"Choose a package and send your purchase request via WhatsApp. Payment and package activation must be confirmed by the salon.","لا توجد باقات منشورة الآن. تستطيع المالكة إضافتها من صفحة الباقات ثم إعادة نشرها للعميلات.":"No packages are available yet. Please check back later or contact the salon.","📅 أريد استخدام باقتي":"📅 Use my package","اختاري الباقة المشتراة والخدمة واليوم والوقت. تفتح رسالة واتساب جاهزة لطلب الموعد؛ يتحقق الصالون من الشراء والرصيد وتوفر الموعد قبل التأكيد. لا يُخصم الرصيد عند إرسال الطلب.":"Select your purchased package, service, date, and time. A WhatsApp request will be prepared. The salon must verify your credit and confirm availability. Sending the request does not deduct credits.","الباقة المشتراة":"Purchased package","اختاري الباقة":"Choose a package","باقة اشتريتها سابقًا وغير معروضة":"A previously purchased package not shown here","اسم الباقة القديمة (عند الحاجة)":"Previous package name (if needed)","اكتبي اسم الباقة فقط":"Enter the package name","الخدمة المطلوبة من الباقة":"Service to redeem","اختاري الخدمة":"Choose a service","التاريخ المطلوب":"Preferred date","الوقت المطلوب":"Preferred time","الملاحظات (اختياري)":"Notes (optional)","مثال: أفضل موعد مسائي":"E.g. I prefer an evening appointment","إرسال طلب استخدام الباقة عبر واتساب":"Request package use via WhatsApp","الخدمة المطلوبة (يحددها الصالون)":"Service to be confirmed by the salon","تحديد الخدمة مع الصالون":"Confirm service with salon","حددي موعدًا مستقبليًا":"Choose a future date and time","اختاري باقة لاستخدامها":"Choose a package to use","اكتبي اسم الباقة وحددي تاريخًا ووقتًا صحيحين":"Enter a package name and a valid date and time","حسب الباقة":"According to package","ضعي رقم واتساب الصالون الصحيح في إعدادات المالكة":"Please contact the salon to update its WhatsApp number","تحديث البيانات":"Refresh information","تحديث البيانات والموظفات":"Refresh services and staff","العدد المسموح":"Allowed quantity","تأكيد الحجز":"Confirm booking","الخصم المتوقع":"Estimated discount","لا توجد خدمات منشورة حاليًا. يرجى التواصل مع الصالون أو تحديث الخدمات.":"No services are currently available. Please contact the salon or refresh services.","الخدمات متوفرة لكن لا توجد موظفة متاحة للحجز. يرجى التواصل مع الصالون.":"Services are available, but no specialist is available for booking. Please contact the salon.","طلب ربط النقاط":"Points transfer request","التحقق عبر SMS مُلغى. استخدمي طلب ربط النقاط بعد تأكيد بريدك الإلكتروني.":"SMS verification is disabled. Request your previous points after verifying your email.","تم إرسال طلب ربط النقاط لمراجعته من الصالون":"Your points transfer request was sent to the salon for review","تأخر اتصال النقاط. جرّبي زر تحديث الرصيد لاحقًا.":"The points service is taking too long. Please refresh your balance later.","تعذر تحديث النقاط.":"Unable to refresh points.","تعذر إرسال الطلب":"Unable to send request","تعذر إرسال طلب الربط":"Unable to submit points transfer request","ربط النقاط بالبريد يحتاج نشر وظائف Firebase المرفقة.":"Points transfer requires the salon's Firebase functions to be deployed.","تم إيقاف محاولات الدخول مؤقتًا بسبب كثرة المحاولات. لا تكرري المحاولة الآن، ويرجى التواصل مع الصالون للمساعدة.":"Too many login attempts. Please contact the salon for help.","البريد أو كلمة المرور غير صحيحة. يرجى التواصل مع الصالون للمساعدة.":"Incorrect email or password. Contact the salon for help.","تعذر تسجيل الدخول بهذه البيانات. يرجى التواصل مع الصالون للمساعدة.":"Unable to sign in with these details. Contact the salon for help.","إكمال بيانات حساب العميلة":"Complete client profile","حساب الدخول موجود بالفعل، لكن بيانات العميلة لم تكتمل في قاعدة البيانات. لا تحذفي الحساب ولا تنشئي حسابًا جديدًا؛ أكملي البيانات هنا.":"Your account exists, but the client profile is incomplete. Complete it here instead of creating another account.","حفظ البيانات والدخول":"Save details and sign in","الخروج والعودة للدخول":"Sign out and return to login","أكملي الاسمين":"Please complete both names","اسم الحساب 3-32 حرفًا إنجليزيًا أو رقمًا":"Username: 3–32 English letters or digits","اسم العميلة بالعربي:":"Client name (Arabic):","اسم العميلة بالإنجليزي:":"Client name (English):","الاسم بالعربي":"Arabic name","الاسم بالإنجليزي":"English name","البريد الإلكتروني":"Email address","رقم الجوال":"Mobile number","البريد الإلكتروني الحقيقي لاستعادة كلمة المرور":"Recovery email address","رقم الجوال للحسابات القديمة":"Phone for older accounts","بريد إلكتروني صحيح":"Valid email","لا توجد رسوم SMS. احفظي بريدك الحقيقي؛ سيُستخدم للدخول والاستعادة.":"No SMS fees. Keep your email address for account access and recovery."};
+ const patterns=[["^نقاطك المرتبطة بحسابك:\\s*(.+?)\\s+نقطة\\.?$","Points linked to your account: $1 points."],["^كل الباقات \\((\\d+)\\)$","All packages ($1)"],["^استخدام واحد \\((\\d+)\\)$","One-time offers ($1)"],["^رصيد استخدامات \\((\\d+)\\)$","Multi-use credits ($1)"],["^رصيد\\s+(\\d+)\\s+استخدامات\\s*·\\s*صلاحية\\s+(\\d+)\\s+شهر$","$1 uses · Valid for $2 months"],["^رصيد\\s+(\\d+)\\s+استخدامات\\s*·\\s*بدون تاريخ انتهاء$","$1 uses · No expiry date"],["^نتائج البحث:\\s*(\\d+)\\s*—\\s*الخدمات المختارة:\\s*(\\d+)$","Results: $1 — selected: $2"],["^لا توجد خدمات مطابقة، جربي كلمة أخرى\\. الخدمات المختارة:\\s*(\\d+)$","No matching services. Try another keyword. Selected: $1"],["^اكتبي حرفًا أو جزءًا من اسم الخدمة لتظهر النتائج\\. الخدمات المختارة:\\s*(\\d+)$","Enter part of a service name to see results. Selected: $1"],["^كل\\s+(\\d+)\\s+نقطة\\s*=\\s*خصم\\s*(.+)\\s+حسب سياسة الصالون\\.$","Every $1 points = a $2 discount, subject to salon policy."],["^إجمالي عدد الخدمات:\\s*(\\d+)\\s*\\(الحد 10 لكل خدمة\\)\\s*—\\s*الإجمالي:\\s*(.+)$","Total services: $1 (max. 10 each) — Total: $2"],["^إجمالي عدد الخدمات:\\s*(\\d+)","Total services: $1"],["^نقطة\\s*=\\s*(.+)؛\\s*لا تُخصم النقاط عند طلب الحجز$","points = $1; points are not deducted until the booking is confirmed"],["^اكتبي اسم الخدمة لتظهر الخيارات\\.\\s*الخدمات المختارة:\\s*(\\d+)$","Type a service to see options. Selected: $1"],["^(\\d+)\\s*دقيقة$","$1 min"],["^(.+)\\s+دقيقة$","$1 min"]].map(([pat,repl])=>[new RegExp(pat,'u'),repl]);
+ const partial={"نتائج البحث:":"Search results:","الخدمات المختارة:":"Selected services:","لا توجد خدمات مطابقة، جربي كلمة أخرى.":"No matching services. Try another keyword.","عدد الخدمات:":"Service count:","— الإجمالي:":"— Total:","— المدة:":"— Duration:","نقطة =":"points =","حسب سياسة الصالون.":"Subject to salon policy.","أُضيف إلى السلة":"Added to basket"};
+ const roots=['#app','#modalRoot','#toastRoot'];
+ const skipTags=new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG','TEXTAREA','OPTIONAL']);
+ let busy=false, scheduled=false;
+ const english=()=>typeof lang!=='undefined'&&lang==='en';
+ function translateString(value){
+   if(!/[\u0600-\u06FF]/u.test(value))return value;
+   const match=/^(\s*)([\s\S]*?)(\s*)$/u.exec(value),prefix=match[1],core=match[2],suffix=match[3];
+   if(Object.prototype.hasOwnProperty.call(exact,core))return prefix+exact[core]+suffix;
+   for(const [p,r] of patterns){if(p.test(core))return prefix+core.replace(p,(_,a,b)=>r.replace('\$1',a??'').replace('\$2',b??''))+suffix;}
+   let translated=core;
+   // Only replace a few known UI fragments in mixed quantitative summaries.
+   if(/^(?:نتائج البحث:|الخدمات المختارة:|عدد الخدمات:|— الإجمالي:|— المدة:|نقطة =|حسب سياسة الصالون\.|أُضيف إلى السلة)/u.test(core)){
+      for(const [ar,en] of Object.entries(partial))translated=translated.split(ar).join(en);
+   }
+   return prefix+translated+suffix;
+ }
+ function localize(root){
+   if(!english()||!root)return;
+   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+   const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+   for(const node of nodes){
+      const parent=node.parentElement;
+      if(!parent||skipTags.has(parent.tagName)||parent.closest('[contenteditable="true"],[data-keep-original-language],.salon-ai-panel'))continue;
+      const updated=translateString(node.nodeValue||'');if(updated!==node.nodeValue)node.nodeValue=updated;
+   }
+   const elements=[root,...root.querySelectorAll('input,textarea,button,select,option,[title],[aria-label]')];
+   for(const el of elements){
+      if(el.closest?.('[data-keep-original-language],.salon-ai-panel'))continue;
+      for(const attr of ['placeholder','title','aria-label']){
+       if(el.hasAttribute?.(attr)){const prev=el.getAttribute(attr),next=translateString(prev);if(prev!==next)el.setAttribute(attr,next);}
+      }
+   }
+ }
+ function run(){
+    scheduled=false;if(busy||!english())return;
+    busy=true;
+    try{for(const selector of roots)localize(document.querySelector(selector));}
+    catch(err){console.warn('Customer language sync:',err);}
+    finally{busy=false;}
+ }
+ function schedule(){
+   if(scheduled||busy||!english())return;
+   scheduled=true;queueMicrotask(run);
+ }
+ const observer=new MutationObserver(schedule);
+ for(const selector of roots){const el=document.querySelector(selector);if(el)observer.observe(el,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['placeholder','title','aria-label']});}
+ // Running after rendering preserves cursor focus, typed text, and existing event listeners.
+ document.getElementById('langBtn')?.addEventListener('click',()=>queueMicrotask(schedule));
+ document.addEventListener('DOMContentLoaded',schedule);
+ schedule();
+ window.salonTranslateCurrentView=schedule;
+})();
+</script>
+
+
+<style id="salon-booking-and-owned-packages-style">
+.salon-my-package-card{border:1px solid #ecd7e0;background:linear-gradient(155deg,#fff,#fff8fa);border-radius:19px;padding:18px;margin:14px 0;box-shadow:0 8px 25px rgba(105,52,78,.06)}
+.salon-my-package-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.salon-my-package-head h3{margin:0;color:#793c56;font-size:20px}
+.salon-my-package-balance{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:15px}
+.salon-my-package-balance div{border:1px solid #f0dce5;border-radius:12px;background:#fff;padding:12px 8px;text-align:center}
+.salon-my-package-balance b{display:block;font-size:22px;color:#803950}
+.salon-my-package-form{margin-top:14px;border-top:1px solid #f2e6ea;padding-top:15px}
+.salon-my-package-form .field{margin-bottom:12px}.salon-my-package-form select,.salon-my-package-form input,.salon-my-package-form textarea{width:100%}
+.salon-booking-stopped{background:#fff1f2;border:1px solid #f1b1bc;border-radius:14px;padding:17px;color:#90374f;margin:14px 0;font-weight:650}
+.salon-booking-manager{border:1px solid #e9d0da;border-radius:16px;padding:18px;margin-bottom:15px;background:#fffafd}
+.salon-booking-manager .row{align-items:center;gap:12px}.salon-booking-manager button{white-space:normal}
+.salon-my-package-empty{padding:24px;background:#fff9fc;border:1px dashed #e7c9d8;border-radius:14px;color:#775a66;text-align:center}
+@media(max-width:550px){.salon-my-package-balance{gap:5px}.salon-my-package-balance b{font-size:19px}.salon-my-package-card{padding:13px}}
+</style>
+
+<script id="salon-booking-closure-and-owned-packages-js">
+(function(){
+ 'use strict';
+ const ownerUid='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+ const localized=(ar,en)=>lang==='en'?en:ar;
+ const portalRef=firestore.collection('portal').doc('catalog');
+ const packageViews=firestore.collection('clientPackageViews');
+ function onlineBookingControl(){
+   const x=portalCatalog?.bookingControl;
+   return {acceptingBookings:x?.acceptingBookings===true,blocks:Array.isArray(x?.blocks)?x.blocks:[]};
+ }
+ function bookingRestriction(c,date,time,staffId,duration){
+   if(c?.acceptingBookings!==true)return localized('الحجوزات مغلقة حاليًا أو لم يكتمل التحقق من فتحها. يرجى التواصل مع الصالون.','Bookings are closed or opening could not be verified. Please contact the salon.');
+   if(!date||!time||!staffId)return '';
+   const beginning=typeof timeToMin==='function'?timeToMin(time):Number(time.slice(0,2))*60+Number(time.slice(3));
+   const ending=beginning+Math.max(1,Number(duration)||30);
+   if((c?.blocks||[]).some(b=>String(b.date)===date&&(String(b.staffId)==='all'||String(b.staffId)===String(staffId))&&(b.fullDay===true||(beginning<(Number(String(b.endTime||'24:00').slice(0,2))*60+Number(String(b.endTime||'24:00').slice(3)))&&ending>(Number(String(b.startTime||'00:00').slice(0,2))*60+Number(String(b.startTime||'00:00').slice(3))))))){
+     return localized('هذا اليوم أو الوقت مغلق من إدارة الصالون. اختاري موعدًا آخر.','This date or time is unavailable. Please select a different appointment.');
+   }
+   return '';
+ }
+ async function getLatestControl(){
+   const snap=await portalRef.get({source:'server'});
+   if(!snap.exists)throw Error(localized('إعدادات الحجز غير متاحة، تواصلي مع الصالون.','Booking settings are unavailable; contact the salon.'));
+   const data=snap.data()||{},c=data.bookingControl;
+   if(!c||c.acceptingBookings!==true&&c.acceptingBookings!==false)throw Error(localized('لم تُنشر حالة الحجوزات في إعدادات الصالون؛ تطلبين إعادة نشرها من لوحة الإدارة.','Booking status has not been published. Ask the salon to publish its booking settings.'));
+   portalCatalog.bookingControl=c;
+   return c;
+ }
+ function ownerCanPublish(){return firebaseReady&&auth.currentUser?.uid===ownerUid&&db.session?.type==='owner'}
+ async function publishControl(){
+   if(!ownerCanPublish())throw Error('انتهت جلسة المالكة');
+   const blocks=(Array.isArray(db.blocks)?db.blocks:[]).filter(b=>b?.date).map(b=>({date:String(b.date),staffId:String(b.staffId||'all'),fullDay:b.fullDay===true,startTime:String(b.startTime||'00:00'),endTime:String(b.endTime||'23:59')}));
+   const control={acceptingBookings:db.settings?.onlineBookingOpen!==false,blocks,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+   await portalRef.set({bookingControl:control},{merge:true});
+   const check=await portalRef.get({source:'server'});
+   if(check.data()?.bookingControl?.acceptingBookings!==control.acceptingBookings)throw Error('تعذر التحقق من حالة الحجز المنشورة');
+   return true;
+ }
+ window.salonPublishBookingControl=async function(){
+   try{await saveQueue;await publishControl();toast('تم نشر حالة الحجوزات والأوقات المغلقة للعميلات');}
+   catch(e){console.error('Booking publishing failed',e);toast('لم يتم نشر الإغلاق للعميلات: '+(e.message||e))}
+ };
+ window.salonToggleOnlineBooking=async function(){
+   if(!ownerCanPublish())return;
+   const now=db.settings.onlineBookingOpen!==false;
+   if(now&&!confirm('تأكيد إيقاف استقبال الحجوزات الجديدة من الموقع؟'))return;
+   db.settings.onlineBookingOpen=!now;
+   const button=document.querySelector('#salonOnlineBookingToggle');if(button)button.disabled=true;
+   try{const ok=await persist();if(!ok)throw Error('لم تُحفظ حالة الحجوزات');await publishControl();toast(now?'تم إغلاق الحجوزات على الموقع':'تم فتح الحجوزات على الموقع');renderOwner('schedule')}
+   catch(err){
+     console.error('Booking switch failed:',err);
+     // Restore owner UI on failure; never announce that a failed publication took effect.
+     db.settings.onlineBookingOpen=now;
+     try{await persist()}catch(revertErr){console.error('Booking switch restoration:',revertErr)}
+     toast('لم يتغير استقبال الحجوزات لدى العميلات. تحققي من صلاحيات نشر portal/catalog ثم أعيدي المحاولة: '+String(err.message||err));
+     renderOwner('schedule')
+   }
+ };
+ const originalSchedule=scheduleForm;
+ scheduleForm=function(){
+   const open=db.settings?.onlineBookingOpen!==false;
+   const manage='<div class="salon-booking-manager"><h3>'+localized('🔒 حالة استقبال الحجوزات','🔒 Online booking status')+'</h3><p class="muted">'+localized('إغلاق الحجز يمنع العميلات من إرسال حجوزات جديدة عبر الموقع. ويمكنك أيضًا إغلاق يوم أو فترة أدناه.','Closing bookings stops customers from creating new bookings. You can also block dates or hours below.')+'</p><div class="row"><strong>'+(open?localized('الحجوزات مفتوحة','Bookings open'):localized('الحجوزات مغلقة','Bookings closed'))+'</strong><button type="button" id="salonOnlineBookingToggle" class="btn '+(open?'danger':'secondary')+'" onclick="salonToggleOnlineBooking()">'+(open?localized('إيقاف استقبال الحجوزات','Stop accepting bookings'):localized('فتح الحجوزات','Open bookings'))+'</button><button type="button" class="btn secondary" onclick="salonPublishBookingControl()">'+localized('إعادة نشر الأوقات المغلقة','Sync closed times')+'</button></div></div>';
+   return manage+originalSchedule.apply(this,arguments);
+ };
+ const oldBlock=addBlock;
+ addBlock=function(...args){const before=(db.blocks||[]).length;const result=oldBlock.apply(this,args);if((db.blocks||[]).length!==before){saveQueue.then(publishControl).then(()=>toast('تم تطبيق الإغلاق على صفحة العميلة')).catch(e=>toast('حُفظ الإغلاق لكن تعذّر نشره للعميلات: '+(e.message||e)))}return result};
+ const oldReopen=reopenBlock;
+ reopenBlock=function(...args){const before=(db.blocks||[]).length;const result=oldReopen.apply(this,args);if((db.blocks||[]).length!==before){saveQueue.then(publishControl).catch(e=>toast('تعذّر نشر إعادة فتح الوقت: '+(e.message||e)))}return result};
+ // Recheck the *server* before submitting a regular booking. Never rely on a stale page cache.
+ const oldSubmitBooking=submitPortalBooking;
+ submitPortalBooking=async function(event){
+   event.preventDefault();if(portalRole!=='client'||!auth.currentUser)return;
+   const form=event.target,send=form.querySelector('button[type="submit"]');if(send?.disabled)return;
+   const fd=new FormData(form),staff=String(fd.get('staff')||''),date=String(fd.get('date')||''),time=String(fd.get('time')||'');
+   const duration=(portalCatalog.services||[]).reduce((n,s)=>n+Math.max(0,Number(fd.get('serviceQty_'+s.id))||0)*(Number(s.duration)||30),0);
+   if(send)send.disabled=true;
+   try{const control=await getLatestControl();const message=bookingRestriction(control,date,time,staff,duration);if(message){toast(message);return}await oldSubmitBooking.call(this,event)}
+   catch(e){toast(localized('تعذر التأكد من أن الحجوزات مفتوحة. لم يُرسل أي حجز؛ أعيدي المحاولة لاحقًا.','Unable to verify booking availability. No booking was submitted. Please try again.'));console.warn('Booking control check',e)}
+   finally{if(send?.isConnected)send.disabled=false}
+ };
+ function decorateBookingStatus(){
+   if(portalRole!=='client')return;
+   // Show the closure on the dedicated My packages page too, while preserving balances.
+   if(salonClientPage==='myPackages'){
+     const host=document.querySelector('#salonClientPagePanel');if(!host)return;
+     host.querySelector('#salonMyPackagesClosed')?.remove();
+     const message=bookingRestriction(onlineBookingControl());
+     if(message){
+       const box=document.createElement('div');box.id='salonMyPackagesClosed';box.className='salon-booking-stopped';box.setAttribute('role','alert');box.textContent=message;
+       host.prepend(box);
+     }
+     host.querySelectorAll('form[data-use-owned-package]').forEach(form=>{
+       for(const input of form.querySelectorAll('button,input,select,textarea'))input.disabled=!!message;
+     });
+     return;
+   }
+   if(salonClientPage!=='home')return;
+   const form=document.querySelector('#portalBooking');if(!form)return;
+   form.querySelector('#salonBookingClosureMessage')?.remove();
+   const message=bookingRestriction(onlineBookingControl());
+   const submit=form.querySelector('button[type="submit"]');
+   if(message){
+     const box=document.createElement('div');box.id='salonBookingClosureMessage';box.className='salon-booking-stopped full';box.setAttribute('role','alert');box.textContent=message;
+     form.prepend(box);
+     if(submit){submit.disabled=true;submit.dataset.salonClosed='1'}
+     form.querySelectorAll('input,select,textarea').forEach(x=>{x.disabled=true;x.dataset.salonClosed='1'});
+   }else{
+     form.querySelectorAll('[data-salon-closed]').forEach(x=>{x.disabled=false;delete x.dataset.salonClosed});
+   }
+ }
+ function onlyActiveBalances(items){return (Array.isArray(items)?items:[]).filter(x=>x&&Number(x.total)>0).map(x=>({...x,remaining:Math.max(0,Number(x.total||0)-Number(x.used||0))}));}
+ async function readMyPackages(){
+   const id=auth.currentUser?.uid;if(!id||portalRole!=='client')return [];
+   const snapshot=await packageViews.doc(id).get({source:'server'});
+   if(auth.currentUser?.uid!==id)throw Error('session-changed');
+   return snapshot.exists?onlyActiveBalances(snapshot.data()?.balances):[];
+ }
+ function renderMyPackages(){
+   const host=document.querySelector('#salonClientPagePanel');if(!host||salonClientPage!=='myPackages'||portalRole!=='client')return;
+   const uid=auth.currentUser?.uid;
+   host.innerHTML='<div class="section-head"><h2>'+localized('🎁 باقاتي','🎁 My packages')+'</h2></div><div class="card">'+localized('جارٍ تحميل الباقات المرتبطة بحسابك…','Loading packages linked to your account…')+'</div>';
+   readMyPackages().then(items=>{
+     if(!host.isConnected||portalRole!=='client'||salonClientPage!=='myPackages'||auth.currentUser?.uid!==uid)return;
+     const active=items.filter(x=>x.remaining>0&&(!x.expiresOn||x.expiresOn>=today()));
+     const past=items.filter(x=>!active.includes(x));
+     const card=(x,enabled)=>{
+       const name=esc(lang==='en'&&x.packageNameEn?x.packageNameEn:x.packageName||'باقة');
+       const expiry=esc(x.expiresOn||localized('بدون انتهاء','No expiry'));
+       const names=(x.eligibleServiceNames||[]).map(String);
+       const options=(x.eligibleServiceIds||[]).map((id,i)=>{
+         const srv=(portalCatalog.services||[]).find(s=>String(s.id)===String(id));
+         return '<option value="'+esc(String(id))+'">'+esc((lang==='en'?(srv?.nameEn||srv?.name):srv?.name)||names[i]||id)+'</option>';
+       }).join('');
+       const staffOptions=(portalCatalog.staff||[]).filter(e=>e.active!==false&&e.authUid).map(e=>'<option value="'+esc(String(e.id))+'">'+esc(e.name||'')+'</option>').join('');
+       return '<article class="salon-my-package-card" data-balance-id="'+esc(x.id)+'"><div class="salon-my-package-head"><h3>'+name+'</h3><span class="badge '+(enabled?'green':'')+'">'+(enabled?localized('نشطة','Active'):localized('منتهية أو مكتملة','Expired or used'))+'</span></div><div class="salon-my-package-balance"><div><b>'+Math.max(0,Number(x.total)||0)+'</b><small>'+localized('المشتراة','Purchased')+'</small></div><div><b>'+Math.max(0,Number(x.used)||0)+'</b><small>'+localized('المستخدمة','Used')+'</small></div><div><b>'+x.remaining+'</b><small>'+localized('المتبقية','Remaining')+'</small></div></div><p class="muted tiny">'+localized('صلاحية الباقة: ','Package valid until: ')+expiry+'</p>'+(enabled?'<form class="salon-my-package-form form-grid" data-use-owned-package="'+esc(x.id)+'"><div class="field"><label>'+localized('الخدمة من باقتي','Service from my package')+'</label><select name="service" required>'+options+'</select></div><div class="field"><label>'+localized('الموظفة','Specialist')+'</label><select name="staff" required><option value="">'+localized('اختاري الموظفة','Choose a specialist')+'</option>'+staffOptions+'</select></div><div class="field"><label>'+localized('اليوم','Date')+'</label><input name="date" type="date" min="'+today()+'" required></div><div class="field"><label>'+localized('الوقت','Time')+'</label><input name="time" type="time" required></div><div class="field full"><label>'+localized('ملاحظات','Notes')+'</label><textarea name="notes" maxlength="220" rows="2"></textarea></div><button type="submit" class="btn full">'+localized('طلب حجز من باقتي','Book using my package')+'</button></form>':'')+'</article>';
+     };
+     host.innerHTML='<div class="section-head"><h2>'+localized('🎁 باقاتي','🎁 My packages')+'</h2></div><p class="muted">'+localized('هنا تظهر فقط الباقات التي اشتريتها وتم ربطها بحسابك من الصالون. لا يُخصم الرصيد إلا عند تنفيذ الخدمة وتسجيلها في الكاشير.','Only purchased packages linked to your salon account appear here. Credits are deducted when the salon records the service in its cashier.')+'</p>'+
+       (active.length?active.map(x=>card(x,true)).join(''):'<div class="salon-my-package-empty">'+localized('لا توجد باقات نشطة مرتبطة بحسابك. إذا اشتريتِ باقة ولم تظهر، تواصلي مع الصالون لربطها بحسابك.','No active packages are linked to your account. Contact the salon if you already purchased one.')+'</div>')+
+       (past.length?'<h3>'+localized('باقات سابقة','Previous packages')+'</h3>'+past.map(x=>card(x,false)).join(''):'');
+     decorateBookingStatus();
+     host.querySelectorAll('[data-use-owned-package]').forEach(form=>form.addEventListener('submit',async event=>{
+       event.preventDefault();
+       const record=active.find(x=>String(x.id)===form.dataset.useOwnedPackage);
+       if(!record||!auth.currentUser||portalRole!=='client')return;
+       const uid=auth.currentUser.uid;
+       const f=new FormData(form),date=String(f.get('date')||''),time=String(f.get('time')||''),serviceId=String(f.get('service')||''),staffId=String(f.get('staff')||'');
+       const service=(portalCatalog.services||[]).find(x=>String(x.id)===serviceId&&x.active!==false);
+       const staff=(portalCatalog.staff||[]).find(x=>String(x.id)===staffId&&x.active!==false&&x.authUid);
+       if(!service||!staff||(record.eligibleServiceIds||[]).map(String).includes(serviceId)===false){toast(localized('اختاري خدمة وموظفة متاحتين ضمن الباقة','Choose a valid service and specialist for this package'));return}
+       if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time)||new Date(date+'T'+time).getTime()<=Date.now()){
+         toast(localized('اختاري يومًا ووقتًا مستقبليين','Choose a future date and time'));return;
+       }
+       const duration=Math.max(1,Number(service.duration)||30);
+       if(timeToMin(time)+duration>1440){toast(localized('وقت الخدمة يتجاوز نهاية اليوم، اختاري وقتًا أبكر','This service would run past midnight. Choose an earlier time.'));return}
+       const button=form.querySelector('button[type="submit"]');button.disabled=true;
+       try{
+         const bookingRef=firestore.collection('portalBookings').doc();
+         // Verify BOTH live booking controls and the account-owned balance inside a single transaction.
+         // A successful request is PENDING; it neither deducts credits nor confirms an appointment.
+         await firestore.runTransaction(async tx=>{
+           const controlDoc=await tx.get(portalRef);
+           const ownedDoc=await tx.get(packageViews.doc(uid));
+           if(!controlDoc.exists||!controlDoc.data()?.bookingControl)throw Error(localized('لم يتم تفعيل استقبال الحجوزات. تواصلي مع الصالون.','Booking is unavailable until the salon publishes its status.'));
+           const control=controlDoc.data().bookingControl;
+           portalCatalog.bookingControl=control;
+           const reason=bookingRestriction(control,date,time,staff.id,duration);
+           if(reason)throw Error(reason);
+           const balances=onlyActiveBalances(ownedDoc.data()?.balances);
+           const latest=balances.find(b=>String(b.id)===String(record.id));
+           if(!latest||latest.remaining<=0||(latest.expiresOn&&latest.expiresOn<today())||!(latest.eligibleServiceIds||[]).map(String).includes(serviceId)){
+             throw Error(localized('هذه الباقة غير متاحة للاستخدام الآن. حدّثي باقاتي.','This package is no longer available for this service. Refresh My packages.'));
+           }
+           tx.set(bookingRef,{
+             clientUid:uid,
+             clientName:String(portalUser.nameAr||portalUser.name||'').slice(0,100),
+             clientNameEn:String(portalUser.nameEn||'').slice(0,70),
+             clientPhone:String(portalUser.phone||'').slice(0,20),
+             staffUid:String(staff.authUid),staffName:String(staff.name||''),
+             serviceIds:[serviceId],serviceName:String(service.name||'').slice(0,500),
+             price:0,duration,date,time,location:'salon',address:'',
+             notes:String(f.get('notes')||'').slice(0,300),redeemRequested:false,
+             packageUseRequested:true,packageId:String(record.packageId||''),
+             packageBalanceId:String(record.id),packageName:String(record.packageName||''),
+             status:'pending',depositStatus:'not_required',
+             createdAt:firebase.firestore.FieldValue.serverTimestamp()
+           });
+         });
+         try{await loadPortalBookings()}catch(e){console.warn('Saved package booking; bookings refresh unavailable',e)}
+         salonClientPage='bookings';renderPortalClient();
+         const notice=document.createElement('div');notice.className='card';notice.style.margin='12px 0';
+         notice.innerHTML='<h3>'+localized('✅ تم إرسال طلب استخدام الباقة للصالون','✅ Package appointment requested')+'</h3><p>'+localized('رقم الطلب: ','Request number: ')+esc(bookingRef.id)+'</p><p>'+localized('بانتظار تأكيد الصالون. لا يخصم أي استخدام حتى تسجله المالكة في الكاشير.','Pending salon confirmation. No credit is deducted until the salon records the service in the cashier.')+'</p>';
+         const number=String(portalCatalog.settings?.whatsapp||WA_NUMBER).replace(/\D/g,'');
+         const phone=/^05\d{8}$/.test(number)?'966'+number.slice(1):number;
+         if(/^\d{9,15}$/.test(phone)){
+           const message=localized('طلب حجز باستخدام باقتي','Appointment request using my package')+' — '+String(record.packageName||'')+'\n'+localized('العميلة: ','Client: ')+String(portalUser.nameAr||portalUser.name||'')+'\n'+localized('الخدمة: ','Service: ')+String(service.name||'')+'\n'+localized('الموظفة: ','Specialist: ')+String(staff.name||'')+'\n'+date+' '+time+'\n'+localized('رقم الطلب: ','Request number: ')+bookingRef.id;
+           const a=document.createElement('a');a.className='btn secondary';a.target='_blank';a.rel='noopener noreferrer';a.href='https://wa.me/'+phone+'?text='+encodeURIComponent(message);a.textContent=localized('إرسال نسخة عبر واتساب (اختياري)','Send a copy by WhatsApp (optional)');notice.appendChild(a);
+         }
+         const panel=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');panel?.prepend(notice);
+         toast(localized('تم إرسال طلب الباقة للصالون','Package appointment request sent'));
+       }catch(error){console.warn('Package booking request error',error);toast(error.code==='permission-denied'?localized('قواعد Firebase لا تسمح بالحجز. حدّثي قواعد portalBookings أولًا.','Firebase rules rejected the request. Update portalBookings rules first.'):String(error.message||error))}
+       finally{if(button.isConnected)button.disabled=false}
+     }));
+   }).catch(err=>{
+     if(host.isConnected&&salonClientPage==='myPackages')host.innerHTML='<div class="salon-my-package-empty">'+localized('تعذر تحميل باقاتك. يلزم إعداد صلاحيات قراءة باقاتك في Firebase أو التواصل مع الصالون.','Unable to load your packages. Firebase package permissions may need configuring. Contact the salon.')+'</div>';
+     console.warn('Client package read:',err);
+   });
+ }
+ const oldClientRender=renderPortalClient;
+ renderPortalClient=function(...args){
+   const result=oldClientRender.apply(this,args);
+   if(portalRole!=='client'||!portalUser)return result;
+   const nav=document.querySelector('#app nav.nav');
+   if(nav&&!nav.querySelector('[data-salon-my-packages]')){
+     const button=document.createElement('button');button.type='button';button.dataset.salonMyPackages='1';
+     button.textContent=localized('🎁 باقاتي','🎁 My packages');button.classList.toggle('active',salonClientPage==='myPackages');
+     button.onclick=()=>{salonClientPage='myPackages';renderPortalClient()};
+     const packageTab=nav.querySelector('[data-salon-package-nav]');if(packageTab)packageTab.after(button);else nav.append(button);
+   }
+   if(salonClientPage==='myPackages')renderMyPackages();
+   decorateBookingStatus();
+   return result;
+ };
+ // A purchased balance is synced to a per-account document, NEVER to the public catalog.
+ async function syncPackageView(client){
+   if(!ownerCanPublish())throw Error('Owner permission required');
+   const uid=String(client?.authUid||'');if(!uid)return false;
+   const profile=await firestore.collection('clientProfiles').doc(uid).get({source:'server'});
+   if(!profile.exists||salonNormalizePhone(profile.data()?.phone)!==salonNormalizePhone(client.phone))throw Error('الملف ورقم جوال العميلة غير متطابقين، لا يمكن ربط الباقات');
+   const balances=(db.clientPackages||[]).filter(x=>String(x.clientId)===String(client.id)).map(x=>({id:String(x.id),packageId:String(x.packageId||''),packageName:String(x.packageName||''),packageNameEn:String(x.packageNameEn||''),total:Number(x.total)||0,used:Number(x.used)||0,expiresOn:String(x.expiresOn||''),purchasedOn:String(x.purchasedOn||''),eligibleServiceIds:(x.eligibleServiceIds||[]).map(String),eligibleServiceNames:(x.eligibleNames||[]).map(String)}));
+   await packageViews.doc(uid).set({clientId:String(client.id),balances,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+   return true;
+ }
+ window.salonOwnerLinkCustomerPackages=async function(id){
+   if(!ownerCanPublish())return;
+   const c=(db.clients||[]).find(c=>String(c.id)===String(id));if(!c)return;
+   try{
+     const variants=[...new Set(['0'+salonNormalizePhone(c.phone),'+966'+salonNormalizePhone(c.phone),'966'+salonNormalizePhone(c.phone)])];
+     const found=new Map();for(const phone of variants){const docs=await firestore.collection('clientProfiles').where('phone','==',phone).limit(3).get();docs.forEach(doc=>found.set(doc.id,doc.data()))}
+     if(found.size!==1){toast('لم يتم العثور على حساب واحد مطابق للجوال. راجعي بيانات العميلة أولًا.');return}
+     const [uid,profile]=[...found.entries()][0];
+     if(!confirm('راجعي هوية العميلة وإثبات شرائها قبل الربط. هل تأكدتِ من أن حساب '+(profile.nameAr||profile.name||uid)+' يعود للعميلة '+c.name+'؟'))return;
+     const old=c.authUid;c.authUid=uid;
+     const persisted=await persist();if(!persisted){c.authUid=old;throw Error('تعذر حفظ الربط في قاعدة الصالون')}
+     await syncPackageView(c);toast('تم ربط الباقات بحساب العميلة وتحديث باقاتي');
+   }catch(e){toast('تعذر ربط الباقات: '+(e.message||e));console.warn(e)}
+ };
+ const oldClientsTable=clientsTable;
+ clientsTable=function(list){
+   let html=oldClientsTable(list);
+   // The identity check above is required before private credits can be revealed to an account.
+   for(const c of list){
+     const token='data-client-action="edit" data-client-id="'+esc(c.id)+'"';
+     const target='<button type="button" class="btn secondary small" onclick="salonOwnerLinkCustomerPackages('+JSON.stringify(String(c.id)).replace(/"/g,'&quot;')+')">'+(c.authUid?'مزامنة باقاتي':'ربط باقاتي بحساب العميلة')+'</button>';
+     const pos=html.indexOf(token);if(pos<0)continue;const rowEnd=html.indexOf('</div></td></tr>',pos);if(rowEnd>=0)html=html.slice(0,rowEnd)+target+html.slice(rowEnd);
+   }
+   return html;
+ };
+
+ // Keep the customer's page synchronized when the owner closes/reopens bookings after page load.
+ // A cached/offline snapshot is never taken as proof that bookings are open.
+ let controlVerified=false;
+ const unsubscribeBookingControl=portalRef.onSnapshot({includeMetadataChanges:true},snap=>{
+   const value=(!snap.metadata.fromCache&&snap.exists)?snap.data()?.bookingControl:null;
+   portalCatalog.bookingControl=value&&typeof value.acceptingBookings==='boolean'?value:{acceptingBookings:false,blocks:[]};
+   controlVerified=!!value&&!snap.metadata.fromCache;
+   if(portalRole==='client')decorateBookingStatus();
+ },error=>{
+   console.warn('Live booking status unavailable',error);
+   controlVerified=false;
+   portalCatalog.bookingControl={acceptingBookings:false,blocks:[]};
+   if(portalRole==='client')decorateBookingStatus();
+ });
+ const oldInvoiceSaver=salonSaveIndependentInvoice;
+ salonSaveIndependentInvoice=async function(...args){
+   const result=await oldInvoiceSaver.apply(this,args);
+   // Do not roll back a paid invoice if the optional customer view update is denied.
+   const c=db.clients.find(x=>String(x.id)===String(result?.clientId));
+   if(c?.authUid){try{await syncPackageView(c)}catch(error){toast('حُفظت الفاتورة لكن تعذّر تحديث باقاتي: '+(error.message||error))}}
+   return result;
+ };
 })();
 </script>
 
