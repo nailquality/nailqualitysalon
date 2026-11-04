@@ -1017,7 +1017,24 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
   const saved={...proposed,id:proposed.id,number,createdAt:before?.createdAt||proposed.createdAt,
    clientId:target.id,customerName:target.name||proposed.customerName,customerPhone:target.phone||proposed.customerPhone};
   delete saved.__edit;
+  // Approved loyalty points are mirrored with the invoice in the SAME transaction.
+  // An unapproved/missing wallet receives no points, and phone matching is never automatic.
+  const touchedClients=[target];
+  if(before){
+   const oldClient=clients.find(c=>String(c.id)===String(before.clientId));
+   if(oldClient&&String(oldClient.id)!==String(target.id))touchedClients.push(oldClient);
+  }
+  const walletWrites=[];
+  for(const affected of touchedClients){
+   if(!affected.authUid)continue;
+   const linkedRef=firestore.collection('loyaltyAccounts').doc(String(affected.authUid));
+   const linkedDoc=await transaction.get(linkedRef);
+   if(linkedDoc.exists&&linkedDoc.data().approved===true&&String(linkedDoc.data().clientId)===String(affected.id)){
+    walletWrites.push({ref:linkedRef,points:Number(affected.points)||0});
+   }
+  }
   transaction.set(ref,saved);
+  walletWrites.forEach(entry=>transaction.set(entry.ref,{points:entry.points,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));
   const patch={clients,inventory:supplies,updatedAt:new Date().toISOString()};
   if(movementItems.length)patch.clientPackages=clientPackages;
   if(!before){patch.invoiceCounter=counter+1;if(mode==='new')patch.counter=Number(remote.counter||1001)+1}
@@ -4888,191 +4905,230 @@ tr:last-child td{border-bottom:0}
 .salon-link-claim{padding:14px 0;border-bottom:1px solid #efdee2;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.salon-link-claim-detail p{margin:5px 0 0}.salon-link-status{margin:10px 0}
 </style>
 
-<script id="salon-no-sms-loyalty">
-/* 2026-11 · Email-authenticated, OWNER-APPROVED loyalty recovery.
-   No SMS is sent. Firebase verified email alone NEVER proves ownership of a phone number.
-   No guest points may be revealed until an owner approves the claim after independent checks.
-   Requires deployment of the matching Cloud Functions in the ZIP. */
+<script id="salon-firestore-loyalty-no-functions">
+/* Loyalty recovery on Spark: owner-reviewed Firestore claims. No Functions, SMS or AI requests. */
 (function(){
 'use strict';
-const ADMIN_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
-const state={uid:'',status:'unknown',points:0,readAt:0,pending:false,error:''};
-const clientActive=()=>typeof portalRole!=='undefined'&&portalRole==='client'&&typeof portalUser!=='undefined'&&!!portalUser&&!!auth.currentUser;
-const isOwner=()=>db?.session?.type==='owner'&&auth?.currentUser?.uid===ADMIN_UID;
-const fn=name=>firebase.app().functions('us-central1').httpsCallable(name);
-const moneyLocale=n=>Number(n||0).toLocaleString('ar-SA');
-function salonLoyaltyError(err,action){
- const code=String(err?.code||'').toLowerCase();
- const message=String(err?.message||'');
- if(code.includes('not-found')||code.includes('unimplemented')||(/not found/i.test(message)&&!code.includes('permission'))){
-   return 'خدمة ربط النقاط غير مفعّلة على Firebase. يلزم نشر وظائف ربط النقاط المرفقة أولًا، ولا يمكن اعتماد الطلب قبل التفعيل.';
- }
- if(code.includes('permission-denied'))return 'رفض Firebase صلاحية الطلب. تأكدي من الحساب المسجل وقواعد الصلاحيات، ثم تواصلي مع إدارة الصالون.';
- if(code.includes('unauthenticated'))return 'انتهت جلسة الدخول. سجّلي دخولك ثم حاولي مجددًا.';
- if(code.includes('failed-precondition'))return message||'لا يمكن إرسال الطلب قبل توثيق البريد وإكمال معلومات حساب العميلة.';
- if(code.includes('unavailable')||code.includes('deadline-exceeded')||code.includes('network'))return 'تعذّر الاتصال بخدمة النقاط الآن. افحصي الاتصال ثم أعيدي المحاولة.';
- if(code.includes('resource-exhausted'))return 'تم بلوغ حد استخدام الخدمة مؤقتًا، حاولي لاحقًا.';
- if(code.includes('internal')||code.includes('unknown'))return 'حدث خلل في خدمة ربط النقاط. أرسلي رمز الخطأ للدعم: '+(code||'internal');
- return message||('تعذّر '+action+'. أعيدي المحاولة أو تواصلي مع الصالون.');
+const OWNER_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+document.documentElement.dataset.salonLoyaltyVersion='firestore-20261105';
+const requests=firestore.collection('loyaltyClaims');
+const wallets=firestore.collection('loyaltyAccounts');
+const owner=()=>auth.currentUser?.uid===OWNER_UID&&db.session?.type==='owner'&&firebaseReady;
+const client=()=>auth.currentUser&&portalRole==='client'&&portalUser;
+const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const digits=p=>{let v=String(p||'').replace(/\D/g,'');if(v.startsWith('00966'))v=v.slice(5);else if(v.startsWith('966'))v=v.slice(3);return v.startsWith('0')?v.slice(1):v};
+const isPoints=n=>Number.isInteger(n)&&n>=0&&n<=1000000000;
+const localized=(ar,en)=>lang==='en'?en:ar;
+const format=n=>Math.max(0,Number(n)||0).toLocaleString(lang==='en'?'en-US':'ar-SA');
+let clientUID='',unsubRequest=null,unsubWallet=null;
+let currentRequest=null,currentWallet=null,clientError='',ownerBusy=false;
+const error=e=>{
+ const code=String(e?.code||'');
+ if(code.includes('permission-denied'))return localized('قواعد Firestore لا تسمح بالعملية. راجعي ملف القواعد المرفق.','Firestore rules deny this operation. Review the included rules.');
+ if(code.includes('unauthenticated'))return localized('سجّلي الدخول من جديد.','Sign in again.');
+ if(code.includes('unavailable')||code.includes('network'))return localized('تعذّر الاتصال بقاعدة البيانات. تحققي من الإنترنت.','Could not connect to Firebase. Check your connection.');
+ return String(e?.message||localized('تعذّر إتمام العملية.','The action could not be completed.'));
+};
+function pointTotals(){
+ if(!client()||!currentWallet||currentWallet.clientId==null||currentWallet.approved!==true)return 0;
+ return isPoints(currentWallet.points)?Number(currentWallet.points):0;
 }
-
-function setPoints(v){if(typeof portalUser!=='undefined'&&portalUser)portalUser.points=Number.isFinite(v)?Math.max(0,Math.floor(v)):0}
-function emailVerified(){return !!auth?.currentUser?.emailVerified}
-function statusLabel(){
- if(state.pending)return 'جارٍ تحديث معلومات نقاطك…';
- if(state.error)return state.error;
- if(!emailVerified())return 'أكّدي بريدك الإلكتروني أولًا من إعدادات حسابك. تأكيد البريد لا ينقل نقاط رقم الجوال تلقائيًا.';
- if(state.status==='approved')return 'نقاطك المرتبطة بحسابك: '+moneyLocale(state.points)+' نقطة.';
- if(state.status==='pending')return 'تم استلام طلب ربط النقاط. سيظهر الرصيد بعد مراجعة صاحبة الصالون والتحقق من ملكية المشتريات.';
- if(state.status==='rejected')return 'تعذر اعتماد الربط. تواصلي مع الصالون لمراجعة بيانات الشراء.';
- return 'إذا جمعتِ نقاطًا قبل التسجيل، يمكنك طلب ربطها بعد تأكيد بريدك. ستراجع المالكة الطلب حفاظًا على خصوصية النقاط.';
+function updateCounters(){
+ if(!client())return;
+ const p=pointTotals();portalUser.points=p;
+ const settings=portalCatalog.settings||{};
+ const threshold=Math.max(1,Number(settings.redeemPoints)||50);
+ const rate=Math.max(0,Number(settings.redeemRiyals)||10);
+ document.querySelectorAll('#app > .stats, #salonClientPagePanel .stats').forEach(root=>{
+  const values=root.querySelectorAll('.stat strong');
+  if(values[0])values[0].textContent=String(p);
+  if(values[1])values[1].textContent=money(Math.floor(p/threshold)*rate);
+ });
+}
+function requestStatus(){
+ if(clientError)return clientError;
+ if(!auth.currentUser?.emailVerified)return localized('أكّدي بريدك الإلكتروني قبل طلب ربط النقاط.','Verify your email before requesting your previous points.');
+ if(currentWallet?.approved===true)return localized('رصيدك المعتمد: ','Your verified balance: ')+format(pointTotals())+localized(' نقطة.',' points.');
+ if(currentRequest?.status==='pending')return localized('طلبك قيد مراجعة الصالون. يتم تحديد السجل المطابق وعدد نقاطه تلقائيًا للمالكة؛ الرصيد لا يظهر قبل إثبات الملكية.','Your request is waiting for the salon. A potential match and balance are shown privately to the owner until verified.');
+ if(currentRequest?.status==='rejected')return localized('تعذّر تأكيد الملكية في المراجعة السابقة. يمكنك إعادة إرسال الطلب بعد تصحيح البيانات.','The previous request was not approved. You can retry after correcting your details.');
+ return localized('هل اشتريتِ قبل التسجيل؟ أرسلي طلبًا، وسنطابق مشترياتك ثم نراجع إثبات الملكية.','Purchased before registration? Request a secure points link review.');
 }
 function renderNotice(){
- if(!clientActive())return;
- document.getElementById('salonGuestLoyaltyBanner')?.remove();
- const app=document.getElementById('app');if(!app)return;
+ document.querySelector('#salonGuestLoyaltyBanner')?.remove();
+ if(!client())return;
+ const root=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');if(!root)return;
  const box=document.createElement('section');box.id='salonGuestLoyaltyBanner';box.className='card';
- const h=document.createElement('div');h.className='spread';
- const content=document.createElement('div');
- const title=document.createElement('b');title.textContent=state.status==='approved'?'✦ رصيد نقاطي':'✦ نقاط مشترياتي السابقة';
- const p=document.createElement('p');p.className='muted';p.style.margin='6px 0';p.style.lineHeight='1.8';p.textContent=statusLabel();
- content.append(title,p);h.append(content);
- const btn=document.createElement('button');btn.type='button';btn.className='btn secondary small';
- if(!emailVerified()){
-  btn.textContent='إعدادات البريد';btn.onclick=()=>{salonClientPage='account';renderPortalClient()};
- }else if(state.status==='pending'){
-  btn.textContent='تحديث حالة الطلب';btn.onclick=()=>refreshBalance(true);
- }else if(state.status==='approved'){
-  btn.textContent='تحديث الرصيد';btn.onclick=()=>refreshBalance(true);
- }else{
-  btn.textContent='طلب ربط نقاطي';btn.disabled=state.pending;btn.onclick=requestClaim;
- }
- h.append(btn);box.append(h);
- (document.getElementById('salonClientPagePanel')||app).prepend(box);
+ const row=document.createElement('div');row.className='spread';
+ const info=document.createElement('div');const title=document.createElement('b');title.textContent=localized('✦ نقاط مشترياتي السابقة','✦ My loyalty points');
+ const note=document.createElement('p');note.className='muted';note.style.cssText='margin:6px 0;line-height:1.8';note.textContent=requestStatus();info.append(title,note);
+ const btn=document.createElement('button');btn.className='btn secondary small';btn.type='button';
+ if(!auth.currentUser.emailVerified){btn.textContent=localized('إعدادات البريد','Email settings');btn.onclick=()=>{salonClientPage='account';renderPortalClient()}}
+ else if(currentWallet?.approved){btn.textContent=localized('الرصيد محدث تلقائيًا','Balance updates automatically');btn.disabled=true}
+ else if(currentRequest?.status==='pending'){btn.textContent=localized('بانتظار مراجعة المالكة','Awaiting salon review');btn.disabled=true}
+ else{btn.textContent=localized('طلب ربط نقاطي','Request my points');btn.onclick=sendRequest}
+ row.append(info,btn);box.append(row);root.prepend(box);updateCounters();
 }
-async function refreshBalance(force=false){
- if(!clientActive())return;
- const user=auth.currentUser;
- if(state.uid!==user.uid){state.uid=user.uid;state.status='unknown';state.points=0;state.readAt=0;state.error='';setPoints(0)}
- if(!emailVerified()){
-  state.status='unverified';state.points=0;setPoints(0);renderNotice();return;
- }
- if(state.pending)return;
- // Do not automatically retry on errors: the earlier retry/render loop stole focus from service search.
- if(!force&&state.readAt&&Date.now()-state.readAt<90000)return;
- state.readAt=Date.now();state.pending=true;state.error='';renderNotice();
+function unsubscribe(){
+ try{unsubRequest?.()}catch(e){}try{unsubWallet?.()}catch(e){}
+ unsubRequest=unsubWallet=null;clientUID='';currentRequest=currentWallet=null;clientError='';
+}
+function subscribe(){
+ if(!client()){if(clientUID)unsubscribe();return}
+ const uid=auth.currentUser.uid;
+ if(clientUID===uid)return;
+ unsubscribe();clientUID=uid;portalUser.points=0;
+ unsubRequest=requests.doc(uid).onSnapshot(s=>{
+  if(auth.currentUser?.uid!==uid)return;
+  currentRequest=s.exists?s.data():null;clientError='';renderNotice();
+ },e=>{if(auth.currentUser?.uid!==uid)return;clientError=error(e);renderNotice()});
+ unsubWallet=wallets.doc(uid).onSnapshot(s=>{
+  if(auth.currentUser?.uid!==uid)return;
+  currentWallet=s.exists?s.data():null;clientError='';renderNotice();
+ },e=>{if(auth.currentUser?.uid!==uid)return;clientError=error(e);renderNotice()});
+}
+async function sendRequest(){
+ if(!client())return;const user=auth.currentUser;
  try{
-  await user.getIdToken();
-  const request=fn('getSalonLoyalty')({});
-  const response=(await Promise.race([request,new Promise((_,reject)=>setTimeout(()=>reject(new Error('تأخر اتصال النقاط. جرّبي زر تحديث الرصيد لاحقًا.')),12000))])).data||{};
-  if(!auth.currentUser||auth.currentUser.uid!==user.uid)return;
-  state.status=String(response.status||'not_requested');state.points=state.status==='approved'&&Number.isInteger(response.points)&&response.points>=0?response.points:0;
-  state.readAt=Date.now();setPoints(state.points);
- }catch(err){
-  const code=String(err.code||'');
-  state.error=salonLoyaltyError(err,'تحديث الرصيد');
-  state.points=0;setPoints(0);
- }finally{
-  state.pending=false;
-  // Update just the notice and counters, never redraw an active booking form.
-  if(clientActive()){
-   renderNotice();
-   const thresholds=portalCatalog.settings||{};
-   const threshold=Math.max(1,Number(thresholds.redeemPoints)||50);
-   const riyals=Math.max(0,Number(thresholds.redeemRiyals)||10);
-   document.querySelectorAll('#app > .stats, #salonClientPagePanel .stats').forEach(stats=>{
-    const values=stats.querySelectorAll('.stat strong');
-    if(values[0])values[0].textContent=String(Math.max(0,Number(portalUser.points)||0));
-    if(values[1])values[1].textContent=money(Math.floor(Math.max(0,Number(portalUser.points)||0)/threshold)*riyals);
-   });
-  }
- }
+  await user.reload();await user.getIdToken(true);
+  if(!user.emailVerified){toast(localized('أكّدي بريدك الإلكتروني أولًا.','Verify your email first.'));return}
+  if(!confirm(localized('هل تريدين إرسال طلب ربط نقاطك القديمة للمراجعة؟','Send your past-purchase points claim for review?')))return;
+  const ref=requests.doc(user.uid),snap=await ref.get({source:'server'});
+  if(snap.exists&&snap.data().status==='pending'){toast(localized('طلبك تحت المراجعة بالفعل.','Your request is already pending.'));return}
+  if(snap.exists&&snap.data().status==='approved'){toast(localized('نقاطك مربوطة بالفعل.','Your points are already linked.'));return}
+  const stamp=firebase.firestore.FieldValue.serverTimestamp();
+  if(snap.exists){
+   if(snap.data().status!=='rejected')throw Error(localized('طلب سابق يحتاج مراجعة المالكة.','An earlier claim requires review.'));
+   await ref.update({status:'pending',updatedAt:stamp});
+  }else await ref.set({uid:user.uid,status:'pending',createdAt:stamp,updatedAt:stamp});
+  toast(localized('تم إرسال طلبك. ستحدّد المالكة سجل النقاط المطابق تلقائيًا.','Request sent. The salon will see a matched record and its points for review.'));
+ }catch(e){toast(error(e));console.warn('Loyalty request',e)}
 }
-async function requestClaim(){
- if(!clientActive())return;
- if(!emailVerified()){salonClientPage='account';renderPortalClient();return}
- if(!confirm('هل تريدين إرسال طلب مراجعة نقاطك السابقة؟ لن تُنقل النقاط حتى تتحقق صاحبة الصالون من بيانات الشراء وتوافق على الطلب.'))return;
- state.pending=true;state.error='';renderNotice();
- try{
-  await fn('requestLoyaltyLink')({});
-  state.status='pending';state.readAt=0;state.pending=false;
-  await refreshBalance(true);
-  toast('تم إرسال طلب ربط النقاط لمراجعته من الصالون');
- }catch(err){
-  state.error=salonLoyaltyError(err,'إرسال طلب ربط النقاط');
-  toast(state.error);
- }finally{state.pending=false;renderNotice()}
-}
-// Replace the SMS-dependent points UI; do NOT call the previous SMS verifier.
-const oldRenderClient=renderPortalClient;
+const previousClient=renderPortalClient;
 renderPortalClient=function(...args){
- if(clientActive()&&state.uid!==auth.currentUser.uid){state.uid=auth.currentUser.uid;state.status='unknown';state.points=0;state.readAt=0;setPoints(0)}
- if(clientActive()&&state.status!=='approved')setPoints(0);
- const value=oldRenderClient.apply(this,args);
- if(clientActive()){
-  // Remove the previous verification banner before it can show/send an SMS.
-  document.getElementById('salonGuestLoyaltyBanner')?.remove();
-  renderNotice();
-  Promise.resolve().then(()=>refreshBalance(false));
- }
- return value;
+ const result=previousClient.apply(this,args);
+ if(client()){subscribe();renderNotice()}
+ else if(clientUID)unsubscribe();
+ return result;
 };
-window.salonRefreshMyLoyalty=refreshBalance;
-// Disabled SMS entry point (legacy function remains unreachable and never invoked).
-window.salonOpenVerifyPhone=function(){
- toast('التحقق عبر SMS مُلغى. استخدمي طلب ربط النقاط بعد تأكيد بريدك الإلكتروني.');
-};
-async function showOwnerRequests(host){
- const msg=host.querySelector('.salon-link-status'),list=host.querySelector('.salon-link-requests');
- if(!msg||!list)return;
- msg.textContent='جارٍ جلب طلبات ربط النقاط…';list.replaceChildren();
+auth.onAuthStateChanged(user=>{if(!user||user.uid!==clientUID)unsubscribe()});
+window.salonRefreshMyLoyalty=()=>{if(client()){subscribe();renderNotice()}};
+window.salonOpenVerifyPhone=()=>toast(localized('لم نعد نستخدم رسائل SMS لربط النقاط.','SMS is not used for points linking.'));
+
+async function showClaims(host){
+ if(!owner()||ownerBusy)return;
+ const list=host.querySelector('.salon-link-requests');const status=host.querySelector('.salon-link-status');
+ if(!list||!status)return;
+ ownerBusy=true;status.textContent='جارٍ مطابقة طلبات العميلات مع نقاط الكاشير…';list.replaceChildren();
  try{
-  const data=(await fn('listPendingLoyaltyClaims')({})).data||{};
-  const claims=Array.isArray(data.claims)?data.claims:[];
-  if(!claims.length){msg.textContent='لا توجد طلبات ربط نقاط معلقة.';return}
-  msg.textContent=claims.length+' طلب يحتاج المراجعة';
-  claims.forEach(claim=>{
-   const item=document.createElement('div');item.className='salon-link-claim';
-   const d=document.createElement('div');d.className='salon-link-claim-detail';
-   const name=document.createElement('b');name.textContent=String(claim.name||'عميلة');
-   const info=document.createElement('p');info.className='muted tiny';info.textContent='الجوال: '+String(claim.phone||'—')+' | البريد الموثق: '+String(claim.email||'—');
-   d.append(name,info);item.append(d);
-   const buttons=document.createElement('div');buttons.className='row';
-   const yes=document.createElement('button');yes.className='btn success small';yes.type='button';yes.textContent='اعتماد بعد التحقق';
-   const no=document.createElement('button');no.className='btn danger small';no.type='button';no.textContent='رفض الطلب';
-   yes.onclick=async()=>{
-    if(!confirm('هل تحققتِ من ملكية العميلة لرقم الجوال والمشتريات السابقة من سجل الصالون، وليس من رقم الجوال المكتوب فقط؟'))return;
-    await act('approveLoyaltyClaim',claim.uid,yes,no);
+  const [claims,main]=await Promise.all([
+   requests.where('status','==','pending').get({source:'server'}),
+   salonDoc.get({source:'server'})
+  ]);
+  if(!main.exists)throw Error('سجل الصالون غير موجود');
+  const clients=Array.isArray(main.data().clients)?main.data().clients:[];
+  if(claims.empty){status.textContent='لا توجد طلبات معلقة.';return}
+  status.textContent=claims.size+' طلب. تظهر المطابقة والرصيد تلقائيًا للمالكة فقط.';
+  for(const claimDoc of claims.docs){
+   const claim=claimDoc.data(),uid=claimDoc.id;
+   const profileDoc=await firestore.collection('clientProfiles').doc(uid).get({source:'server'});
+   const profile=profileDoc.exists?profileDoc.data():null;
+   const phone=digits(profile?.phone),matches=phone?clients.filter(c=>digits(c.phone)===phone):[];
+   const match=matches.length===1?matches[0]:null;
+   const points=match&&isPoints(Number(match.points))?Number(match.points):null;
+   const box=document.createElement('div');box.className='salon-link-claim';
+   const detail=document.createElement('div');detail.className='salon-link-claim-detail';
+   const name=document.createElement('b');name.textContent=String(profile?.nameAr||profile?.name||'عميلة بدون ملف مكتمل');
+   const summary=document.createElement('p');summary.className='muted tiny';
+   const label=match?'مطابقة محتملة: '+String(match.name||'—')+' | الرقم: '+String(match.phone||'—')+' | النقاط المحفوظة: '+(points===null?'غير صالحة':points):matches.length>1?'⚠️ سجلات متعددة تحمل رقم الجوال نفسه':'لا يوجد سجل واحد مطابق في الكاشير';
+   summary.textContent='الحساب: '+uid+' | '+label;
+   const warning=document.createElement('p');warning.className='muted tiny';warning.textContent='المطابقة برقم الجوال لا تُثبت ملكيته. راجعي إثبات الشراء والهوية قبل الاعتماد.';
+   detail.append(name,summary,warning);box.append(detail);
+   const actions=document.createElement('div');actions.className='row';
+   const approve=document.createElement('button');approve.type='button';approve.className='btn success small';approve.textContent='اعتماد وربط النقاط';
+   approve.disabled=!match||points===null||Boolean(match.authUid&&String(match.authUid)!==uid);
+   const reject=document.createElement('button');reject.type='button';reject.className='btn danger small';reject.textContent='رفض الطلب';
+   approve.onclick=async()=>{
+    if(!match||!confirm('هل تحققتِ بنفسك من هوية العميلة وملكيتها للمشتريات؟ مطابقة الرقم وحدها لا تكفي.'))return;
+    approve.disabled=reject.disabled=true;
+    try{await approveClaim(uid,String(match.id));toast('تم ربط الحساب بالنقاط المعتمدة');await showClaims(host)}catch(e){toast(error(e));approve.disabled=reject.disabled=false}
    };
-   no.onclick=async()=>{
-    if(!confirm('رفض طلب ربط النقاط لهذه العميلة؟'))return;
-    await act('rejectLoyaltyClaim',claim.uid,yes,no);
+   reject.onclick=async()=>{
+    if(!confirm('هل تريدين رفض طلب العميلة؟'))return;
+    approve.disabled=reject.disabled=true;
+    try{await requests.doc(uid).update({status:'rejected',reviewedAt:firebase.firestore.FieldValue.serverTimestamp(),reviewedBy:auth.currentUser.uid});toast('تم رفض الطلب');await showClaims(host)}catch(e){toast(error(e));approve.disabled=reject.disabled=false}
    };
-   buttons.append(yes,no);item.append(buttons);list.append(item);
-  });
-  async function act(action,uid,yes,no){
-   yes.disabled=no.disabled=true;msg.textContent='جارٍ حفظ القرار…';
-   try{
-    await fn(action)({uid});toast('تم حفظ قرار الطلب');await showOwnerRequests(host);
-   }catch(err){msg.textContent=String(err.message||'تعذر حفظ القرار');yes.disabled=no.disabled=false}
+   actions.append(approve,reject);box.append(actions);list.append(box);
   }
- }catch(err){
-  msg.textContent=salonLoyaltyError(err,'عرض طلبات ربط النقاط');
- }
+ }catch(e){status.textContent=error(e);console.warn('Review loyalty claims',e)}
+ finally{ownerBusy=false}
 }
-const oldRenderOwner=renderOwner;
+async function approveClaim(uid,clientId){
+ if(!owner())throw Error('جلسة المالكة مطلوبة');
+ const claimRef=requests.doc(uid),accountRef=wallets.doc(uid),profileRef=firestore.collection('clientProfiles').doc(uid);
+ let updated=null;
+ await firestore.runTransaction(async tx=>{
+  const [main,claim,profile,account]=await Promise.all([tx.get(salonDoc),tx.get(claimRef),tx.get(profileRef),tx.get(accountRef)]);
+  if(!main.exists||!profile.exists||!claim.exists||claim.data().status!=='pending')throw Error('بيانات الطلب أو الحساب تغيرت. حدّثي الصفحة.');
+  const clients=Array.isArray(main.data().clients)?main.data().clients.map(c=>({...c})):[];
+  const phone=digits(profile.data().phone),matches=clients.filter(c=>digits(c.phone)===phone);
+  if(!phone||matches.length!==1||String(matches[0].id)!==clientId)throw Error('لا يوجد تطابق فريد مع سجل العميلة.');
+  const c=matches[0];if(c.authUid&&String(c.authUid)!==uid)throw Error('سجل النقاط مرتبط بحساب آخر.');
+  if(account.exists&&account.data().clientId!==clientId)throw Error('حساب العميلة مرتبط بسجل مختلف.');
+  if(!isPoints(Number(c.points)))throw Error('رصيد النقاط غير صحيح.');
+  c.authUid=uid;const now=firebase.firestore.FieldValue.serverTimestamp();
+  tx.update(salonDoc,{clients,updatedAt:now});
+  tx.set(accountRef,{clientId,points:Number(c.points),approved:true,updatedAt:now,approvedAt:now},{merge:true});
+  tx.update(claimRef,{status:'approved',clientId,reviewedAt:now,reviewedBy:auth.currentUser.uid});
+  updated=clients;
+ });
+ db.clients=updated;
+ if(typeof salonUpdateInvoiceBaseline==='function')salonUpdateInvoiceBaseline({clients:updated});
+ else if(salonCloudBaseline)salonCloudBaseline={...salonCloudBaseline,clients:updated};
+}
+// Explicit manual points edits must update the authenticated customer's wallet atomically.
+// The same wallet is also written in the independent-invoice transaction below.
+adjustClientPoints=async function(id){
+ if(!owner())return;
+ const existing=(db.clients||[]).find(c=>String(c.id)===String(id));if(!existing)return;
+ const value=prompt('رصيد نقاط '+existing.name+' الحالي: '+Number(existing.points||0)+'، أدخلي الرصيد الجديد:',String(existing.points||0));
+ if(value===null)return;
+ const newPoints=Number(value);if(!isPoints(newPoints)){toast('أدخلي رصيد نقاط صحيحًا');return}
+ try{
+  await saveQueue;
+  let clientsResult=null;
+  await firestore.runTransaction(async tx=>{
+   const main=await tx.get(salonDoc);if(!main.exists)throw Error('قاعدة الصالون غير موجودة');
+   const clients=Array.isArray(main.data().clients)?main.data().clients.map(c=>({...c})):[];
+   const target=clients.find(c=>String(c.id)===String(id));if(!target)throw Error('العميلة غير موجودة');
+   const walletRef=target.authUid?wallets.doc(String(target.authUid)):null;
+   const linkedWallet=walletRef?await tx.get(walletRef):null;
+   target.points=newPoints;
+   const stamp=firebase.firestore.FieldValue.serverTimestamp();
+   tx.update(salonDoc,{clients,updatedAt:stamp});
+   if(linkedWallet?.exists&&linkedWallet.data().approved===true&&String(linkedWallet.data().clientId)===String(id))
+    tx.set(walletRef,{points:newPoints,updatedAt:stamp},{merge:true});
+   clientsResult=clients;
+  });
+  db.clients=clientsResult;
+  if(typeof salonUpdateInvoiceBaseline==='function')salonUpdateInvoiceBaseline({clients:clientsResult});
+  else if(salonCloudBaseline)salonCloudBaseline={...salonCloudBaseline,clients:clientsResult};
+  toast('تم تحديث النقاط');renderOwner('clients');
+ }catch(e){toast(error(e));console.error('Manual points update',e)}
+};
+const previousOwner=renderOwner;
 renderOwner=function(...args){
- const value=oldRenderOwner.apply(this,args);
- if(!isOwner()||!['clients','loyaltyExt'].includes(String(ownerActiveTab)))return value;
+ if(clientUID && auth.currentUser?.uid!==clientUID)unsubscribe();
+ const result=previousOwner.apply(this,args);
+ if(!owner()||!['clients','loyaltyExt'].includes(String(ownerActiveTab)))return result;
  const target=document.querySelector('.owner-original-tools')||document.querySelector('.owner-content')||document.querySelector('#app');
- if(!target||target.querySelector('#salonOwnerLoyaltyClaims'))return value;
- const host=document.createElement('section');host.id='salonOwnerLoyaltyClaims';host.className='card';
- host.innerHTML='<div class="spread"><div><h3>✦ طلبات ربط نقاط العميلات</h3><p class="muted tiny">استقبال طلبات العميلات بعد تأكيد البريد. لا توافقين قبل التحقق من ملكية الجوال والمشتريات بشكل مستقل.</p></div><button class="btn secondary small" type="button">عرض الطلبات وتحديثها</button></div><p class="salon-link-status muted tiny">اختاري عرض الطلبات.</p><div class="salon-link-requests"></div>';
- target.prepend(host);host.querySelector('button').onclick=()=>showOwnerRequests(host);
- return value;
+ if(!target||target.querySelector('#salonOwnerLoyaltyClaims'))return result;
+ const section=document.createElement('section');section.id='salonOwnerLoyaltyClaims';section.className='card';
+ section.innerHTML='<div class="spread"><div><h3>✦ طلبات ربط النقاط</h3><p class="muted tiny">تعرض المطابقة المحتملة مع رصيد نقاط الكاشير تلقائيًا. اعتماد الملكية بعد التحقق من العميلة.</p></div><button class="btn secondary small" type="button">تحديث الطلبات</button></div><p class="salon-link-status muted tiny"></p><div class="salon-link-requests"></div>';
+ target.prepend(section);section.querySelector('button').onclick=()=>showClaims(section);
+ Promise.resolve().then(()=>{if(section.isConnected)showClaims(section)});
+ return result;
 };
 })();
-
 </script>
 
 <script id="salon-view-upgrades">
