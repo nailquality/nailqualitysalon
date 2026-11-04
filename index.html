@@ -1,9 +1,22 @@
 <!doctype html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" class="salon-booting">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#7c405c">
+<style id="salon-startup-critical-css">
+/* Do not show the legacy header or owner menu before all feature modules and Firebase auth are ready. */
+html.salon-booting .topbar,html.salon-booting .footer{visibility:hidden!important;pointer-events:none!important}
+html.salon-booting #app{min-height:65vh;display:flex;align-items:center;justify-content:center}
+.salon-startup-shell{margin:clamp(32px,10vh,90px) auto;max-width:430px;width:min(95%,430px);padding:34px 24px;text-align:center;border:1px solid #ead8de;border-radius:24px;background:linear-gradient(145deg,#fffefa,#fff3f6);box-shadow:0 16px 40px #62435c12;color:#684454;font:600 16px/1.8 system-ui,Tahoma,sans-serif}
+.salon-startup-icon{display:block;width:44px;height:44px;margin:0 auto 15px;border:3px solid #ead6df;border-top-color:#975776;border-radius:50%;animation:salon-spin .8s linear infinite}
+.salon-startup-shell strong{display:block;font-size:19px}.salon-startup-shell small{display:block;color:#937d88;margin-top:6px}
+@keyframes salon-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.salon-startup-icon{animation:none}}
+/* Header links are only for visitors, not clients already signed in. */
+html.salon-client-active #salonHeaderLogin,html.salon-client-active #salonHeaderBook{display:none!important}
+</style>
+<meta name="salon-build" content="2026-11-04-flicker-header-sidebar-fix">
 <title>صالون جودة الأظافر | نظام الإدارة</title>
 <style>
 :root{--plum:#7c405c;--plum2:#5e2d45;--rose:#f7e9ef;--pink:#d58da8;--gold:#c49a52;--ink:#2e2630;--muted:#786e78;--paper:#fffdfd;--line:#eadde3;--green:#247c5a;--red:#b64152;--amber:#a56b15;--shadow:0 12px 32px #4c243012}
@@ -137,7 +150,7 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
   <div class="brand"><div class="logo">✿</div><div><h1 data-i18n="brand">صالون جودة الأظافر</h1><small data-i18n="tagline">الجمال يبدأ من هنا</small></div></div>
   <div class="top-actions"><button class="btn secondary" id="langBtn">English</button><button class="btn secondary hidden" id="homeBtn" data-i18n="home">الرئيسية</button></div>
 </header>
-<main class="wrap" id="app"></main>
+<main class="wrap" id="app"><section class="salon-startup-shell" role="status" aria-live="polite"><span class="salon-startup-icon" aria-hidden="true"></span><strong>جاري تجهيز صالون جودة الأظافر</strong><small>Preparing your salon experience…</small></section></main>
 <div class="footer">تم تصميم وتطوير هذا الموقع بواسطة المصمم <strong>عبدالله</strong> · <a href="https://wa.me/966593055867" target="_blank" rel="noopener noreferrer">للتواصل عبر واتساب: +966 59 305 5867</a></div>
 <div id="modalRoot"></div><div id="toastRoot"></div>
 <script>
@@ -1497,7 +1510,9 @@ async function saveAssistantInvoices(){
 /* attach forms after owner panel rendering */
 const originalRenderOwner=renderOwner;
 renderOwner=function(tab=ownerActiveTab){originalRenderOwner(tab);if(tab==="inventory")setupInventory();if(tab==="services")setupServices();if(tab==="expenses")setupExpenses()};
-applyLang();renderHome();
+// The public homepage is painted only after Firebase has resolved the auth state.
+// Rendering it here produced a brief flash of the old homepage and narrow owner menu.
+applyLang();
 
 let portalRole="",portalUser=null,portalCatalog={services:[],staff:[],settings:{redeemPoints:50,redeemRiyals:10}},portalBookings=[];
 function renderHome(){applyLang();$("#homeBtn").classList.add("hidden");$("#app").innerHTML=`<section class="hero"><div><h2>${lang==='ar'?'مرحبًا بكِ في صالون جودة الأظافر':'Welcome to Quality Nail Salon'}</h2><p>${lang==='ar'?'اختاري بوابتك للمتابعة':'Choose your portal'}</p></div><div class="hero-art">🌸</div></section><div class="grid"><button class="card portal" onclick="portalLogin('client')"><div class="portal-icon">💗</div><h3>${t('clientPortal')}</h3><p>${t('clientDesc')}</p></button><button class="card portal" onclick="portalLogin('employee')"><div class="portal-icon">📅</div><h3>${t('employeePortal')}</h3><p>${t('employeeDesc')}</p></button><button class="card portal" onclick="renderOwnerLogin()"><div class="portal-icon">👑</div><h3>${t('ownerPortal')}</h3><p>${t('ownerDesc')}</p></button></div>`}
@@ -2084,6 +2099,9 @@ renderOwner=function(tab=ownerActiveTab){
 };
 
 window.salonAuthRevision=window.salonAuthRevision||0;
+// Register auth only once all appended layout, booking and theme modules have loaded.
+// This avoids a cached Firebase session rendering the narrow legacy owner sidebar.
+document.addEventListener('DOMContentLoaded',()=>{
 auth.onAuthStateChanged(async user=>{
  const salonAuthRevision=++window.salonAuthRevision;
  const salonAuthStillCurrent=()=>!window.salonLogoutBusy&&salonAuthRevision===window.salonAuthRevision&&auth.currentUser?.uid===user?.uid;
@@ -2125,6 +2143,7 @@ auth.onAuthStateChanged(async user=>{
   }
   toast("لم يُعثر على ملف الحساب بعد. أعيدي المحاولة بعد قليل أو سجّلي الدخول من جديد.");
  }catch(e){console.error(e);if(loginInProgress||!salonAuthStillCurrent())return;toast("تعذر تحميل الحساب. راجعي قواعد Firestore: "+e.message);if(!portalUser)renderHome()}
+});
 });
 </script>
 
@@ -5242,8 +5261,21 @@ function refreshTopActions(){
   const a=document.createElement('button');a.id='salonHeaderLogin';a.type='button';a.className='salon-top-link salon-top-login';a.onclick=()=>portalLogin('client');top.prepend(a);
   const b=document.createElement('button');b.id='salonHeaderBook';b.type='button';b.className='salon-top-link salon-top-book';b.onclick=()=>portalLogin('client');top.append(b);
  }
- document.getElementById('salonHeaderLogin').textContent=label('تسجيل الدخول','Sign in');
- document.getElementById('salonHeaderBook').textContent=label('احجزي الآن','Book now');
+  const loggedClient=!!auth.currentUser&&portalRole==='client'&&!!portalUser;
+  document.documentElement.classList.toggle('salon-client-active',loggedClient);
+  const signin=document.getElementById('salonHeaderLogin');
+  const book=document.getElementById('salonHeaderBook');
+  signin.textContent=label('تسجيل الدخول','Sign in');
+  book.textContent=label('احجزي الآن','Book now');
+  signin.classList.toggle('hidden',loggedClient);
+  book.classList.toggle('hidden',loggedClient);
+  signin.disabled=loggedClient;
+  book.disabled=loggedClient;
+  for(const btn of [signin,book]){if(loggedClient)btn.style.setProperty('display','none','important');else btn.style.removeProperty('display');}
+  // The old home button really signs the account out; name it accordingly.
+  const exit=document.getElementById('homeBtn');
+  if(exit && loggedClient){exit.textContent=label('تسجيل الخروج','Sign out');exit.title=exit.textContent;}
+
 }
 function serviceTile(title,description,image){return `<button class="salon-editorial-tile" type="button" onclick="portalLogin('client')"><span class="salon-editorial-tileimage" style="background-image:url('${image}')"></span><span class="salon-editorial-tilebody"><strong>${title}</strong><small>${description}</small><b>${label('اكتشفي الخدمات ←','Explore services →')}</b></span></button>`}
 const lastHome=renderHome;
@@ -5286,9 +5318,9 @@ if(lastRecovery)salonShowPasswordRecovery=function(...args){const x=lastRecovery
 const lastOwnerLogin=renderOwnerLogin;
 renderOwnerLogin=function(...args){const x=lastOwnerLogin.apply(this,args);decorateAuth();return x};
 const lastClient=renderPortalClient;
-renderPortalClient=function(...args){const x=lastClient.apply(this,args);const app=document.getElementById('app');if(app)app.classList.add('salon-editorial-client');return x};
+renderPortalClient=function(...args){const x=lastClient.apply(this,args);const app=document.getElementById('app');if(app){app.classList.remove('salon-editorial-home','salon-editorial-auth','salon-editorial-employee');app.classList.add('salon-editorial-client');}refreshTopActions();return x};
 const lastEmployee=renderPortalEmployee;
-renderPortalEmployee=function(...args){const x=lastEmployee.apply(this,args);const app=document.getElementById('app');if(app)app.classList.add('salon-editorial-employee');return x};
+renderPortalEmployee=function(...args){const x=lastEmployee.apply(this,args);const app=document.getElementById('app');if(app){app.classList.remove('salon-editorial-home','salon-editorial-auth','salon-editorial-client');app.classList.add('salon-editorial-employee');}refreshTopActions();return x};
 const lastApplyTheme=applySalonTheme;
 applySalonTheme=function(...args){const x=lastApplyTheme.apply(this,args);showHomeImage();return x};
 // The image belongs to the public theme doc; nothing is written from the client pages.
@@ -6199,5 +6231,46 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
 })();
 </script>
 
+<script id="salon-startup-and-header-completion-20261104">
+(function(){
+'use strict';
+let finished=false;
+function finish(){
+  if(!finished){finished=true;document.documentElement.classList.remove('salon-booting');}
+}
+function decorateClientHeader(){
+ const client=!!auth.currentUser&&portalRole==='client'&&!!portalUser;
+ document.documentElement.classList.toggle('salon-client-active',client);
+ for(const id of ['salonHeaderLogin','salonHeaderBook']){
+  const btn=document.getElementById(id);if(!btn)continue;
+  btn.classList.toggle('hidden',client);btn.disabled=client;
+  if(client)btn.style.setProperty('display','none','important');else btn.style.removeProperty('display');
+ }
+ const home=document.getElementById('homeBtn');
+ if(home&&client){home.textContent=lang==='en'?'Sign out':'تسجيل الخروج';home.title=home.textContent;}
+}
+for(const name of ['renderHome','renderPortalClient','renderPortalEmployee','renderOwner','renderOwnerLogin','salonShowClientProfileRecovery']){
+ if(typeof window[name]!=='function')continue;
+ const old=window[name];
+ window[name]=function(...args){
+  const result=old.apply(this,args);
+  decorateClientHeader();
+  finish();
+  return result;
+ };
+}
+// If authentication cannot initialize, never pretend the user is logged out.
+// Show a safe retry screen instead of exposing stale/cached content.
+setTimeout(()=>{
+ if(finished)return;
+ const shell=document.querySelector('#app .salon-startup-shell');
+ if(shell){
+  shell.innerHTML='<strong>تعذّر الاتصال الآن</strong><small>لم نتمكن من التحقق من حالة الحساب. تأكدي من الاتصال وحاولي مجددًا.</small><button class="btn secondary" type="button" onclick="location.reload()" style="margin-top:16px">إعادة المحاولة</button>';
+  document.documentElement.classList.remove('salon-booting');
+  finished=true;
+ }
+},15000);
+})();
+</script>
 </body>
 </html>
