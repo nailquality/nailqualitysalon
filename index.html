@@ -415,7 +415,7 @@ function ownerLayout(tab,content){
  const display=tab==='dashboard'?`<div class="owner-welcome"><div><h2>👋 مرحباً بك في صالون جودة الأظافر</h2><p>إليك ملخص أعمال الصالون اليوم</p></div><div class="owner-banner">✿ &nbsp; كل تفاصيل الجمال تبدأ من هنا &nbsp; ✿</div></div>
  <div class="owner-kpis"><div class="owner-kpi"><span>عدد الحجوزات اليوم</span><strong>${todayCount}</strong><small>حجوزات اليوم</small></div><div class="owner-kpi"><span>إجمالي المبيعات</span><strong>${money(total)}</strong><small>من الفواتير المسجلة</small></div><div class="owner-kpi"><span>صافي الأرباح التقديري</span><strong>${money(total-expense)}</strong><small>المبيعات ناقص المصروفات المسجلة</small></div><div class="owner-kpi"><span>إجمالي المصروفات</span><strong>${money(expense)}</strong><small>المصروفات المسجلة</small></div></div>
  <div class="owner-dashboard-grid"><section class="owner-panel owner-shortcuts"><h3>متطلبات سريعة</h3><div class="owner-shortcut-grid"><button onclick="ownerTab('clients')">♙<span>إضافة عميلة</span></button><button onclick="ownerTab('cashier')">▣<span>كاشير جديد</span></button><button onclick="ownerTab('invoices')">▤<span>الفواتير</span></button><button onclick="ownerTab('inventory')">◇<span>إضافة منتج</span></button><button onclick="ownerTab('staff')">♧<span>الموظفات</span></button><button onclick="ownerTab('reports')">▥<span>تقرير المبيعات</span></button></div></section>
- <section class="owner-panel"><h3>أحدث الفواتير <button onclick="ownerTab('invoices')">عرض الكل</button></h3><div class="owner-mini-list">${recent.length?recent.map(x=>`<div><span>${esc(x.customerName||clientName(x.clientId)||'فاتورة')}</span><b>${money(Number(x.total||0))}</b></div>`).join(''):'<p>لا توجد فواتير بعد</p>'}</div></section>
+ <section class="owner-panel"><h3>أحدث الفواتير <button onclick="ownerTab('invoices')">عرض الكل</button></h3><div class="owner-mini-list">${recent.length?recent.map(x=>`<div><span>${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(x):(x.customerName||clientName(x.clientId)||'فاتورة'))}</span><b>${money(Number(x.total||0))}</b></div>`).join(''):'<p>لا توجد فواتير بعد</p>'}</div></section>
  <section class="owner-panel"><h3>الحجوزات اليوم <button onclick="ownerTab('appointments')">عرض الكل</button></h3><div class="owner-mini-list">${appointments.length?appointments.map(x=>`<div><span>${esc(x.customerName||clientName(x.clientId)||'عميلة')} — ${esc(x.time||'')}</span><small>${esc(x.status||'بانتظار التأكيد')}</small></div>`).join(''):'<p>لا توجد حجوزات اليوم</p>'}</div></section></div>`:content;
  // Clear grouped navigation for the owner; reuse existing section IDs and handlers.
  const ownerNavGroups=[
@@ -1207,7 +1207,7 @@ function openInvoiceInCashier(id){
 function editInvoice(id){openInvoiceInCashier(id)}
 
 function invoiceTable(list=db.invoices){if(!list.length)return `<div class="empty">لا توجد فواتير مطابقة.</div>`;
- return `<div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميلة</th><th>الخدمات والموظفات</th><th>الموظفة المنفذة</th><th>الدفع</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead><tbody>${list.slice().sort((a,b)=>(b.date||String(b.createdAt||'').slice(0,10)).localeCompare(a.date||String(a.createdAt||'').slice(0,10))).map(i=>`<tr><td>#${esc(i.number)}</td><td>${esc(i.date||String(i.createdAt||'').slice(0,10))}</td><td>${esc(i.customerName||clientName(i.clientId)||'—')}<br><small>${esc(i.customerPhone||'')}</small></td><td>${invoiceServiceStaffHTML(i)}</td><td><b>${esc(invoiceStaffDisplay(i))}</b></td><td>${esc(i.payment||'cash')}</td><td>${money(i.total)}</td><td><div class="row"><button class="btn secondary small" onclick="openInvoiceInCashier('${esc(i.id)}')">تعديل في الكاشير</button><button class="btn small" onclick="printInvoice('${esc(i.id)}')">طباعة</button><button class="btn success small" onclick="shareInvoiceWhatsApp('${esc(i.id)}')">واتساب</button><button class="btn danger small" onclick="deleteInvoice('${esc(i.id)}')">حذف</button></div></td></tr>`).join('')}</tbody></table></div>`;
+ return `<div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميلة</th><th>الخدمات والموظفات</th><th>الموظفة المنفذة</th><th>الدفع</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead><tbody>${list.slice().sort((a,b)=>(b.date||String(b.createdAt||'').slice(0,10)).localeCompare(a.date||String(a.createdAt||'').slice(0,10))).map(i=>`<tr><td>#${esc(i.number)}</td><td>${esc(i.date||String(i.createdAt||'').slice(0,10))}</td><td>${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))}<br><small>${esc(i.customerPhone||'')}</small></td><td>${invoiceServiceStaffHTML(i)}</td><td><b>${esc(invoiceStaffDisplay(i))}</b></td><td>${esc(i.payment||'cash')}</td><td>${money(i.total)}</td><td><div class="row"><button class="btn secondary small" onclick="openInvoiceInCashier('${esc(i.id)}')">تعديل في الكاشير</button><button class="btn small" onclick="printInvoice('${esc(i.id)}')">طباعة</button><button class="btn success small" onclick="shareInvoiceWhatsApp('${esc(i.id)}')">واتساب</button><button class="btn danger small" onclick="deleteInvoice('${esc(i.id)}')">حذف</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function chooseInvoiceEmployee(invoiceId){openInvoiceInCashier(invoiceId)}
@@ -1280,7 +1280,7 @@ function printInvoice(id){
  const i=db.invoices.find(x=>String(x.id)===String(id));if(!i)return;
  const w=window.open('','_blank','width=760,height=700');if(!w){toast('اسمحي بالنوافذ المنبثقة للطباعة');return}
  const rows=invoiceLineRows(i).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(invoiceItemStaffLabel(i,x))}</td><td>${Math.max(1,Number(x.quantity)||1)}</td><td>${money(x.price)}</td><td>${money(Number(x.price||0)*Number(x.quantity||1))}</td></tr>`).join('');
- w.document.write(`<html lang="${lang}" dir="${lang==='ar'?'rtl':'ltr'}"><meta charset="utf-8"><title>Invoice #${esc(i.number)}</title><style>body{font-family:Arial;padding:32px}h1{color:#7c405c}table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #ddd;text-align:right}</style><h1>${esc(db.settings.salonName)}</h1><h2>فاتورة / Invoice #${esc(i.number)}</h2><p>العميلة: ${esc(i.customerName||clientName(i.clientId)||'—')} | ${esc(i.customerPhone||'')}</p><p>التاريخ: ${esc(i.date||String(i.createdAt||'').slice(0,10))}</p><table><thead><tr><th>الخدمة</th><th>الموظفة المنفذة</th><th>الكمية</th><th>السعر</th><th>المجموع</th></tr></thead><tbody>${rows}</tbody></table><p>الخصم: ${money(i.discount)} | الضريبة: ${money(i.tax)} | الدفع: ${esc(i.payment)}</p><h2>الإجمالي: ${money(i.total)}</h2><p>شكرًا لزيارتكم / Thank you</p><script>window.print()<\/script></html>`);w.document.close();
+ w.document.write(`<html lang="${lang}" dir="${lang==='ar'?'rtl':'ltr'}"><meta charset="utf-8"><title>Invoice #${esc(i.number)}</title><style>body{font-family:Arial;padding:32px}h1{color:#7c405c}table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #ddd;text-align:right}</style><h1>${esc(db.settings.salonName)}</h1><h2>فاتورة / Invoice #${esc(i.number)}</h2><p>العميلة: ${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))} | ${esc(i.customerPhone||'')}</p><p>التاريخ: ${esc(i.date||String(i.createdAt||'').slice(0,10))}</p><table><thead><tr><th>الخدمة</th><th>الموظفة المنفذة</th><th>الكمية</th><th>السعر</th><th>المجموع</th></tr></thead><tbody>${rows}</tbody></table><p>الخصم: ${money(i.discount)} | الضريبة: ${money(i.tax)} | الدفع: ${esc(i.payment)}</p><h2>الإجمالي: ${money(i.total)}</h2><p>شكرًا لزيارتكم / Thank you</p><script>window.print()<\/script></html>`);w.document.close();
 }
 
 function inventoryPanel(){return `<div class="card"><h3>${esc(t("inventoryTitle"))}</h3><form id="inventoryForm" class="form-grid"><div class="field"><label>${esc(t("itemName"))}</label><input name="name" required maxlength="100"></div><div class="field"><label>${esc(t("quantity"))}</label><input name="quantity" type="number" min="0" step=".01" required></div><div class="field"><label>${esc(t("minQuantity"))}</label><input name="minQuantity" type="number" min="0" step=".01" value="3" required></div><div class="field"><label>${esc(t("unitCost"))}</label><input name="unitCost" type="number" min="0" step=".01" value="0" required></div><button class="btn full">${esc(t("addItem"))}</button></form></div><div class="section-head"><h3>${esc(t("inventory"))}</h3></div>${db.inventory.length?`<div class="grid">${db.inventory.map(i=>`<div class="card"><div class="spread"><h3>${esc(i.name)}</h3><span class="badge ${Number(i.quantity)<=Number(i.minQuantity)?"red":"green"}">${Number(i.quantity)<=Number(i.minQuantity)?esc(t("lowStock")):"OK"}</span></div><p>${esc(t("quantity"))}: <b>${i.quantity}</b></p><div class="progress"><i style="width:${Math.min(100,Math.max(3,Number(i.quantity)/(Math.max(Number(i.minQuantity)*3,1))*100))}%"></i></div><p class="muted tiny">${esc(t("unitCost"))}: ${money(i.unitCost)}</p><div class="row"><button class="btn secondary small" onclick="adjustStock('${i.id}',1)">+1</button><button class="btn secondary small" onclick="adjustStock('${i.id}',-1)">−1</button><button class="btn danger small" onclick="deleteInventory('${i.id}')">${esc(t("delete"))}</button></div></div>`).join("")}</div>`:`<div class="empty">${esc(t("noData"))}</div>`}`}
@@ -5109,7 +5109,10 @@ async function approveClaim(uid,clientId){
   const c=matches[0];if(c.authUid&&String(c.authUid)!==uid)throw Error('سجل النقاط مرتبط بحساب آخر.');
   if(account.exists&&account.data().clientId!==clientId)throw Error('حساب العميلة مرتبط بسجل مختلف.');
   if(!isPoints(Number(c.points)))throw Error('رصيد النقاط غير صحيح.');
-  c.authUid=uid;const now=firebase.firestore.FieldValue.serverTimestamp();
+  c.authUid=uid;
+  // After the owner confirms identity, use the registered verified account's display name for previously unnamed records.
+  if(!c.name||c.name==='بدون اسم'){const verifiedName=String(profile.data().nameAr||profile.data().name||'').trim();if(verifiedName)c.name=verifiedName.slice(0,100)}
+  const now=firebase.firestore.FieldValue.serverTimestamp();
   tx.update(salonDoc,{clients,updatedAt:now});
   tx.set(accountRef,{clientId,points:Number(c.points),approved:true,updatedAt:now,approvedAt:now},{merge:true});
   tx.update(claimRef,{status:'approved',clientId,reviewedAt:now,reviewedBy:auth.currentUser.uid});
@@ -6375,16 +6378,16 @@ function updatePanel(){
  input.step=String(step);input.min=String(step);input.max=String(Math.max(0,allowed));
  const available=walletReady&&allowed>=step&&rate>0&&total>0;
  chk.disabled=!available;
- if(!available)chk.checked=false;
+ // Preserve requested intent; a pending wallet check never silently unticks the option.
  input.disabled=!available||!chk.checked;
  let chosen=chk.checked?Number(input.value)||0:0;
  if(chk.checked&&(!Number.isSafeInteger(chosen)||chosen<step))chosen=step;
  chosen=chk.checked?Math.min(allowed,Math.floor(chosen/step)*step):0;
- input.value=String(chosen);
+ if(available||!chk.checked)input.value=String(chosen); // preserve requested amount through temporary wallet refresh
  const value=chosen/step*rate;
  balance.textContent=walletMessage+' · '+msg('كل '+step+' نقطة = '+money(rate),'Every '+step+' points = '+money(rate));
  if(!walletReady)out.textContent=msg('يمكنك إرسال الحجز بدون نقاط حتى يتم التحقق من الرصيد.','You can book without points while balance is being verified.');
- else if(!available)out.textContent=msg('لا يوجد خصم نقاط متاح لهذه الخدمات أو أن الرصيد غير كافٍ.','No point discount is available for these services or your balance is insufficient.');
+ else if(!available)out.textContent=msg('الخصم غير متاح حاليًا: اختاري خدمة وتحققي من ربط النقاط ورصيدها. سيظل اختيارك محفوظًا حتى تحديث حالة الرصيد.','Not available yet: choose a service and verify your linked points balance. Your preference will stay saved.');
  else if(!chk.checked)out.textContent=msg('فعّلي استخدام النقاط لاختيار الكمية ومعرفة الخصم.','Select use points to choose the amount and preview savings.');
  else out.textContent=msg('سيُطلب خصم '+chosen+' نقطة = '+money(value)+' · إجمالي الخدمات '+money(total)+' · بعد الخصم المتوقع '+money(Math.max(0,total-value)),'Requested: '+chosen+' points = '+money(value)+' off · Services '+money(total)+' · Estimated after discount '+money(Math.max(0,total-value)));
 }
@@ -6483,5 +6486,354 @@ setTimeout(()=>{
 },15000);
 })();
 </script>
+<style id="salon-quality-workflow-v1">
+/* Client-facing redesign, intentionally scoped to client sessions. */
+html.salon-client-active body{background:radial-gradient(ellipse at 12% 12%,#f8e6ed 0,transparent 42%),radial-gradient(ellipse at 90% 40%,#f4e9d8 0,transparent 44%),#fdf9f4}
+html.salon-client-active #app.salon-editorial-client{max-width:1210px;margin:0 auto;padding:clamp(13px,2.7vw,32px);color:#422e36}
+html.salon-client-active #app.salon-editorial-client>.hero{position:relative;isolation:isolate;overflow:hidden;border:1px solid #ead9d3;background:linear-gradient(125deg,#4b2b3e 0%,#765061 52%,#ad7a86 100%);color:white;border-radius:32px;box-shadow:0 22px 50px rgba(79,41,63,.17);padding:clamp(24px,5vw,56px);min-height:145px}
+html.salon-client-active #app.salon-editorial-client>.hero:before{content:'✦';position:absolute;inset:auto 30px -90px auto;font-size:220px;line-height:1;color:#fff;opacity:.07;z-index:-1}
+html.salon-client-active #app.salon-editorial-client>.hero h1,html.salon-client-active #app.salon-editorial-client>.hero h2,html.salon-client-active #app.salon-editorial-client>.hero p{color:#fff}
+html.salon-client-active #app.salon-editorial-client>.nav{display:flex;gap:9px;flex-wrap:wrap;background:#fffdfa;border:1px solid #eadad8;padding:10px;border-radius:24px;box-shadow:0 10px 28px #6140550c;margin:18px 0!important}
+html.salon-client-active #app.salon-editorial-client>.nav button{flex:1 1 130px;border:1px solid transparent;border-radius:16px;font-weight:850;min-height:48px;color:#6b4a59;background:#fff2f6;transition:transform .18s,background .18s,box-shadow .18s}
+html.salon-client-active #app.salon-editorial-client>.nav button:hover{transform:translateY(-2px)}
+html.salon-client-active #app.salon-editorial-client>.nav button.active{background:linear-gradient(130deg,#593147,#854e6b);color:#fff;box-shadow:0 7px 14px #7f496738}
+html.salon-client-active #app.salon-editorial-client .stats{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px}
+html.salon-client-active #app.salon-editorial-client .stats.hidden{display:none!important}
+html.salon-client-active #app.salon-editorial-client .stat{border:1px solid #eed9dc!important;border-radius:24px!important;box-shadow:0 11px 28px #754c5f11;background:linear-gradient(150deg,#fff,#fff8f4)!important;min-height:126px;padding:23px!important}
+html.salon-client-active #app.salon-editorial-client .stat strong{font-size:clamp(25px,3vw,35px)!important;color:#6c3b56!important}
+html.salon-client-active #app.salon-editorial-client .card{border:1px solid #e9d9d2!important;border-radius:28px!important;background:#fffdfb!important;box-shadow:0 15px 35px rgba(82,47,66,.08)!important;padding:clamp(16px,3vw,30px)!important}
+html.salon-client-active #app.salon-editorial-client .service-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:14px}
+html.salon-client-active #app.salon-editorial-client .service{border:1px solid #e9d4d8!important;border-radius:23px!important;background:linear-gradient(145deg,#fff,#fff6f8)!important;box-shadow:0 8px 18px #733f5910;transition:transform .18s ease,box-shadow .18s ease;overflow:hidden}
+html.salon-client-active #app.salon-editorial-client .service:hover{transform:translateY(-3px);box-shadow:0 15px 29px #733f5920}
+html.salon-client-active #app.salon-editorial-client input,html.salon-client-active #app.salon-editorial-client select,html.salon-client-active #app.salon-editorial-client textarea{border:1px solid #dec8cf;border-radius:15px;background:#fffefa;min-height:46px;accent-color:#76425e}
+html.salon-client-active #app.salon-editorial-client input:focus,html.salon-client-active #app.salon-editorial-client select:focus{outline:2px solid #cf99ac;outline-offset:1px}
+html.salon-client-active #app.salon-editorial-client .btn:not(.secondary):not(.danger){background:linear-gradient(135deg,#60344a,#976780)!important;border:0;color:#fff;box-shadow:0 8px 18px #8a526630}
+html.salon-client-active #app.salon-editorial-client .section-head h3{font-size:clamp(20px,2.6vw,28px);color:#603c50}
+html.salon-client-active #salonBookPointPanel{border:1px solid #ecd9bc!important;background:linear-gradient(135deg,#fffaf1,#fff4f7)!important;border-radius:23px!important;box-shadow:0 8px 24px #a47b4418}
+html.salon-client-active #salonBookPointPanel .salon-point-summary{background:#fff!important;border-radius:16px!important}
+html.salon-client-active #app.salon-editorial-client .salon-quality-client-eyebrow{letter-spacing:3px;color:#ac788a;font-size:10px;font-weight:900;margin:15px 0 7px;text-transform:uppercase}
+html.salon-client-active #app.salon-editorial-client .salon-quality-client-note{display:flex;align-items:center;gap:14px;background:#fff4e6;border:1px solid #e8d3b7;padding:15px 19px;border-radius:20px;margin:15px 0;font-weight:750;color:#7e5b4b}
+.salon-bulk-workflow{margin:22px 0;background:linear-gradient(135deg,#fff9f7,#fff)!important;border:1px solid #eacbd9!important;border-radius:23px;padding:clamp(15px,3vw,25px)}
+.salon-bulk-workflow textarea{min-height:142px;direction:auto;font-family:inherit;width:100%;border:1px solid #decbd4;border-radius:13px;padding:12px}
+.salon-bulk-workflow .salon-bulk-actions{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.salon-bulk-workflow .salon-bulk-preview{max-height:370px;overflow:auto;background:#fff;border:1px solid #eddae0;border-radius:14px}
+.salon-bulk-workflow table{width:100%;border-collapse:collapse;min-width:710px;font-size:12px}
+.salon-bulk-workflow th,.salon-bulk-workflow td{padding:11px;text-align:right;border-bottom:1px solid #f2e7e8}
+.salon-bulk-workflow tr[data-error] td{background:#fff0ef;color:#9e3744}
+.salon-bulk-workflow .salon-bulk-progress{white-space:pre-line;line-height:1.8;color:#694453;font-size:13px;margin:12px 0}
+.salon-bulk-workflow .salon-bulk-hint{background:#fff2e2;padding:12px;border-radius:14px;margin:10px 0;color:#775346;font-size:12px;line-height:1.75}
+.salon-bulk-workflow .salon-bulk-note{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.salon-bulk-workflow .salon-bulk-note label{display:grid;gap:6px;font-size:12px;font-weight:800}
+.salon-bulk-workflow .salon-bulk-note input{width:100%;padding:9px;border:1px solid #dfc9d2;border-radius:12px}
+.salon-bulk-workflow .salon-bulk-checkbox{accent-color:#84465f;width:19px;height:19px}
+@media(max-width:600px){html.salon-client-active #app.salon-editorial-client>.hero{border-radius:22px}html.salon-client-active #app.salon-editorial-client>.nav{padding:7px;gap:5px;border-radius:18px}html.salon-client-active #app.salon-editorial-client>.nav button{flex:1 1 92px;font-size:12px;padding:8px 5px;min-height:45px}html.salon-client-active #app.salon-editorial-client .service-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}html.salon-client-active #app.salon-editorial-client .card{border-radius:20px!important;padding:16px!important}html.salon-client-active #app.salon-editorial-client .service{border-radius:17px!important;padding:10px!important}}
+</style>
+<script id="salon-quality-workflow-20261106">
+(function(){
+'use strict';
+const OWNER='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+const owner=()=>auth?.currentUser?.uid===OWNER&&db?.session?.type==='owner'&&firebaseReady===true;
+const escHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const latinDigits=value=>String(value??'').replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-0x0660)).replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-0x06f0));
+const phoneKey=value=>{let s=latinDigits(value).replace(/\D/g,'');if(s.startsWith('00966'))s=s.slice(5);else if(s.startsWith('966'))s=s.slice(3);return s.startsWith('0')?s.slice(1):s};
+const clientPhone=value=>phoneKey(value).length===9&&phoneKey(value).startsWith('5')?'0'+phoneKey(value):'';
+const isValidPoints=x=>Number.isSafeInteger(Number(x))&&Number(x)>=0&&Number(x)<=1e9;
+const inputId=id=>document.getElementById(id);
+const message=(a,b)=>lang==='en'?b:a;
+const ownerStatus=(text)=>{const node=inputId('salonBulkStatus');if(node)node.textContent=text};
+let bulkDrafts=[],bulkInProgress=false,bulkRaw='',clientDraft={uid:'',values:{}};
+function formatNumber(v){return Number(v||0).toLocaleString('ar-SA')}
+window.salonInvoiceCustomerName=function(i){const original=String(i?.customerName||'').trim();if(original&&original!=='بدون اسم')return original;const c=(db.clients||[]).find(x=>String(x.id)===String(i?.clientId));return String(c?.name&&c.name!=='بدون اسم'?c.name:original||'بدون اسم')};
+function delimitedRows(raw){
+ const t=String(raw||'').replace(/^\uFEFF/,'').trim();if(!t)return [];
+ const first=t.split(/\r?\n/)[0];const sep=['\t','|',';',','].map(c=>({c,n:first.split(c).length-1})).sort((a,b)=>b.n-a.n)[0].c;
+ const out=[];let row=[],field='',quoted=false;
+ for(let i=0;i<t.length;i++){
+  const c=t[i];if(c==='"'){if(quoted&&t[i+1]==='"'){field+='"';i++}else quoted=!quoted;continue}
+  if(!quoted&&c===sep){row.push(field.trim());field='';continue}
+  if(!quoted&&(c==='\n'||c==='\r')){if(c==='\r'&&t[i+1]==='\n')i++;row.push(field.trim());if(row.some(Boolean))out.push(row);row=[];field='';continue}
+  field+=c;
+ }
+ if(quoted)throw Error('توجد علامة تنصيص غير مغلقة في الجدول.');row.push(field.trim());if(row.some(Boolean))out.push(row);
+ return out;
+}
+function fieldKey(v){const k=String(v||'').trim().toLowerCase().replace(/[\s_ـ\-.]/g,'');const m={
+ 'التاريخ':'date','تاريخ':'date','date':'date','تاريخالفاتورة':'date',
+ 'رقمالفاتورة':'reference','مرجع':'reference','reference':'reference','invoice':'reference','id':'reference',
+ 'رقمالجوال':'phone','جوال':'phone','الجوال':'phone','رقم':'phone','phone':'phone','mobile':'phone',
+ 'العميلة':'name','اسمالعميلة':'name','اسم':'name','customer':'name','customername':'name',
+ 'الموظفة':'staff','اسمالموظفة':'staff','الموظف':'staff','employee':'staff','staff':'staff',
+ 'الخدمة':'service','الخدمات':'service','اسمالخدمة':'service','service':'service','services':'service',
+ 'السعر':'amount','المبلغ':'amount','الإجمالي':'amount','المجموع':'amount','amount':'amount','total':'amount','price':'amount',
+ 'النقاط':'points','نقاط':'points','point':'points','points':'points','النقاطالمضافة':'points',
+ 'الدفع':'payment','طريقةالدفع':'payment','payment':'payment',
+ 'ملاحظات':'notes','notes':'notes'};
+ return m[k]||null;
+}
+function currentService(raw){const q=String(raw||'').trim().toLowerCase();return (db.services||[]).find(s=>[s.name,s.nameEn,s.id].some(v=>String(v||'').trim().toLowerCase()===q))||null}
+function parseBulk(raw){
+ const rows=delimitedRows(raw);if(rows.length<2)throw Error('الصقي صف العناوين وصفًا واحدًا على الأقل من الفواتير.');
+ if(rows.length>501)throw Error('للحفاظ على استقرار الحفظ، استوردي 500 فاتورة كحد أقصى في الدفعة الواحدة.');
+ const keys=rows[0].map(fieldKey);
+ if(!keys.includes('date')||!keys.includes('service')||!keys.includes('amount'))throw Error('أضيفي أعمدة: التاريخ، الخدمة، المبلغ. الأعمدة الأخرى اختيارية.');
+ return rows.slice(1).map((cells,position)=>{
+  const data={};keys.forEach((key,i)=>{if(key)data[key]=String(cells[i]||'').trim()});
+  const row=position+2,problems=[];const date=latinDigits(data.date||'');
+  if(!/^20\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(date)||Number.isNaN(new Date(date+'T12:00:00').getTime()))problems.push('تاريخ غير صحيح (مثال: 2026-11-06)');
+  const source=String(data.service||'').split(/\s*\+\s*/).map(s=>s.trim()).filter(Boolean);if(!source.length)problems.push('الخدمة مطلوبة');
+  const services=source.map(x=>({text:x,record:currentService(x)}));
+  let amountRaw=latinDigits(data.amount||'').replace(/[\sر.سSAR]/g,'').replace(/\u066c/g,'').replace(/\u066b/g,'.');
+  amountRaw=/^\d+,\d{1,2}$/.test(amountRaw)?amountRaw.replace(',','.'):amountRaw.replace(/,/g,'');
+  const amount=Number(amountRaw);
+  if(data.amount==null||data.amount===''||!Number.isFinite(amount)||amount<0||amount>10000000)problems.push('المبلغ غير صالح');
+  const p=String(data.points||'');let points=null;
+  if(p!==''){const pn=Number(latinDigits(p));if(!isValidPoints(pn))problems.push('النقاط يجب أن تكون عددًا صحيحًا غير سالب');else points=pn}
+  const normalized=clientPhone(data.phone);if(data.phone&&!normalized)problems.push('رقم الجوال غير صحيح؛ استخدمي 05xxxxxxxx');
+  if(source.length>20)problems.push('الحد 20 خدمة لكل فاتورة');
+  const name=String(data.name||'').slice(0,100),staff=String(data.staff||'').slice(0,100);
+  const matchedStaff=staff?(db.staff||[]).find(s=>String(s.name||'').trim().toLowerCase()===staff.toLowerCase()):null;
+  // Historical staff can remain unassigned; names are never guessed.
+  const inferredPoints=services.reduce((sum,s)=>sum+Math.max(0,Math.floor(Number(s.record?.loyaltyPoints)||0)),0);
+  return {row,raw:cells,reference:String(data.reference||'').slice(0,100),date,name,phone:normalized,staff,staffId:matchedStaff?.id||'',services,amount,points:points===null?inferredPoints:points,pointsSource:points===null?'service':'entered',payment:['cash','card','transfer','mixed','points'].includes(String(data.payment||'').toLowerCase())?String(data.payment).toLowerCase():'cash',notes:String(data.notes||'').slice(0,300),errors:problems};
+ });
+}
+function bulkPanel(){return `<section class="salon-bulk-workflow" id="salonBulkImport"><span class="salon-ai-badge">✦ مساعد جودة · بدون إرسال البيانات للذكاء الاصطناعي</span><h2>إدخال الفواتير دفعة واحدة</h2><p class="muted">الصقي جدول CSV أو Excel (انسخي الخلايا والصقيها هنا)؛ كل صف يمثل فاتورة مستقلة. تستطيعين ترك اسم العميلة أو الموظفة فارغًا، وتحفظ النقاط برقم الجوال إن وجد.</p>
+ <div class="salon-bulk-hint"><strong>ترتيب الأعمدة:</strong> التاريخ | رقم الفاتورة | الجوال | العميلة | الموظفة | الخدمة | المبلغ | النقاط | الدفع. استخدمي الرمز + بين خدمتين في الفاتورة. إذا تركتِ عمود «النقاط» فارغًا يحسب النظام نقاط الخدمات من إعداداتك. لا يتم توزيع نقاط فاتورة بلا رقم على عميلة عشوائية.</div>
+ <textarea id="salonBulkInput" dir="auto" spellcheck="false" placeholder="التاريخ | رقم الفاتورة | الجوال | العميلة | الموظفة | الخدمة | المبلغ | النقاط | الدفع&#10;2026-11-06 | A001 | 05xxxxxxxx | | | مناكير + باديكير | 150 | | cash&#10;2026-11-06 | A002 | | | | مناكير | 65 | 5 | card"></textarea>
+ <div class="salon-bulk-actions" style="align-items:center"><label style="display:grid;gap:4px;font-size:12px;font-weight:750">أو اختاري ملف CSV / TXT<input type="file" id="salonBulkFile" accept=".csv,.tsv,.txt,text/csv,text/plain" style="max-width:240px"></label><button type="button" class="btn secondary" id="salonBulkPreviewBtn">معاينة الفواتير</button><button type="button" class="btn" id="salonBulkSaveBtn" disabled>حفظ جميع الفواتير المعروضة</button></div>
+ <div id="salonBulkStatus" class="salon-bulk-progress" role="status" aria-live="polite">راجعي البيانات قبل الحفظ. الفاتورة التي سبق استيرادها لن تتكرر عند إعادة نفس الملف.</div>
+ <div id="salonBulkPreview" class="salon-bulk-preview" hidden></div>
+ <details style="margin-top:15px"><summary style="font-weight:800;cursor:pointer">ربط فاتورة قديمة بدون رقم بعميلة لاحقًا</summary><p class="muted tiny">اختاري الفاتورة المعلّقة وأضيفي رقم العميلة بعد التحقق؛ ينقل النظام نقاط تلك الفاتورة مرة واحدة فقط.</p><div class="salon-bulk-note"><label>الفاتورة <select id="salonBulkPendingInvoice"><option value="">اختاري فاتورة</option></select></label><label>رقم جوال العميلة <input id="salonBulkAssignPhone" inputmode="tel" placeholder="05xxxxxxxx"></label></div><div class="salon-bulk-actions"><button type="button" class="btn secondary" id="salonBulkLoadPending">تحديث الفواتير غير المرتبطة</button><button type="button" class="btn" id="salonBulkAssignBtn">ربط الفاتورة بالرقم بعد التحقق</button></div></details>
+ </section>`}
+function pointsPanel(){const services=(db.services||[]);return `<section class="salon-bulk-workflow" id="salonBatchPoints"><span class="salon-ai-badge">✦ النقاط لكل خدمة</span><h2>تحديد نقاط الخدمات بالجملة</h2><p class="muted">اختاري الخدمات أو «تحديد الكل»، ثم أدخلي عدد النقاط المكتسبة عند شراء كل خدمة. يؤثر التغيير على الفواتير الجديدة فقط، ولا يعيد حساب الفواتير السابقة.</p><div class="salon-bulk-note"><label>عدد النقاط لكل خدمة محددة<input type="number" id="salonBatchPointsValue" min="0" max="1000000" step="1" value="5"></label><label>بحث عن خدمة<input type="search" id="salonBatchSearch" placeholder="ابحثي بالاسم..."></label></div><div class="salon-bulk-actions"><label style="display:flex;align-items:center;gap:9px"><input id="salonBatchAll" class="salon-bulk-checkbox" type="checkbox"> تحديد الكل (${services.length})</label><button id="salonBatchPointsSave" type="button" class="btn">تطبيق نقاط على المحدد</button></div><div id="salonBatchList" class="salon-bulk-preview"><table style="min-width:380px"><thead><tr><th>تحديد</th><th>الخدمة</th><th>النقاط الحالية</th></tr></thead><tbody>${services.map(s=>`<tr data-service-row data-service-query="${escHtml(String(s.name||'')+' '+String(s.nameEn||''))}"><td><input class="salon-bulk-checkbox" type="checkbox" data-service-select="${escHtml(s.id)}"></td><td>${escHtml(s.name||s.nameEn)}</td><td>${Math.max(0,Number(s.loyaltyPoints)||0)}</td></tr>`).join('')}</tbody></table></div><div id="salonBatchStatus" class="salon-bulk-progress" role="status"></div></section>`}
+function afterRender(){
+ if(!owner())return;
+ const ai=inputId('salonAiClientNote');if((ownerActiveTab==='assistant'||ai)&&!inputId('salonBulkImport')){
+  const parent=ownerActiveTab==='assistant'?(document.querySelector('.owner-content')||inputId('app')):(ai.closest('.salon-ai-panel')||ai.closest('.owner-content')||inputId('app'));
+  parent.insertAdjacentHTML(ownerActiveTab==='assistant'?'afterbegin':'beforeend',bulkPanel());bindBulk();
+ }
+ if(ownerActiveTab==='services'&&!inputId('salonBatchPoints')){
+  const host=document.querySelector('.owner-content')||inputId('app');host.insertAdjacentHTML('afterbegin',pointsPanel());bindPoints();
+ }
+}
+function bindBulk(){
+ inputId('salonBulkInput').value=bulkRaw;
+ inputId('salonBulkFile').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>1.5*1024*1024)return ownerStatus('الملف كبير؛ اختاري ملفًا لا يتجاوز 1.5 ميجابايت.');try{bulkRaw=await file.text();inputId('salonBulkInput').value=bulkRaw;inputId('salonBulkSaveBtn').disabled=true;ownerStatus('تم تحميل الملف في المعاينة. اضغطي «معاينة الفواتير» للتحقق من الصفوف.')}catch(x){ownerStatus('تعذّرت قراءة الملف. جرّبي نسخه ولصقه كنص.')}};
+ inputId('salonBulkPreviewBtn').onclick=()=>{
+  try{bulkRaw=inputId('salonBulkInput').value;bulkDrafts=parseBulk(bulkRaw);const bad=bulkDrafts.filter(r=>r.errors.length),earned=bulkDrafts.reduce((s,r)=>s+r.points,0);
+   const rows=bulkDrafts.map(r=>`<tr ${r.errors.length?'data-error="1"':''}><td>${r.row}</td><td>${escHtml(r.date)}</td><td>${escHtml(r.name||'بدون اسم')}</td><td>${escHtml(r.phone||'بدون رقم')}</td><td>${escHtml(r.staff||'بدون اسم موظفة')}</td><td>${escHtml(r.services.map(s=>s.text).join(' + '))}</td><td>${escHtml(r.amount)}</td><td>${escHtml(r.points)}</td><td>${escHtml(r.errors.join('؛ ')||'جاهزة')}</td></tr>`).join('');
+   inputId('salonBulkPreview').innerHTML=`<table><thead><tr><th>#</th><th>التاريخ</th><th>العميلة</th><th>الجوال</th><th>الموظفة</th><th>الخدمة</th><th>الإجمالي</th><th>النقاط</th><th>النتيجة</th></tr></thead><tbody>${rows}</tbody></table>`;
+   inputId('salonBulkPreview').hidden=false;inputId('salonBulkSaveBtn').disabled=!!bad.length||!bulkDrafts.length;
+   ownerStatus(`${bulkDrafts.length} فاتورة في المعاينة | ${bad.length} صف يحتاج تصحيحًا | ${earned} نقطة إجمالية، تُحسب أو تُحفظ حسب بيانات الصف. ${bad.length?'لن تُحفظ أي فاتورة حتى تصححي الأخطاء.':'راجعي المعاينة ثم اضغطي الحفظ.'}`);
+  }catch(e){bulkDrafts=[];inputId('salonBulkSaveBtn').disabled=true;ownerStatus('خطأ في الجدول: '+String(e.message||e));}
+ };
+ inputId('salonBulkInput').addEventListener('input',()=>{inputId('salonBulkSaveBtn').disabled=true;bulkRaw=inputId('salonBulkInput').value;ownerStatus('البيانات تغيّرت؛ اضغطي معاينة الفواتير مرة أخرى قبل الحفظ.');});
+ inputId('salonBulkSaveBtn').onclick=saveBulk;
+ inputId('salonBulkLoadPending').onclick=loadUnlinkedInvoices;
+ inputId('salonBulkAssignBtn').onclick=assignUnlinkedInvoice;
+}
+function bulkFingerprint(row){return JSON.stringify([row.row,row.reference,row.date,row.phone,row.name,row.staff,row.services.map(s=>s.text),row.amount,row.points,row.payment,row.notes])}
+async function bulkHash(content){
+ if(typeof crypto!=='undefined'&&crypto.subtle?.digest){
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(content));
+  return Array.from(new Uint8Array(digest)).slice(0,18).map(b=>b.toString(16).padStart(2,'0')).join('');
+ }
+ // Stable fallback for offline previews. Any collision is separately rejected by stored fingerprint.
+ let a=2166136261>>>0,b=0x9e3779b9>>>0;
+ for(let i=0;i<content.length;i++){const code=content.charCodeAt(i);a=Math.imul(a^code,16777619)>>>0;b=Math.imul(b^(code+i),2246822519)>>>0}
+ return a.toString(16).padStart(8,'0')+b.toString(16).padStart(8,'0');
+}
+async function hashId(row){
+ // External reference, when given, becomes the stable deduplication key.
+ const content=row.reference?JSON.stringify(['reference',row.date,row.reference]):bulkFingerprint(row);
+ return 'bulk-'+await bulkHash(content);
+}
+function syncBulkLocal(result){
+ const ix=db.invoices.findIndex(i=>String(i.id)===String(result.invoice.id));if(ix<0)db.invoices.push(result.invoice);
+ db.clients=result.clients;db.invoiceCounter=result.invoiceCounter;db.counter=result.counter;
+ if(typeof salonUpdateInvoiceBaseline==='function')salonUpdateInvoiceBaseline({clients:result.clients,invoiceCounter:result.invoiceCounter,counter:result.counter});
+}
+async function persistBulkRow(row){
+ if(!owner())throw Error('الدخول بحساب المالكة مطلوب');
+ if(typeof salonInvoiceStorageReady==='undefined'||!salonInvoiceStorageReady)throw Error('يلزم تفعيل تخزين الفواتير المستقل من صفحة الفواتير أولًا');
+ if(typeof salonSaveIndependentInvoice!=='function')throw Error('نظام الفواتير المستقل غير محمّل');
+ await saveQueue;
+ const id=await hashId(row),fingerprint=await bulkHash(bulkFingerprint(row)),ref=firestore.collection('salonInvoices').doc(id),mainRef=firestore.collection('salonData').doc('main');
+ let outcome=null;
+ await firestore.runTransaction(async tx=>{
+  // All reads before writes. Re-importing same entry is an idempotent no-op.
+  const [main,previous]=await Promise.all([tx.get(mainRef),tx.get(ref)]);
+  if(previous.exists){if(previous.data()?.importFingerprint!==fingerprint)throw Error('مرجع الفاتورة مستخدم لمحتوى مختلف. راجعي رقم الفاتورة أو البيانات قبل إعادة الاستيراد.');outcome={skip:true};return}
+  if(!main.exists||Number(main.data()?.invoiceStorageVersion||0)<2||Array.isArray(main.data()?.invoices))throw Error('قاعدة الفواتير المستقلة غير مفعلة');
+  const remote=main.data(),clients=Array.isArray(remote.clients)?remote.clients.map(c=>({...c})):[];
+  const candidates=row.phone?clients.filter(c=>phoneKey(c.phone)===phoneKey(row.phone)):[];
+  if(candidates.length>1)throw Error('يوجد أكثر من سجل عميلة بنفس الرقم؛ راجعيه قبل استيراد نقاط جديدة.');
+  let found=candidates[0]||null;
+  const nextCount=Number(remote.counter||1001),counter=Number(remote.invoiceCounter||1);
+  let clientChanged=false,createdNew=false;
+  if(row.phone){
+   if(!found){found={id:'bulk-client-'+id,code:'CL-'+nextCount,phone:row.phone,name:row.name||'بدون اسم',email:'',points:0,createdAt:new Date().toISOString(),pendingName:!row.name};clients.push(found);createdNew=true}
+   else if(row.name&&(!found.name||found.name==='بدون اسم')){found.name=row.name;found.pendingName=false;clientChanged=true}
+   // Points are kept in the official customer ledger even when no display name is known.
+   const old=Number(found.points)||0;
+   if(!Number.isSafeInteger(old)||old<0||old+row.points>1000000000)throw Error('رصيد نقاط العميلة تجاوز الحد الصالح');
+   found.points=old+row.points;found.updatedAt=new Date().toISOString();clientChanged=true;
+  }
+  const items=row.services.map((entry,i)=>({serviceId:String(entry.record?.id||''),name:String(entry.record?.name||entry.text),price:row.services.length===1?row.amount:Math.round(row.amount/row.services.length*100)/100,quantity:1,duration:Number(entry.record?.duration)||30,staffId:String(row.staffId||''),staffName:String(row.staff||'بدون اسم موظفة'),lineId:'line-'+i}));
+  // Distribute any rounding difference to last line to preserve the invoice total.
+  if(items.length>1){items[items.length-1].price=Math.round((row.amount-items.slice(0,-1).reduce((s,l)=>s+l.price,0))*100)/100}
+  items.forEach(l=>{l.lineTotal=l.price});
+  const invoice={id,importSource:'quality-assistant-bulk-v1',sourceReference:row.reference||'',importFingerprint:fingerprint,number:counter,date:row.date,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+   clientId:found?.id||'',customerName:found?.name||row.name||'بدون اسم',customerPhone:row.phone||'',staffId:row.staffId||'',staffName:row.staff||'بدون اسم موظفة',
+   items,serviceId:items[0]?.serviceId||'',serviceName:items.map(x=>x.name).join('، '),subtotal:row.amount,discount:0,taxRate:0,tax:0,total:row.amount,payment:row.payment,
+   pointsUsed:0,loyaltyDiscount:0,pointsAdded:row.points,pointsEarned:row.pointsSource==='service'?row.points:0,notes:row.notes||'',pendingPoints:!found&&row.points>0,whatsappRequested:false};
+  let walletRef=null;
+  if(found?.authUid&&clientChanged){
+   walletRef=firestore.collection('loyaltyAccounts').doc(String(found.authUid));
+   const wallet=await tx.get(walletRef);
+   if(!wallet.exists||wallet.data().approved!==true||String(wallet.data().clientId)!==String(found.id))walletRef=null;
+  }
+  tx.set(ref,invoice);
+  const patch={invoiceCounter:counter+1,updatedAt:new Date().toISOString()};
+  if(clientChanged)patch.clients=clients;
+  if(createdNew)patch.counter=nextCount+1;
+  tx.update(mainRef,patch);
+  if(walletRef)tx.set(walletRef,{points:Number(found.points),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  outcome={skip:false,invoice,clients,invoiceCounter:counter+1,counter:nextCount+(createdNew?1:0)};
+ });
+ if(!outcome.skip)syncBulkLocal(outcome);
+ return outcome;
+}
+async function saveBulk(){
+ if(bulkInProgress||!owner())return;
+ if(!bulkDrafts.length||bulkDrafts.some(x=>x.errors.length))return ownerStatus('صححي المعاينة قبل الحفظ');
+ if(!confirm('سيتم حفظ '+bulkDrafts.length+' فاتورة في Firebase دفعة واحدة. تُسجل النقاط على رقم الجوال إن وُجد؛ بدون رقم تبقى على الفاتورة. هل راجعتِ البيانات؟'))return;
+ bulkInProgress=true;inputId('salonBulkSaveBtn').disabled=true;inputId('salonBulkPreviewBtn').disabled=true;
+ let saved=0,skipped=0,failed=0;const errors=[];
+ for(const row of bulkDrafts){
+  if(!owner()){errors.push('انتهت جلسة المالكة، توقّف الاستيراد');break}
+  try{const res=await persistBulkRow(row);res.skip?skipped++:saved++}catch(e){failed++;errors.push('السطر '+row.row+': '+String(e.message||e))}
+  ownerStatus('جارٍ استيراد الفواتير… '+(saved+skipped+failed)+'/'+bulkDrafts.length+' | المحفوظة '+saved+' | المكررة '+skipped+' | الأخطاء '+failed);
+ }
+ const outcome='اكتمل التنفيذ | حفظ '+saved+' فاتورة | تخطى '+skipped+' فاتورة مكررة | أخطاء '+failed+(errors.length?'\n'+errors.slice(0,15).join('\n'):'');
+ ownerStatus(outcome);bulkInProgress=false;
+ if(inputId('salonBulkPreviewBtn'))inputId('salonBulkPreviewBtn').disabled=false;
+ if(inputId('salonBulkSaveBtn'))inputId('salonBulkSaveBtn').disabled=failed===0;
+ if(saved>0){try{await salonRefreshInvoices()}catch(e){console.warn('Invoice display refresh failed',e)}}
+}
+async function loadUnlinkedInvoices(){
+ if(!owner())return;
+ const select=inputId('salonBulkPendingInvoice');if(!select)return;
+ select.innerHTML='<option value="">جارٍ التحميل...</option>';
+ try{
+  // The query is owner-only and bounded. It covers unassigned bulk entries.
+  const snapshots=await firestore.collection('salonInvoices').where('importSource','==','quality-assistant-bulk-v1').limit(500).get({source:'server'});
+  const pending=snapshots.docs.filter(d=>!d.data().clientId).map(d=>({id:d.id,...d.data()}));
+  select.innerHTML='<option value="">اختاري فاتورة غير مرتبطة</option>'+pending.map(x=>`<option value="${escHtml(x.id)}">#${escHtml(x.number)} · ${escHtml(x.date)} · ${escHtml(x.serviceName)} · ${x.pointsAdded||0} نقطة</option>`).join('');
+  ownerStatus('يوجد '+pending.length+' فاتورة من الاستيراد غير مرتبطة برقم عميلة.');
+ }catch(e){select.innerHTML='<option value="">تعذّر التحميل</option>';ownerStatus('فشل قراءة الفواتير: '+String(e.message||e))}
+}
+async function assignUnlinkedInvoice(){
+ if(!owner())return;
+ const id=String(inputId('salonBulkPendingInvoice')?.value||''),phone=clientPhone(inputId('salonBulkAssignPhone')?.value);
+ if(!id||!phone)return ownerStatus('اختاري فاتورة واكتبي رقم جوال صحيحًا.');
+ if(!confirm('أؤكد أنني تحققت من ملكية العميلة لهذه الفاتورة. سيتم ربط الفاتورة ونقاطها بالسجل المطابق للرقم '+phone+' مرة واحدة فقط.'))return;
+ try{
+  await saveQueue;
+  const mainRef=firestore.collection('salonData').doc('main'),invRef=firestore.collection('salonInvoices').doc(id);let outcome=null;
+  await firestore.runTransaction(async tx=>{
+   const [main,doc]=await Promise.all([tx.get(mainRef),tx.get(invRef)]);
+   if(!main.exists||!doc.exists)throw Error('لم تعد البيانات موجودة.');
+   const inv=doc.data();if(inv.clientId||inv.customerPhone)throw Error('الفاتورة مرتبطة مسبقًا، ولن تُحتسب نقاطها مرتين.');
+   if(inv.importSource!=='quality-assistant-bulk-v1')throw Error('الربط مسموح لفواتير الاستيراد فقط');
+   const clients=(main.data().clients||[]).map(c=>({...c})),matched=clients.filter(c=>phoneKey(c.phone)===phoneKey(phone));
+   if(matched.length>1)throw Error('الرقم مرتبط بأكثر من سجل عميلة');
+   let c=matched[0],newRecord=false;const nextCount=Number(main.data().counter||1001);
+   if(!c){c={id:'bulk-linked-'+id,code:'CL-'+nextCount,name:inv.customerName&&inv.customerName!=='بدون اسم'?inv.customerName:'بدون اسم',phone,points:0,createdAt:new Date().toISOString()};clients.push(c);newRecord=true}
+   const delta=Number(inv.pointsAdded)||0;if(!isValidPoints(delta)||!isValidPoints((Number(c.points)||0)+delta))throw Error('رصيد النقاط غير صالح.');
+   c.points=(Number(c.points)||0)+delta;c.updatedAt=new Date().toISOString();
+   let walletRef=null;if(c.authUid){const wr=firestore.collection('loyaltyAccounts').doc(String(c.authUid));const w=await tx.get(wr);if(w.exists&&w.data().approved===true&&w.data().clientId===c.id)walletRef=wr}
+   tx.update(invRef,{clientId:c.id,customerPhone:phone,customerName:c.name,pendingPoints:false,linkedAt:firebase.firestore.FieldValue.serverTimestamp()});
+   tx.update(mainRef,{clients,...(newRecord?{counter:nextCount+1}:{}),updatedAt:new Date().toISOString()});
+   if(walletRef)tx.set(walletRef,{points:c.points,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+   outcome={invoice:{...inv,id,clientId:c.id,customerPhone:phone,customerName:c.name,pendingPoints:false},clients,counter:nextCount+(newRecord?1:0)};
+  });
+  const ix=db.invoices.findIndex(x=>x.id===id);if(ix>=0)db.invoices[ix]=outcome.invoice;
+  db.clients=outcome.clients;db.counter=outcome.counter;
+  if(typeof salonUpdateInvoiceBaseline==='function')salonUpdateInvoiceBaseline({clients:outcome.clients,counter:outcome.counter});
+  ownerStatus('تم ربط الفاتورة بالرقم '+phone+' ونقل نقاطها إلى سجل العميلة، دون تكرار.');await loadUnlinkedInvoices();
+ }catch(e){ownerStatus('تعذّر الربط: '+String(e.message||e))}
+}
+function bindPoints(){
+ const all=inputId('salonBatchAll'),checkboxes=()=>Array.from(document.querySelectorAll('[data-service-select]'));
+ all.onchange=()=>checkboxes().forEach(x=>x.checked=all.checked);
+ inputId('salonBatchSearch').oninput=e=>{const q=String(e.target.value||'').toLowerCase();document.querySelectorAll('[data-service-row]').forEach(x=>x.hidden=!x.dataset.serviceQuery.toLowerCase().includes(q))};
+ inputId('salonBatchPointsSave').onclick=async()=>{
+  if(!owner())return;const ids=checkboxes().filter(x=>x.checked).map(x=>x.dataset.serviceSelect),points=Number(inputId('salonBatchPointsValue').value),label=inputId('salonBatchStatus');
+  if(!ids.length){label.textContent='اختاري خدمة واحدة على الأقل أو اضغطي تحديد الكل.';return}
+  if(!Number.isSafeInteger(points)||points<0||points>1000000){label.textContent='اكتبي عدد نقاط صحيحًا بين 0 ومليون.';return}
+  if(!confirm('تطبيق '+points+' نقطة على '+ids.length+' خدمة للفواتير الجديدة؟'))return;
+  const button=inputId('salonBatchPointsSave');button.disabled=true;label.textContent='جارٍ حفظ النقاط ونشرها…';
+  try{
+   await saveQueue;
+   let changed=[],savedServices=null;
+   await firestore.runTransaction(async tx=>{
+    const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('بيانات الصالون غير موجودة');
+    const services=(snap.data().services||[]).map(s=>({...s}));
+    for(const s of services)if(ids.includes(String(s.id))){s.loyaltyPoints=points;changed.push(String(s.id))}
+    if(changed.length!==ids.length)throw Error('تغيّرت قائمة الخدمات. حدّثي الصفحة ثم أعيدي المحاولة.');
+    tx.update(salonDoc,{services,updatedAt:new Date().toISOString()});
+    savedServices=services;
+   });
+   db.services=savedServices;
+   if(typeof salonUpdateInvoiceBaseline==='function')salonUpdateInvoiceBaseline({services:db.services});
+   const published=await publishPortalCatalog();
+   label.textContent='تم حفظ نقاط '+changed.length+' خدمة.'+(published===false?' تعذّر نشرها للعميلات، راجعي اتصال Firebase.':' وظهرت في قائمة الخدمات المنشورة.');
+   renderOwner('services');
+  }catch(e){label.textContent='تعذّر الحفظ: '+String(e.message||e)}
+  finally{if(button.isConnected)button.disabled=false}
+ };
+}
+// The booking discount checkbox must not lose user intent due to another render or wallet response.
+function captureClientDraft(){
+ if(portalRole!=='client'||!auth.currentUser)return;
+ const form=inputId('portalBooking');if(!form)return;
+ const values={};for(const el of form.querySelectorAll('input,select,textarea')){
+  if(!el.name)continue;
+  values[el.name]=el.type==='checkbox'?Boolean(el.checked):el.value;
+ }
+ clientDraft={uid:auth.currentUser.uid,values};
+}
+function restoreClientDraft(){
+ if(portalRole!=='client'||!auth.currentUser||clientDraft.uid!==auth.currentUser.uid)return;
+ const form=inputId('portalBooking');if(!form)return;
+ for(const el of form.querySelectorAll('input,select,textarea')){
+  if(!el.name||!(el.name in clientDraft.values))continue;
+  if(el.type==='checkbox'){el.checked=Boolean(clientDraft.values[el.name])}
+  else if(el.name==='pointsToRedeem'){el.value=clientDraft.values[el.name]}
+  else if(el.name.startsWith('serviceQty_'))el.value=clientDraft.values[el.name];
+  else if(!el.disabled)el.value=clientDraft.values[el.name];
+ }
+ const checkbox=form.querySelector('[name="redeem"]');if(checkbox)checkbox.dispatchEvent(new Event('change'));
+}
+document.addEventListener('change',e=>{if(e.target?.closest?.('#portalBooking'))captureClientDraft()});
+document.addEventListener('input',e=>{if(e.target?.closest?.('#portalBooking'))captureClientDraft()});
+const previousClientRender=renderPortalClient;
+renderPortalClient=function(...args){
+ captureClientDraft();const r=previousClientRender.apply(this,args);
+ if(portalRole==='client'&&auth.currentUser){
+  restoreClientDraft();
+  const app=inputId('app');if(app&&app.classList.contains('salon-editorial-client')&&!app.querySelector('.salon-quality-client-note')){
+   const nav=app.querySelector('nav.nav');const note=document.createElement('div');note.className='salon-quality-client-note';note.innerHTML=`<span aria-hidden="true" style="font-size:28px">✧</span><span>${message('أهلًا بكِ في جودة الأظافر — اختاري خدماتك واستمتعي بعناية تليق بكِ.','Welcome to Nail Quality — explore treatments made for you.')}</span>`;
+   if(nav)nav.after(note);else app.prepend(note);
+  }
+ }
+ return r;
+};
+const previousOwnerRender=renderOwner;
+renderOwner=function(...args){const result=previousOwnerRender.apply(this,args);afterRender();return result};
+})();
+</script>
+
 </body>
 </html>
