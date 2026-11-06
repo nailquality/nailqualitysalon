@@ -1034,6 +1034,11 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
    }
   }
   transaction.set(ref,saved);
+  // Publish the sanitized receipt in the same transaction as the owner invoice.
+  // The client ID was linked by the owner after account verification.
+  const clientInvoiceRef=firestore.collection('clientInvoices').doc(encodeURIComponent(String(saved.id)));
+  if(target.authUid)transaction.set(clientInvoiceRef,window.salonMakeClientInvoiceView(saved,String(target.authUid),String(target.id)));
+  else transaction.delete(clientInvoiceRef);
   walletWrites.forEach(entry=>transaction.set(entry.ref,{points:entry.points,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));
   const patch={clients,inventory:supplies,updatedAt:new Date().toISOString()};
   if(movementItems.length)patch.clientPackages=clientPackages;
@@ -1271,7 +1276,13 @@ async function deleteInvoice(id){
  try{
   if(!salonInvoiceStorageReady)throw Error('يجب إكمال نقل الفواتير قبل الحذف');
   await saveQueue;
-  await salonInvoiceDocument(id).delete();
+   await firestore.runTransaction(async tx=>{
+    const invoiceRef=salonInvoiceDocument(id);
+    const existing=await tx.get(invoiceRef);
+    if(!existing.exists)throw Error('الفاتورة غير موجودة');
+    tx.delete(invoiceRef);
+    tx.delete(firestore.collection('clientInvoices').doc(encodeURIComponent(String(id))));
+   });
   db.invoices=db.invoices.filter(item=>String(item.id)!==String(id));
   renderOwner('invoices');toast('تم حذف الفاتورة من Firebase');
  }catch(err){toast('فشل حذف الفاتورة: '+String(err.message||err))}
@@ -4963,6 +4974,7 @@ const error=e=>{
  if(code.includes('unavailable')||code.includes('network'))return localized('تعذّر الاتصال بقاعدة البيانات. تحققي من الإنترنت.','Could not connect to Firebase. Check your connection.');
  return String(e?.message||localized('تعذّر إتمام العملية.','The action could not be completed.'));
 };
+window.salonCurrentApprovedLoyaltyPoints=()=>pointTotals();
 function pointTotals(){
  if(!client()||!currentWallet||currentWallet.clientId==null||currentWallet.approved!==true)return 0;
  return isPoints(currentWallet.points)?Number(currentWallet.points):0;
@@ -4978,6 +4990,7 @@ function updateCounters(){
   if(values[0])values[0].textContent=String(p);
   if(values[1])values[1].textContent=money(Math.floor(p/threshold)*rate);
  });
+ if(typeof window.salonRefreshLuxePointDisplay==='function')window.salonRefreshLuxePointDisplay(p);
 }
 function requestStatus(){
  if(clientError)return clientError;
@@ -5084,7 +5097,7 @@ async function showClaims(host){
    approve.onclick=async()=>{
     if(!match||!confirm('هل تحققتِ بنفسك من هوية العميلة وملكيتها للمشتريات؟ مطابقة الرقم وحدها لا تكفي.'))return;
     approve.disabled=reject.disabled=true;
-    try{await approveClaim(uid,String(match.id));toast('تم ربط الحساب بالنقاط المعتمدة');await showClaims(host)}catch(e){toast(error(e));approve.disabled=reject.disabled=false}
+    try{await approveClaim(uid,String(match.id));toast('تم ربط الحساب بالنقاط المعتمدة');await showClaims(host);Promise.resolve().then(()=>window.salonSyncCustomerInvoices?.()).catch(e=>console.warn('Invoice backfill after loyalty approval',e))}catch(e){toast(error(e));approve.disabled=reject.disabled=false}
    };
    reject.onclick=async()=>{
     if(!confirm('هل تريدين رفض طلب العميلة؟'))return;
@@ -6290,7 +6303,7 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
      if(!confirm('راجعي هوية العميلة وإثبات شرائها قبل الربط. هل تأكدتِ من أن حساب '+(profile.nameAr||profile.name||uid)+' يعود للعميلة '+c.name+'؟'))return;
      const old=c.authUid;c.authUid=uid;
      const persisted=await persist();if(!persisted){c.authUid=old;throw Error('تعذر حفظ الربط في قاعدة الصالون')}
-     await syncPackageView(c);toast('تم ربط الباقات بحساب العميلة وتحديث باقاتي');
+     await syncPackageView(c);toast('تم ربط الباقات بحساب العميلة وتحديث باقاتي');Promise.resolve().then(()=>window.salonSyncCustomerInvoices?.()).catch(e=>console.warn('Invoice sync after package link',e));
    }catch(e){toast('تعذر ربط الباقات: '+(e.message||e));console.warn(e)}
  };
  const oldClientsTable=clientsTable;
@@ -6694,6 +6707,7 @@ async function persistBulkRow(row){
    if(!wallet.exists||wallet.data().approved!==true||String(wallet.data().clientId)!==String(found.id))walletRef=null;
   }
   tx.set(ref,invoice);
+  if(found?.authUid)tx.set(firestore.collection('clientInvoices').doc(encodeURIComponent(id)),window.salonMakeClientInvoiceView(invoice,found.authUid,found.id));
   const patch={invoiceCounter:counter+1,updatedAt:new Date().toISOString()};
   if(clientChanged)patch.clients=clients;
   if(createdNew)patch.counter=nextCount+1;
@@ -6754,6 +6768,10 @@ async function assignUnlinkedInvoice(){
    c.points=(Number(c.points)||0)+delta;c.updatedAt=new Date().toISOString();
    let walletRef=null;if(c.authUid){const wr=firestore.collection('loyaltyAccounts').doc(String(c.authUid));const w=await tx.get(wr);if(w.exists&&w.data().approved===true&&w.data().clientId===c.id)walletRef=wr}
    tx.update(invRef,{clientId:c.id,customerPhone:phone,customerName:c.name,pendingPoints:false,linkedAt:firebase.firestore.FieldValue.serverTimestamp()});
+   if(c.authUid){
+    const linkedInvoice={...inv,id,clientId:c.id,customerPhone:phone,customerName:c.name,pendingPoints:false};
+    tx.set(firestore.collection('clientInvoices').doc(encodeURIComponent(id)),window.salonMakeClientInvoiceView(linkedInvoice,c.authUid,c.id));
+   }
    tx.update(mainRef,{clients,...(newRecord?{counter:nextCount+1}:{}),updatedAt:new Date().toISOString()});
    if(walletRef)tx.set(walletRef,{points:c.points,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
    outcome={invoice:{...inv,id,clientId:c.id,customerPhone:phone,customerName:c.name,pendingPoints:false},clients,counter:nextCount+(newRecord?1:0)};
@@ -6832,6 +6850,280 @@ renderPortalClient=function(...args){
 };
 const previousOwnerRender=renderOwner;
 renderOwner=function(...args){const result=previousOwnerRender.apply(this,args);afterRender();return result};
+})();
+</script>
+
+<style id="salon-mobile-luxe-20261106">
+/* Client-only mobile experience; do not alter owner/employee portals. */
+html.salon-client-active body:has(#app.salon-editorial-client){background:#fdf1f4!important}
+html.salon-client-active #app.salon-editorial-client{max-width:760px!important;margin-inline:auto!important;padding:12px 12px 110px!important;overflow:visible!important;font-family:'Tajawal',system-ui,Tahoma,sans-serif!important}
+html.salon-client-active #app.salon-editorial-client>.hero{display:none!important}
+html.salon-client-active #app.salon-editorial-client>.stats{display:none!important}
+html.salon-client-active #app.salon-editorial-client>.section-head{display:none!important}
+html.salon-client-active #app.salon-editorial-client>.card:has(#portalBooking){display:none!important}
+html.salon-client-active #app.salon-editorial-client.salon-mobile-booking>.card:has(#portalBooking){display:block!important;background:#fffafc!important;border:1px solid #f0d6e0!important;border-radius:23px!important;padding:17px!important}
+html.salon-client-active #app.salon-editorial-client.salon-mobile-booking>.card:has(#portalBooking) h3{font-size:21px;color:#713951}
+html.salon-client-active #app.salon-editorial-client>.salon-quality-client-note{display:none!important}
+html.salon-client-active body:has(#app.salon-editorial-client)>.footer{display:none!important}
+html.salon-client-active #app.salon-editorial-client:has(#salonMobileHome) #salonGuestLoyaltyBanner:has(button:disabled){display:none!important}
+html.salon-client-active #app.salon-editorial-client nav.nav.salon-mobile-nav{position:fixed!important;z-index:48!important;bottom:max(6px,env(safe-area-inset-bottom))!important;left:50%!important;transform:translateX(-50%)!important;width:min(740px,calc(100% - 14px))!important;max-width:none!important;margin:0!important;padding:9px 6px!important;display:flex!important;flex-wrap:nowrap!important;flex-direction:row!important;justify-content:flex-start!important;align-items:stretch!important;gap:3px!important;overflow-x:auto!important;overscroll-behavior-x:contain!important;scroll-snap-type:x proximity!important;scrollbar-width:none!important;background:rgba(255,248,251,.95)!important;backdrop-filter:blur(21px)!important;-webkit-backdrop-filter:blur(21px)!important;border:1px solid #ead0da!important;box-shadow:0 14px 35px #6e345b35!important;border-radius:23px!important}
+#app.salon-editorial-client nav.nav.salon-mobile-nav::-webkit-scrollbar{display:none}
+#app.salon-editorial-client nav.nav.salon-mobile-nav button{flex:0 0 69px!important;min-width:69px!important;min-height:67px!important;display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;gap:2px!important;padding:7px 3px!important;background:transparent!important;color:#77445d!important;border:0!important;border-radius:16px!important;white-space:normal!important;text-align:center!important;box-shadow:none!important;font-size:10px!important;font-weight:800!important;scroll-snap-align:center!important}
+#app.salon-editorial-client nav.nav.salon-mobile-nav button.active{background:linear-gradient(150deg,#9d5274,#603149)!important;color:#fff!important;box-shadow:0 5px 16px #86456447!important}
+#app.salon-editorial-client nav.nav.salon-mobile-nav .salon-nav-icon{font-size:24px!important;line-height:1.2!important}
+#app.salon-editorial-client nav.nav.salon-mobile-nav .salon-nav-label{font-size:10px;line-height:1.3}
+.salon-mobile-top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 7px 17px;color:#552b40}
+.salon-mobile-top .salon-top-greeting{font-size:13px;font-weight:700;color:#95697f}
+.salon-mobile-top strong{display:block;font-size:clamp(20px,5vw,27px);color:#51283d}
+.salon-mobile-logo{width:58px;height:58px;display:grid;place-items:center;border-radius:19px;background:linear-gradient(145deg,#fff,#f9dfea);font-size:30px;color:#9b5375;border:1px solid #edccd9;box-shadow:0 7px 19px #6b305b19}
+.salon-mobile-brand{text-align:center;margin:-3px auto 15px;color:#89516c;font-weight:800;font-size:12px;letter-spacing:.02em}
+.salon-mobile-brand span{color:#b69365;letter-spacing:.17em;font-size:9px;display:block;margin-top:2px}
+.salon-mobile-highlights{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.salon-mobile-info{min-width:0;padding:16px 13px;border-radius:21px;background:#fff5f8;border:1px solid #eacbd9;box-shadow:0 8px 21px #73345613;min-height:109px}
+.salon-mobile-info.accent{background:linear-gradient(145deg,#a35b7c,#602f49);color:#fff!important;border-color:#b785a1}
+.salon-mobile-info .salon-kicker{font-size:12px;opacity:.86;display:flex;align-items:center;gap:5px}
+.salon-mobile-info strong{display:block;font-size:22px;line-height:1.4;margin-top:8px}
+.salon-mobile-info small{display:block;font-size:10px;margin-top:4px;opacity:.86}
+.salon-mobile-banner{display:grid;grid-template-columns:1.1fr .9fr;overflow:hidden;border-radius:26px;min-height:225px;background:linear-gradient(115deg,#f6cddc,#bc8298 70%,#8a536f);box-shadow:0 10px 26px #8e52702b;border:1px solid #f3d0e0;margin-bottom:17px;position:relative}
+.salon-mobile-banner:before{content:'✧';position:absolute;font-size:180px;line-height:1;color:#fff2;inset:auto auto -65px -15px;pointer-events:none}
+.salon-banner-art{display:flex;align-items:center;justify-content:center;overflow:hidden;min-width:0;background:radial-gradient(circle at 60% 52%,#fff0f1 0,#dc9fb2 55%,#9a637d 100%)}
+.salon-banner-art img{width:100%;height:100%;min-height:220px;object-fit:cover;object-position:center}
+.salon-banner-art span{font-size:75px;filter:drop-shadow(0 8px 8px #7b3b6530)}
+.salon-banner-text{align-self:center;padding:19px 17px;color:#4c293c;position:relative;z-index:1}
+.salon-banner-text .small{font-size:11px;font-weight:800;color:#7d4560}
+.salon-banner-text h3{font-size:clamp(23px,6vw,31px);margin:8px 0 7px;line-height:1.26;color:#4e243a;font-weight:900}
+.salon-banner-text p{font-size:12px;line-height:1.7;margin:0 0 14px;color:#61354b}
+.salon-banner-text button{border:0;border-radius:24px;background:#6a304c;color:white;font-weight:800;padding:11px 16px;box-shadow:0 5px 14px #6a304c30}
+.salon-mobile-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0 22px}
+.salon-mobile-shortcut{border:1px solid #ebd1dc;border-radius:19px;background:linear-gradient(145deg,#fffcfc,#fff0f5);box-shadow:0 5px 16px #713b5812;padding:13px 2px 10px;min-height:85px;color:#683650;font-weight:800;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;font-size:11px;cursor:pointer}
+.salon-mobile-shortcut span{font-size:25px}
+.salon-mobile-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:20px;font-weight:900;color:#5f2e48;margin:16px 3px 10px}
+.salon-mobile-section-title small{font-size:12px;color:#ac6e85}
+.salon-mobile-offers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.salon-mobile-offer{border:1px solid #e8cad6;border-radius:19px;padding:14px;background:linear-gradient(130deg,#fffafc,#efcbd9);min-height:123px;position:relative;overflow:hidden;color:#67324e}
+.salon-mobile-offer .icon{font-size:29px;position:absolute;top:7px;left:10px;opacity:.6}
+.salon-mobile-offer b{display:block;max-width:77%;font-size:15px;margin-bottom:6px}
+.salon-mobile-offer strong{color:#8d395b;font-size:19px}
+.salon-mobile-subpage{margin:8px 0 15px;border:1px solid #eed9e3;border-radius:23px;background:linear-gradient(150deg,#fff,#fff5f8);padding:19px 15px;box-shadow:0 9px 24px #834b6720;color:#5f314b}
+.salon-mobile-subpage h2{font-size:24px;margin:0 0 8px;color:#632e4a}
+.salon-mobile-subpage p{color:#966f80;line-height:1.85}
+.salon-gift-hero{background:linear-gradient(120deg,#fff4f7,#f5cfdd);border-radius:20px;padding:22px 15px;margin-bottom:16px;display:flex;align-items:center;gap:14px}
+.salon-gift-hero .big{font-size:57px}
+.salon-gift-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.salon-gift-fields label{font-weight:800;font-size:12px;display:flex;flex-direction:column;gap:6px;color:#673a51}
+.salon-gift-fields label.wide{grid-column:1 / -1}
+.salon-gift-fields input,.salon-gift-fields select,.salon-gift-fields textarea{width:100%;min-width:0;background:#fff;border:1px solid #e8cbd8;padding:12px;border-radius:13px;outline:none;color:#552b42;font:inherit}
+.salon-gift-fields textarea{min-height:120px;resize:vertical}
+.salon-gift-preview{margin:15px 0;padding:15px;border-radius:18px;background:#fffcfd;border:1px dashed #d39db4;white-space:pre-wrap;line-height:1.9;color:#62344d;font-size:13px}
+.salon-gift-send{display:block;width:100%;background:linear-gradient(120deg,#944b6a,#5a2c44);color:#fff;border:0;border-radius:15px;padding:15px;font-size:16px;font-weight:850}
+.salon-invoice-summary{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:15px 0}
+.salon-invoice-summary div{border-radius:17px;padding:15px;background:#fff4f8;border:1px solid #f0d9e1}
+.salon-invoice-summary strong{font-size:21px;color:#682e4a;display:block;margin-top:7px}
+.salon-invoice-list{display:grid;gap:11px}
+.salon-invoice-card{background:#fff;border:1px solid #efdae3;border-radius:19px;padding:14px;box-shadow:0 6px 15px #833c5810}
+.salon-invoice-card header{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#80516b}
+.salon-invoice-card .salon-invoice-money{font-weight:900;color:#632d48;font-size:22px;margin:9px 0}
+.salon-invoice-card .salon-invoice-items{color:#815b6c;font-size:12px;line-height:1.8}
+.salon-invoice-card details{margin-top:11px;padding-top:8px;border-top:1px solid #f0e2e7}
+.salon-invoice-card summary{cursor:pointer;color:#914f70;font-weight:800;font-size:12px}
+.salon-invoice-error{color:#9d3049;padding:12px 15px;border:1px solid #efb6c6;background:#fff3f6;border-radius:15px}
+.salon-invoice-manager{margin:13px 0 16px;padding:15px;border:1px solid #e5cdd7;border-radius:18px;background:#fff6f9}
+.salon-invoice-manager button{margin:8px 0}
+@media(max-width:420px){.salon-mobile-banner{min-height:195px}.salon-banner-art img{min-height:195px}.salon-mobile-shortcuts{gap:7px}.salon-mobile-shortcut{min-height:80px;font-size:10px}.salon-mobile-banner h3{font-size:22px}.salon-mobile-subpage{padding:15px 12px}}
+@media(min-width:760px){html.salon-client-active #app.salon-editorial-client{border:1px solid #f3d4e0;border-radius:31px;box-shadow:0 20px 70px #753e5c17;margin-top:15px;margin-bottom:30px}}
+@media print{#app.salon-editorial-client nav.nav.salon-mobile-nav{display:none!important}}
+</style>
+<script id="salon-client-mobile-gifts-invoices-20261106">
+(function(){
+'use strict';
+const OWNER_UID='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+const escText=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tr=(ar,en)=>typeof lang!=='undefined'&&lang==='en'?en:ar;
+const moneyVal=n=>Number(n||0).toLocaleString('ar-SA',{minimumFractionDigits:0,maximumFractionDigits:2})+' ر.س';
+const canClient=()=>typeof portalRole!=='undefined'&&portalRole==='client'&&!!portalUser&&!!auth.currentUser;
+const canOwner=()=>!!auth.currentUser&&auth.currentUser.uid===OWNER_UID&&db?.session?.type==='owner'&&firebaseReady;
+const invoiceColl=firestore.collection('clientInvoices');
+const normalizePhone=p=>{let x=String(p||'').replace(/\D/g,'');if(x.startsWith('00966'))x=x.slice(5);else if(x.startsWith('966'))x=x.slice(3);return x.startsWith('0')?x.slice(1):x;};
+const payName=p=>({cash:'نقدي',card:'شبكة',transfer:'تحويل',points:'نقاط',mixed:'مختلط'})[p]||p||'غير محددة';
+window.salonRefreshLuxePointDisplay=function(points){const el=document.getElementById('salonMobilePointsNow');if(el)el.textContent=Math.max(0,Number(points)||0).toLocaleString('ar-SA')+' نقطة';};
+// Never expose the owner-only source invoice, bank details, internal comments, customer phone or inventories.
+window.salonMakeClientInvoiceView=function(invoice,clientUid,clientId){
+ const amount=Math.max(0,Math.round((Number(invoice.total)||0)*100)/100);
+ const explicit=invoice.paidAmount!=null&&invoice.paidAmount!==''&&Number.isFinite(Number(invoice.paidAmount));
+ const status=String(invoice.paymentStatus||invoice.status||'').toLowerCase();
+ let paid=explicit?Math.max(0,Math.min(amount,Math.round(Number(invoice.paidAmount)*100)/100)):null;
+ if(!explicit){
+  if(['pending','unpaid','cancelled','canceled','void'].includes(status))paid=0;
+  else if(invoice.payment==='points')paid=0;
+  else if(['cash','card','transfer','mixed'].includes(invoice.payment))paid=amount;
+  // Missing payment methods are not counted without a known paidAmount.
+ }
+ const items=(Array.isArray(invoice.items)?invoice.items:[]).slice(0,80).map(x=>({name:String(x.name||x.serviceName||'خدمة').slice(0,120),qty:Math.max(1,Math.min(99,Number(x.quantity)||1)),price:Math.max(0,Number(x.price)||0)}));
+ return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,payment:String(invoice.payment||''),pointsAdded:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+};
+function invoiceViewId(id){return encodeURIComponent(String(id));}
+let activeUser='',invoiceStop=null,records=[],invoiceLoadStatus='not-loaded',invoiceLoadError='';
+function stopClientInvoices(){if(invoiceStop){try{invoiceStop()}catch(e){}invoiceStop=null}activeUser='';records=[];invoiceLoadStatus='not-loaded';invoiceLoadError='';}
+function beginClientInvoices(){
+ if(!canClient()||salonClientPage!=='invoices')return;
+ const uid=auth.currentUser.uid;
+ if(activeUser===uid&&invoiceStop)return;
+ stopClientInvoices();activeUser=uid;invoiceLoadStatus='loading';drawInvoices();
+ try{
+  invoiceStop=invoiceColl.where('clientUid','==',uid).onSnapshot(snap=>{
+   if(auth.currentUser?.uid!==uid||salonClientPage!=='invoices')return;
+   records=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.number).localeCompare(String(a.number)));
+   invoiceLoadStatus='ready';invoiceLoadError='';drawInvoices();
+  },e=>{if(auth.currentUser?.uid!==uid)return;invoiceLoadStatus='error';invoiceLoadError=e.code==='permission-denied'?'يلزم نشر قواعد Firestore الخاصة بعرض فواتير العميلة.':String(e.message||e);drawInvoices()});
+ }catch(e){invoiceLoadStatus='error';invoiceLoadError=String(e.message||e);drawInvoices()}
+}
+function drawInvoices(){
+ if(!canClient()||salonClientPage!=='invoices')return;
+ const panel=document.getElementById('salonClientPagePanel');if(!panel)return;
+ const issued=records.reduce((sum,r)=>sum+Math.max(0,Number(r.total)||0),0);
+ const paid=records.reduce((sum,r)=>sum+(r.paidAmount!=null?Math.max(0,Number(r.paidAmount)||0):0),0);
+ const unknown=records.filter(r=>r.paidAmount==null).length;
+ const pending=invoiceLoadStatus==='loading';
+ const cards=records.map(r=>{
+  const items=(r.items||[]).map(i=>`<div>${escText(i.name||'خدمة')} × ${Math.max(1,Number(i.qty)||1)} — ${moneyVal(i.price)}</div>`).join('');
+  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div><div class="salon-invoice-items">${escText(r.serviceName||tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(payName(r.payment))}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
+ }).join('');
+ panel.innerHTML=`<div class="salon-mobile-subpage"><h2>🧾 ${tr('فواتيري','My invoices')}</h2><p>${tr('فواتير مشترياتك المرتبطة بحسابك بعد اعتماد الملكية من الصالون.','Invoices linked to your verified salon account.')}</p><div class="salon-invoice-summary"><div>${tr('إجمالي المدفوع المسجل','Recorded payments')}<strong>${moneyVal(paid)}</strong></div><div>${tr('قيمة جميع الفواتير','Total invoice value')}<strong>${moneyVal(issued)}</strong></div><div>${tr('عدد فواتيري','Invoices')}<strong>${records.length}</strong></div><div>${tr('مبالغ غير محددة','Unverified payments')}<strong>${unknown}</strong></div></div>${unknown?`<p class="notice">${tr('بعض الفواتير طريقة دفعها مختلطة أو غير محددة؛ لا تُضاف إلى إجمالي المدفوع حتى تتحدد القيمة.','Some mixed or unspecified payments are excluded from the paid total until verified.')}</p>`:''}</div><div class="salon-invoice-list">${invoiceLoadStatus==='error'?`<div class="salon-invoice-error">${escText(invoiceLoadError)}</div>`:pending?`<div class="card">${tr('جارٍ تحميل فواتيرك…','Loading your invoices…')}</div>`:cards||`<div class="salon-mobile-subpage"><p>${tr('لا توجد فواتير مرتبطة بحسابك بعد. اطلبِي من الصالون اعتماد ملكية حسابك ومزامنة فواتيرك السابقة.','No invoices have been linked yet. Ask the salon to verify your account and sync previous invoices.')}</p></div>`}</div>`;
+}
+function giftMarkup(){
+ const n=String(portalUser?.nameAr||portalUser?.name||'').slice(0,100);
+ const packageOptions=(portalCatalog?.packages||[]).filter(x=>x.active!==false).map(x=>`<option value="${escText(String(x.name||x.nameEn||'باقة'))}">${escText(String(x.name||x.nameEn||'باقة'))}</option>`).join('');
+ return `<section class="salon-mobile-subpage"><div class="salon-gift-hero"><span class="big">🎁</span><div><h2>${tr('هديّة بكل حب','A gift with love')}</h2><p style="margin:4px 0 0">${tr('احتفلي بصديقتك برسالة خاصة، ونحن نتولى ترتيب الهدية بعد التواصل عبر واتساب.','Celebrate your friend with a heartfelt gift request.')}</p></div></div><form id="salonGiftRequest"><div class="salon-gift-fields"><label>${tr('المناسبة','Occasion')}<select name="occasion" required><option value="عيد ميلاد">عيد ميلاد 🎂</option><option value="تخرج">تخرج 🎓</option><option value="شكر وتقدير">شكر وتقدير 💗</option><option value="زواج أو خطوبة">زواج أو خطوبة 💍</option><option value="مفاجأة بدون مناسبة">مفاجأة بدون مناسبة 🌸</option><option value="أخرى">مناسبة أخرى ✨</option></select></label><label>${tr('نوع الهدية','Gift type')}<select name="giftType" required><option value="خدمة تجميل">خدمة تجميل</option><option value="باقة">باقة</option><option value="قسيمة هدية">قسيمة هدية</option>${packageOptions}</select></label><label>${tr('اسم صديقتك','Friend’s name')}<input name="recipientName" autocomplete="off" maxlength="90" required placeholder="اسم المستلمة"></label><label>${tr('رقم جوال المستلمة','Recipient phone')}<input name="recipientPhone" inputmode="tel" autocomplete="tel" placeholder="05xxxxxxxx" required maxlength="20" dir="ltr"></label><label class="wide">${tr('اسم مرسلة الهدية','Sender name')}<input name="senderName" value="${escText(n)}" maxlength="90" required></label><label class="wide">${tr('رسالتك المكتوبة لصديقتك','Your message')}<textarea name="message" maxlength="700" required placeholder="كل عام وأنتِ أجمل صديقة…"></textarea></label><label class="wide">${tr('تفاصيل الهدية المطلوبة (اختياري)','Gift details (optional)')}<input name="giftDetails" maxlength="160" placeholder="مثلاً: باقة أظافر أو ميزانية الهدية"></label></div><p style="font-size:12px">${tr('هذه رسالة طلب للصالون فقط، وليست عملية شراء أو إرسالًا تلقائيًا للمستلمة. يمكنك مراجعتها داخل واتساب قبل الإرسال.','This creates a WhatsApp request, not a purchase or an automatic message to your friend.')}</p><div class="salon-gift-preview" id="salonGiftPreview">${tr('اكتبي البيانات لتظهر معاينة رسالة الواتساب هنا.','Fill the form to preview your WhatsApp message.')}</div><button class="salon-gift-send" type="submit">${tr('إرسال طلب الهدية عبر واتساب','Open gift request in WhatsApp')} 💌</button></form></section>`;
+}
+function giftMessage(form){
+ const v=n=>String(form.elements.namedItem(n)?.value||'').trim();
+ const name=v('recipientName'),phone=normalizePhone(v('recipientPhone'));
+ if(!name||!/^5\d{8}$/.test(phone))throw Error('اكتبي اسم المستلمة ورقم جوال سعودي صحيحًا بصيغة 05xxxxxxxx.');
+ const send=v('senderName'),message=v('message');if(!send||!message)throw Error('اكتبي اسم المرسلة وكلام الإهداء.');
+ return `🎁 أريد إرسال هدية من صالون جودة الأظافر\n\nالمناسبة: ${v('occasion')}\nنوع الهدية: ${v('giftType')}\nاسم المستلمة: ${name}\nرقم جوال المستلمة: 0${phone}\nمرسلة الهدية: ${send}\nكلام الإهداء الذي أريده:\n«${message}»${v('giftDetails')?'\nتفاصيل إضافية: '+v('giftDetails'):''}\n\nأرجو التواصل معي لتأكيد السعر وطريقة الدفع وتجهيز الهدية. شكرًا 💗`;
+}
+function bindGift(){
+ const form=document.getElementById('salonGiftRequest');if(!form)return;
+ const preview=document.getElementById('salonGiftPreview');
+ function refresh(){try{preview.textContent=giftMessage(form)}catch(e){preview.textContent=String(e.message||e)}}
+ form.addEventListener('input',refresh);form.addEventListener('change',refresh);
+ form.onsubmit=e=>{
+  e.preventDefault();try{
+   const message=giftMessage(form);
+   let business=String(portalCatalog?.settings?.whatsapp||WA_NUMBER).replace(/\D/g,'');
+   if(business.startsWith('0'))business='966'+business.slice(1);else if(/^5\d{8}$/.test(business))business='966'+business;
+   if(!/^9665\d{8}$/.test(business))throw Error('رقم واتساب الصالون في الإعدادات غير صالح؛ راجعيه من لوحة المالكة.');
+   const url='https://wa.me/'+business+'?text='+encodeURIComponent(message);
+   // Direct click: the customer will review and press Send in WhatsApp themselves.
+   const opened=window.open(url,'_blank','noopener,noreferrer');
+   if(!opened){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='فتح واتساب الصالون وإرسال طلب الهدية';a.className='btn';form.append(a);toast('اضغطي رابط واتساب الذي ظهر لفتح الرسالة.')}else toast('تم فتح رسالة الهدية؛ راجعيها واضغطي إرسال في واتساب.');
+  }catch(err){toast(String(err.message||err));refresh()}
+ };
+ refresh();
+}
+function homeMarkup(){
+ const name=String(portalUser?.nameAr||portalUser?.name||'ضيفتنا').split(' ')[0];
+ const now=new Date(),next=(portalBookings||[]).filter(b=>b.date>=today()&&!['cancelled','rejected','completed'].includes(b.status)).sort((a,b)=>String(a.date+b.time).localeCompare(String(b.date+b.time)))[0];
+ const pts=Math.max(0,Number(typeof window.salonCurrentApprovedLoyaltyPoints==='function'?window.salonCurrentApprovedLoyaltyPoints():portalUser?.points)||0);
+ const first=(portalCatalog?.services||[]).filter(x=>x.active!==false&&/^https:\/\//i.test(String(x.imageUrl||'')))[0];
+ const heroArt=first?`<img src="${escText(first.imageUrl)}" alt="${escText(first.name)}" loading="lazy" referrerpolicy="no-referrer">`:`<img src="data:image/webp;base64,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" alt="أظافر وردية فاخرة" loading="lazy">`;
+ const actions=[['book','📅','الحجز'],['packages','🛍️','الباقات'],['myPackages','🎀','باقاتي'],['bookings','🗓️','مواعيدي'],['invoices','🧾','فواتيري'],['points','✨','نقاطي'],['gifts','🎁','الهدايا'],['account','⚙️','الإعدادات']];
+ const offers=(portalCatalog?.packages||[]).filter(p=>p.active!==false).slice(0,4);
+ return `<div class="salon-mobile-top"><div><div class="salon-top-greeting">🌸 ${tr('أهلًا بكِ','Welcome')}</div><strong>${tr('مرحبًا','Hello')} ${escText(name)} 💗</strong></div><div class="salon-mobile-logo">❀</div></div><div class="salon-mobile-brand">صالون جودة الأظافر <span>NAIL QUALITY SALON · المدينة المنورة</span></div><div class="salon-mobile-highlights"><div class="salon-mobile-info accent"><span class="salon-kicker">✦ نقاطك المتاحة</span><strong id="salonMobilePointsNow">${pts.toLocaleString('ar-SA')} نقطة</strong><small>مكافآت تستحقينها</small></div><div class="salon-mobile-info"><span class="salon-kicker">📅 موعدك القادم</span><strong style="font-size:${next?'16':'19'}px">${next?escText(next.date):'لا يوجد موعد'}</strong><small>${next?escText(next.time||'')+' · '+escText(next.serviceName||''): 'احجزي جلستك القادمة'}</small></div></div><div class="salon-mobile-banner"><div class="salon-banner-text"><div class="small">✧ عناية تليق بجمالك</div><h3>تألّقي بأظافر مثالية</h3><p>وقت خاص لكِ، وتجربة فاخرة بكل تفاصيلها.</p><button type="button" data-luxe-page="book">احجزي الآن ♡</button></div><div class="salon-banner-art">${heroArt}</div></div><div class="salon-mobile-section-title">خدماتك في مكان واحد <small>اختاري ما يناسبك ✨</small></div><div class="salon-mobile-shortcuts">${actions.map(([page,icon,label])=>`<button type="button" class="salon-mobile-shortcut" data-luxe-page="${page}"><span>${icon}</span>${label}</button>`).join('')}</div><div class="salon-mobile-section-title">عروضنا المميزة <small>🎀</small></div><div class="salon-mobile-offers">${offers.length?offers.map(p=>`<button type="button" class="salon-mobile-offer" data-luxe-page="packages" style="text-align:right"><span class="icon">🎁</span><b>${escText(p.name||'باقة خاصة')}</b><strong>${moneyVal(p.price)}</strong></button>`).join(''):`<button type="button" class="salon-mobile-offer" data-luxe-page="packages"><b>اكتشفي باقاتنا</b><strong>♡</strong></button><button type="button" class="salon-mobile-offer" data-luxe-page="gifts"><b>أهدي صديقتك</b><strong>🎁</strong></button>`}</div>`;
+}
+const navSpecs=[['home','🏠','الرئيسية','Home'],['book','📅','الحجز','Book'],['packages','🛍️','الباقات','Packages'],['myPackages','🎀','باقاتي','My packages'],['bookings','🗓️','مواعيدي','Appointments'],['invoices','🧾','فواتيري','Invoices'],['points','✨','نقاطي','Points'],['gifts','🎁','الهدايا','Gifts'],['account','⚙️','الإعدادات','Settings']];
+function showNav(){
+ const app=document.getElementById('app');const nav=app?.querySelector('nav.nav');if(!nav)return;
+ nav.classList.add('salon-mobile-nav');nav.style.removeProperty('margin');
+ // Existing page modules have finished, so replacing the duplicate nav buttons leaves original forms untouched.
+ nav.innerHTML=navSpecs.map(([page,icon,ar,en])=>`<button type="button" data-luxe-page="${page}" class="${salonClientPage===page?'active':''}" ${salonClientPage===page?'aria-current="page"':''}><span class="salon-nav-icon">${icon}</span><span class="salon-nav-label">${tr(ar,en)}</span></button>`).join('');
+ const focused=nav.querySelector('button.active');if(focused)requestAnimationFrame(()=>{if(focused.isConnected)focused.scrollIntoView({block:'nearest',inline:'nearest'})});
+}
+function go(page){if(!canClient())return;const allowed=navSpecs.some(x=>x[0]===page);if(!allowed)return;salonClientPage=page;renderPortalClient();try{window.scrollTo({top:0,behavior:'instant'})}catch(e){window.scrollTo(0,0)}}
+document.addEventListener('click',e=>{const b=e.target.closest?.('#app.salon-editorial-client [data-luxe-page]');if(!b)return;e.preventDefault();go(b.dataset.luxePage)});
+let syncing=false;
+async function verifiedUidMap(mainClients){
+ const links=(mainClients||[]).filter(c=>c.authUid&&String(c.id));
+ const unique=[...new Set(links.map(c=>String(c.authUid)))];
+ const found=new Map();
+ for(const uid of unique){
+  const client=links.find(c=>String(c.authUid)===uid);if(links.filter(c=>String(c.authUid)===uid).length!==1)continue;
+  const doc=await firestore.collection('clientProfiles').doc(uid).get({source:'server'});
+  if(doc.exists&&normalizePhone(doc.data()?.phone)===normalizePhone(client.phone)&&normalizePhone(client.phone).length===9)found.set(String(client.id),uid);
+ }
+ return found;
+}
+window.salonSyncCustomerInvoices=async function(){
+ if(!canOwner()||syncing)return false;
+ syncing=true;
+ const status=document.getElementById('salonInvoiceSyncStatus');if(status)status.textContent='جارٍ مطابقة فواتير العميلات بالحسابات المعتمدة…';
+ try{
+  await saveQueue;
+  const main=await salonDoc.get({source:'server'});if(!main.exists)throw Error('لا توجد بيانات للصالون');
+  const clients=Array.isArray(main.data().clients)?main.data().clients:[];
+  const verified=await verifiedUidMap(clients);
+  // Read source IDs from the owner-only invoices, not the client's untrusted phone.
+  const snapshots=await firestore.collection('salonInvoices').get({source:'server'});
+  let synced=0,omitted=0;
+  const docs=snapshots.docs;
+  for(let start=0;start<docs.length;start+=35){
+   if(!canOwner())throw Error('انتهت جلسة المالكة');
+   const batch=docs.slice(start,start+35);
+   await firestore.runTransaction(async tx=>{
+    const live=await Promise.all(batch.map(doc=>tx.get(doc.ref)));
+    const patch=[];
+    for(let i=0;i<live.length;i++){
+     if(!live[i].exists)continue;
+     const invoice={id:live[i].id,...live[i].data()};
+     const uid=verified.get(String(invoice.clientId||''));
+     patch.push({ref:invoiceColl.doc(invoiceViewId(invoice.id)),view:uid?window.salonMakeClientInvoiceView(invoice,uid,invoice.clientId):null});
+    }
+    for(const row of patch){if(row.view)tx.set(row.ref,row.view);else tx.delete(row.ref)}
+   });
+   synced+=batch.filter(d=>verified.has(String(d.data()?.clientId||''))).length;
+   omitted+=batch.filter(d=>!verified.has(String(d.data()?.clientId||''))).length;
+   if(status)status.textContent='تمت مراجعة '+Math.min(start+35,docs.length)+' / '+docs.length+' فاتورة…';
+  }
+  const note='اكتملت المزامنة: '+synced+' فاتورة لحسابات متحقّق منها. '+omitted+' فاتورة بدون ارتباط معتمد لم تُعرض للعميلات.';
+  if(status)status.textContent=note;
+  toast(note);return true;
+ }catch(e){const text=String(e.message||e);if(status)status.textContent='تعذّرت المزامنة: '+text;toast('تعذّرت مزامنة فواتير العميلات: '+text);return false}
+ finally{syncing=false}
+};
+function ownerSyncPanel(){
+ if(!canOwner())return;
+ if(!['invoices','clients','assistant'].includes(String(ownerActiveTab)))return;
+ const parent=document.querySelector('.owner-content')||document.getElementById('app');if(!parent||parent.querySelector('#salonOwnerInvoiceSync'))return;
+ const box=document.createElement('section');box.id='salonOwnerInvoiceSync';box.className='salon-invoice-manager';
+ box.innerHTML='<h3>🧾 فواتير العميلات في حساباتهن</h3><p>الفواتير الجديدة تنتقل تلقائيًا للعميلة المرتبطة. استخدمي الزر مرة واحدة للفواتير القديمة، وبعد اعتماد ربط حساب عميلة لأول مرة.</p><button type="button" class="btn">مزامنة فواتير العميلات السابقة</button><p class="muted tiny" id="salonInvoiceSyncStatus">لا تُعرض الفواتير برقم الجوال فقط، ولا يراها أي حساب غير مرتبط بعد التحقق.</p>';
+ box.querySelector('button').onclick=()=>window.salonSyncCustomerInvoices();parent.prepend(box);
+}
+const prevClient=renderPortalClient;
+renderPortalClient=function(...args){
+ const result=prevClient.apply(this,args);
+ if(!canClient()){stopClientInvoices();return result}
+ const app=document.getElementById('app');if(!app)return result;
+ app.classList.toggle('salon-mobile-booking',salonClientPage==='book');
+ showNav();
+ const nav=app.querySelector('nav.salon-mobile-nav');
+ const panel=app.querySelector('#salonClientPagePanel');
+ if(salonClientPage==='home'){
+  app.querySelector('#salonMobileHome')?.remove();
+  const home=document.createElement('section');home.id='salonMobileHome';home.innerHTML=homeMarkup();if(nav)app.insertBefore(home,nav);else app.prepend(home);
+ }else app.querySelector('#salonMobileHome')?.remove();
+ if(salonClientPage==='book'){
+  if(panel)panel.innerHTML='<div class="salon-mobile-subpage"><h2>📅 احجزي موعدك</h2><p>اختاري الخدمة والموظفة والوقت، وراجعي خصم نقاطك قبل إرسال الطلب.</p></div>';
+ }
+ if(salonClientPage==='gifts'){
+  if(panel){panel.innerHTML=giftMarkup();bindGift()}
+ }
+ if(salonClientPage==='invoices'){if(panel){panel.innerHTML='<div class="salon-mobile-subpage">جارٍ تحميل فواتيرك…</div>';beginClientInvoices();drawInvoices()}}
+ else if(invoiceStop)stopClientInvoices();
+ return result;
+};
+const prevOwner=renderOwner;
+renderOwner=function(...args){const result=prevOwner.apply(this,args);ownerSyncPanel();return result};
+auth.onAuthStateChanged(u=>{if(!u||u.uid!==activeUser)stopClientInvoices()});
 })();
 </script>
 
