@@ -790,6 +790,100 @@ function salonCancellationLink(booking){
  const url=salonCancellationWhatsApp(booking);
  return url?'<a class="btn secondary small" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">إبلاغ العميلة بالإلغاء عبر واتساب</a>':'';
 }
+function salonWhatsAppUrl(number,lines){
+ const digits=salonNormalizePhone(String(number||'').replace(/[\u0660-\u0669\u06F0-\u06F9]/g,d=>String(d.charCodeAt(0)&15)));
+ return /^5\d{8}$/.test(digits)?'https://wa.me/966'+digits+'?text='+encodeURIComponent(lines.filter(Boolean).join('\n')):'';
+}
+function salonRequestWhatsApp(lines){
+ return salonWhatsAppUrl(portalCatalog?.settings?.whatsapp||WA_NUMBER,lines);
+}
+function salonOpenRequestWindow(){
+ const popup=window.open('about:blank','_blank');
+ if(popup){try{popup.opener=null;popup.document.title='صالون جودة الأظافر';popup.document.body.textContent='جارٍ تسجيل الطلب قبل فتح واتساب…'}catch(error){console.debug(error)}}
+ return popup;
+}
+function salonFinishRequestWhatsApp(url,popup,container){
+ if(!url){popup?.close();toast('تم حفظ الطلب. رقم واتساب الصالون يحتاج إلى مراجعة في الإعدادات.');return}
+ if(container){
+  container.querySelector('[data-request-whatsapp]')?.remove();
+  const link=document.createElement('a');
+  link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.className='btn secondary';
+  link.textContent='فتح واتساب بالرسالة الجاهزة';link.dataset.requestWhatsapp='1';
+  container.append(link);
+ }
+ if(popup&&!popup.closed)popup.location.href=url;
+}
+function salonBookingConfirmationLink(booking){
+ const number=Number(booking.queueNumber);
+ if(!Number.isSafeInteger(number)||number<1||booking.queueDate!==booking.date||!['confirmed','arrived','inProgress','completed'].includes(booking.status))return '';
+ const url=salonWhatsAppUrl(booking.clientPhone,[
+  'صالون جودة الأظافر — تأكيد الموعد',
+  'أهلًا '+(booking.clientName||'بكِ')+'، تم تأكيد حجزكِ.',
+  'رقم دوركِ: '+number,'اليوم والتاريخ: '+salonBookingDayLabel(booking.date),
+  'الوقت: '+booking.time,'الخدمة: '+(booking.serviceName||''),
+  booking.pointsToRedeem>0?'طلب استخدام '+booking.pointsToRedeem+' نقطة مسجّل ويُطبّق عند مراجعة الفاتورة.':''
+ ]);
+ return url?`<a class="btn secondary small" href="${esc(url)}" target="_blank" rel="noopener noreferrer">إرسال التأكيد ورقم الدور عبر واتساب</a>`:'<small class="muted">رقم جوال العميلة يحتاج إلى تصحيح لإرسال التأكيد.</small>';
+}
+function salonBookingDayLabel(date){
+ const day=new Date(date+'T12:00:00+03:00');
+ return Number.isFinite(day.getTime())?new Intl.DateTimeFormat('ar-SA-u-ca-gregory',{weekday:'long',timeZone:'Asia/Riyadh'}).format(day)+'، '+date:date;
+}
+function salonBookingQueueStatus(booking){
+ if(booking.status==='pending')return 'قائمة الانتظار — بانتظار موافقة الصالون';
+ if(booking.status==='confirmed')return 'مؤكد';
+ return t(booking.status||'pending');
+}
+async function salonConfirmBookingWithQueue(tx,ref,expected,staff){
+ const latest=await tx.get(ref);
+ if(!latest.exists||!['pending','confirmed'].includes(latest.data().status))throw Error('تغيّرت حالة الحجز. حدّثي القائمة');
+ const booking=latest.data();
+ if(!salonInvoiceSame(booking,expected))throw Error('تغيّرت بيانات الحجز. أعيدي التأكيد');
+ const profile=await tx.get(firestore.collection('employeeProfiles').doc(String(staff.authUid)));
+ if(!profile.exists||profile.data().active!==true||profile.data().archived===true)throw Error('حساب الموظفة غير نشط');
+ if(booking.packageUseRequested){
+  const owned=await tx.get(firestore.collection('clientPackageViews').doc(String(booking.clientUid)));
+  const balance=(owned.data()?.balances||[]).find(b=>String(b.id)===String(booking.packageBalanceId));
+  if(!balance||!Number.isSafeInteger(Number(balance.total))||!Number.isSafeInteger(Number(balance.used))||Number(balance.total)<=Number(balance.used)||balance.expiresOn&&balance.expiresOn<booking.date||
+     !(booking.serviceIds||[]).every(id=>(balance.eligibleServiceIds||[]).map(String).includes(String(id))))
+   throw Error('رصيد الباقة غير متاح لهذا الحجز');
+ }
+ if(booking.pointsToRedeem>0){
+  const account=await tx.get(firestore.collection('loyaltyAccounts').doc(String(booking.clientUid)));
+  const wallet=account.data();
+  if(!wallet?.approved||!wallet.clientId||!Number.isSafeInteger(Number(wallet.points))||Number(wallet.points)<Number(booking.pointsToRedeem))
+   throw Error('رصيد النقاط المعتمد لا يكفي لهذا الطلب');
+ }
+ const queue=await salonPrepareBookingQueue(tx,booking);
+ queue.write();
+ tx.update(ref,{status:'confirmed',depositStatus:booking.packageUseRequested?'not_required':'paid',
+  staffUid:String(staff.authUid),staffName:String(staff.name),queueNumber:queue.number,queueDate:booking.date,
+  updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+ return queue.number;
+}
+
+async function salonPrepareBookingQueue(tx,booking){
+ const date=String(booking.date||''),uid=String(booking.clientUid||'');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!uid)throw Error('تاريخ الحجز أو حساب العميلة غير صالح لتخصيص الدور');
+ const day=firestore.collection('salonBookingQueues').doc(date);
+ const member=day.collection('clients').doc(uid);
+ const daySnap=await tx.get(day),memberSnap=await tx.get(member);
+ const last=daySnap.exists?daySnap.data().lastNumber:0;
+ if(!Number.isSafeInteger(last)||last<0)throw Error('عداد أدوار اليوم يحتاج إلى مراجعة');
+ if(memberSnap.exists){
+  const number=memberSnap.data().number;
+  if(!Number.isSafeInteger(number)||number<1||number>last)throw Error('رقم دور العميلة يحتاج إلى مراجعة');
+  return {number,write:()=>{}};
+ }
+ const number=last+1;
+ if(!Number.isSafeInteger(number))throw Error('تعذر تخصيص رقم الدور');
+ return {number,write:()=>{
+  const updatedAt=firebase.firestore.FieldValue.serverTimestamp();
+  tx.set(day,{lastNumber:number,updatedAt});
+  tx.set(member,{number,assignedAt:updatedAt});
+ }};
+}
+
 function salonCancellationWhatsApp(booking){
  const customer=(db.clients||[]).find(c=>String(c.id)===String(booking.clientId)||booking.clientUid&&String(c.authUid)===String(booking.clientUid));
  const digits=salonNormalizePhone(customer?.phone||booking.clientPhone||booking.customerPhone||booking.phone);
@@ -2707,7 +2801,7 @@ renderPortalClient=function(){
  const settings=portalCatalog.settings||{};const pts=Math.max(0,Number(portalUser.points)||0);const threshold=Math.max(1,Number(settings.redeemPoints)||50);const riyals=Math.max(0,Number(settings.redeemRiyals)||10);
  if(salonClientPage==='bookings'){
   const rows=portalBookings.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  panel.innerHTML='<div class="section-head"><h3>📅 '+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(b.status||'pending')} • ${b.packageUseRequested?'🎁 موعد باقة — بانتظار تأكيد الصالون':(b.depositStatus==='paid'?'✅ مدفوع':'🕒 لم يُدفع العربون')}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p>${Number(b.pointsToRedeem)>0?'<p><strong>خصم النقاط المطلوب: '+esc(b.pointsToRedeem)+' نقطة = '+money(b.loyaltyDiscountRequested)+'</strong> · بعد الخصم المتوقع: '+money(Math.max(0,Number(b.price||0)-Number(b.loyaltyDiscountRequested||0)))+'</p>':''}<small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد حجوزات مؤكدة في النظام حاليًا. الطلبات المرسلة عبر واتساب تنتظر تأكيد الصالون ولا تُضاف تلقائيًا إلى مواعيدي.</div>');
+  panel.innerHTML='<div class="section-head"><h3>'+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(salonBookingQueueStatus(b))} • ${b.packageUseRequested?'موعد من رصيد الباقة':(b.depositStatus==='paid'?'العربون مدفوع':'العربون لم يُدفع')}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p>${Number(b.pointsToRedeem)>0?'<p><strong>خصم النقاط المطلوب: '+esc(b.pointsToRedeem)+' نقطة = '+money(b.loyaltyDiscountRequested)+'</strong> · بعد الخصم المتوقع: '+money(Math.max(0,Number(b.price||0)-Number(b.loyaltyDiscountRequested||0)))+'</p>':''}${b.queueNumber&&b.queueDate===b.date&&b.status!=='cancelled'?`<p><strong>رقم دوركِ: ${esc(b.queueNumber)}</strong></p>`:''}<small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد طلبات حجز مسجلة حاليًا.</div>');
  }else if(salonClientPage==='points'){
   panel.innerHTML=`<div class="section-head"><h3>🎁 ${lang==='ar'?'نقاطي ومكافآتي':'My points & rewards'}</h3></div><div class="stats"><div class="stat"><span>رصيد النقاط</span><strong>${pts}</strong></div><div class="stat"><span>خصم متاح عند الاستبدال</span><strong>${money(Math.floor(pts/threshold)*riyals)}</strong></div></div><div class="card" style="margin-top:14px"><h3>كيف أستخدم نقاطي؟</h3><p>كل ${threshold} نقطة = خصم ${money(riyals)} حسب سياسة الصالون.</p><p>يمكنك اختيار «نعم، أريد استخدام نقاطي» أثناء طلب الحجز. يراجع الصالون الرصيد ويؤكد قيمة الخصم قبل إصدار الفاتورة.</p><p class="notice">لا تُخصم أي نقاط بمجرد إرسال طلب واتساب. يُعتمد الخصم عند تأكيد الصالون والدفع.</p><button type="button" class="btn" onclick="salonClientPage='home';renderPortalClient()">احجزي واستخدمي نقاطك</button></div>`;
  }
@@ -2715,7 +2809,12 @@ renderPortalClient=function(){
  if(bookingForm){
   const old=bookingForm.querySelector('button[onclick*="wa.me"]');if(old)old.remove();
   const send=bookingForm.querySelector('button[type="submit"]');
-  if(send)send.textContent=lang==='ar'?'إرسال طلب الحجز للصالون':'Submit booking to salon';
+  if(send){
+   send.textContent=lang==='ar'?'تسجيل الطلب وفتح واتساب لدفع العربون':'Save request and open WhatsApp to pay the deposit';
+   const deposit=document.createElement('p');deposit.className='notice full';
+   deposit.textContent=lang==='ar'?'لتأكيد الحجز يجب الذهاب إلى واتساب لدفع العربون. يبقى طلبك في قائمة الانتظار حتى موافقة الصالون.':'To confirm your booking, go to WhatsApp to pay the deposit. Your request remains on the waiting list until the salon approves it.';
+   send.before(deposit);
+  }
   const note=bookingForm.querySelector('.notice');if(note)note.textContent='يُرسل طلب الحجز إلى إدارة الصالون ويظل بانتظار التأكيد أو الإلغاء. لا تُخصم النقاط إلا بعد موافقة الإدارة.';
   const check=bookingForm.querySelector('[name="redeem"]');if(check){const label=check.closest('label');if(label)label.innerHTML='<input type="checkbox" name="redeem"> نعم، أريد استخدام نقاطي في هذا الحجز';}
   bookingForm.onsubmit=submitPortalBooking;
@@ -2889,15 +2988,21 @@ const oldClientPortal=renderPortalClient;renderPortalClient=function(){oldClient
 (function(){
 'use strict';
 const bookingCollection=firestore.collection('portalBookings');
-const adminPhone='966544267911';
 const safeStr=v=>String(v??'');
 function bookingWhatsApp(b,id){
- const message=['🌸 طلب حجز جديد — صالون جودة الأظافر','رقم الطلب: '+id,'العميلة: '+b.clientName,'الجوال: '+b.clientPhone,'الخدمات: '+b.serviceName,'الموظفة: '+b.staffName,'التاريخ: '+b.date,'الوقت: '+b.time,'المكان: '+(b.location==='home'?'منزل':'الصالون'),'السعر المبدئي: '+b.price+' ريال',...(b.pointsToRedeem>0?['طلب خصم النقاط: '+b.pointsToRedeem+' نقطة = '+b.loyaltyDiscountRequested+' ريال','الإجمالي المتوقع: '+Math.max(0,b.price-b.loyaltyDiscountRequested)+' ريال (قبل التأكيد)']:[]),'العربون: لم يُدفع بعد','الحالة: بانتظار تأكيد الإدارة'].join('\n');
- return 'https://wa.me/'+adminPhone+'?text='+encodeURIComponent(message);
+ return salonRequestWhatsApp(['طلب حجز — صالون جودة الأظافر','رقم الطلب: '+id,'العميلة: '+b.clientName,
+  'الجوال: '+b.clientPhone,'الخدمات: '+b.serviceName,'الموظفة: '+b.staffName,
+  'اليوم والتاريخ: '+salonBookingDayLabel(b.date),'الوقت المطلوب: '+b.time,
+  'المكان: '+(b.location==='home'?'منزل':'الصالون'),b.address?'العنوان: '+b.address:'',
+  b.notes?'الملاحظات: '+b.notes:'','السعر المبدئي: '+b.price+' ريال',
+  ...(b.pointsToRedeem>0?['طلب استخدام النقاط: '+b.pointsToRedeem+' نقطة','الخصم المتوقع: '+b.loyaltyDiscountRequested+' ريال',
+    'الإجمالي بعد الخصم المتوقع: '+Math.max(0,b.price-b.loyaltyDiscountRequested)+' ريال']:[]),
+  'الحالة: قائمة الانتظار حتى دفع العربون وموافقة الصالون. يرجى تزويدي بطريقة دفع العربون.']);
 }
 submitPortalBooking=async function(event){
  event.preventDefault();
  const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+ if(button?.disabled)return;
  if(!auth.currentUser||portalRole!=='client'||!portalUser){toast('سجّلي دخول العميلة أولًا');return}
  const data=new FormData(form),services=[];
  for(const item of (portalCatalog.services||[]).filter(x=>x.active!==false)){
@@ -2923,6 +3028,8 @@ submitPortalBooking=async function(event){
  }
  const record={clientUid:auth.currentUser.uid,clientName:safeStr(portalUser.nameAr||portalUser.name).slice(0,100),clientNameEn:safeStr(portalUser.nameEn||'').slice(0,70),clientPhone:safeStr(portalUser.phone).slice(0,20),staffUid:safeStr(staff.authUid||staff.id),staffName:safeStr(staff.name),serviceIds:services.map(x=>safeStr(x.id)),serviceName:services.map(x=>safeStr(x.name)).join('، ').slice(0,500),price,duration,date,time,location,address,notes,redeemRequested:wantsPoints,pointsToRedeem,loyaltyDiscountRequested,status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
  if(button)button.disabled=true;
+ const popup=salonOpenRequestWindow();
+ let saved=false;
  try{
   // A booking MUST read the published opening status in the same Firestore
   // transaction that writes the request. Never trust a cached open state.
@@ -2951,14 +3058,19 @@ submitPortalBooking=async function(event){
     }
     tx.set(ref,record);
   });
+  saved=true;
+  const url=bookingWhatsApp(record,ref.id);
+  salonFinishRequestWhatsApp(url,popup);
   try{await loadPortalBookings()}catch(err){console.warn('Booking saved, list refresh failed',err)}
   salonClientPage='bookings';renderPortalClient();
-  const url=bookingWhatsApp(record,ref.id);
-  const notice=document.createElement('div');notice.className='card';notice.style.margin='12px 0';notice.innerHTML='<h3>✅ تم حفظ طلب الحجز لدى الإدارة</h3><p>رقم الطلب: '+esc(ref.id)+'</p><p>الحالة: بانتظار دفع العربون وتأكيد الصالون. يمكنك إرسال التفاصيل أيضًا عبر واتساب.</p>';
-  const link=document.createElement('a');link.className='btn success';link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='إرسال تفاصيل الحجز إلى واتساب الإدارة';notice.append(link);
-  const target=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');target.prepend(notice);
-  toast('تم حفظ الحجز في Firebase بنجاح');
- }catch(err){console.error('Booking Firestore error',err);toast('لم يُحفظ الحجز: '+(err.code==='permission-denied'?'قواعد Firebase منعت الحجز. تأكدي من نشر قواعد الحجوزات الجديدة، ومن فتح الحجوزات في لوحة المالكة.':err.message));}
+  const notice=document.createElement('div');notice.className='card';notice.style.margin='12px 0';notice.id='salonBookingRequestNotice';
+  notice.innerHTML='<h3>تم تسجيل طلب الحجز في قائمة الانتظار</h3><p>رقم الطلب: '+esc(ref.id)+'</p><p>لتأكيد الحجز يجب الذهاب إلى واتساب لدفع العربون. يرسل الصالون رقم الدور بعد الموافقة.</p>';
+  const target=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');target?.prepend(notice);
+  if(url)salonFinishRequestWhatsApp(url,null,notice);
+  toast('تم تسجيل طلب الحجز في قائمة الانتظار');
+ }catch(err){if(!saved)popup?.close();console.error('Booking Firestore error',err);
+  toast(saved?'تم تسجيل الطلب. افتحي مواعيدي لمراجعته.':'لم يُحفظ الحجز: '+(err.code==='permission-denied'?'راجعي قواعد Firebase وحالة استقبال الحجوزات.':err.message));
+ }
  finally{if(button&&button.isConnected)button.disabled=false}
 };
 function ownerBookingCard(b){
@@ -3093,7 +3205,7 @@ function putBookingsFirst(){
  section.classList.add('owner-portal-bookings');
  content.prepend(section);
  const heading=section.querySelector('.section-head h3');if(heading)heading.textContent='طلبات الحجز من العميلات — Firebase';
- const filters=document.createElement('div');filters.className='owner-bookings-filter';filters.innerHTML=[['all','كل الطلبات'],['pending','بانتظار العربون'],['confirmed','المؤكدة'],['cancelled','الملغاة']].map(([v,l])=>`<button type="button" data-booking-filter="${v}" class="${bookingFilter===v?'selected':''}">${l}</button>`).join('');
+ const filters=document.createElement('div');filters.className='owner-bookings-filter';filters.innerHTML=[['all','كل الطلبات'],['pending','قائمة الانتظار'],['confirmed','المؤكدة'],['cancelled','الملغاة']].map(([v,l])=>`<button type="button" data-booking-filter="${v}" class="${bookingFilter===v?'selected':''}">${l}</button>`).join('');
  section.insertBefore(filters,panel);
  filters.querySelectorAll('button').forEach(b=>b.onclick=()=>{bookingFilter=b.dataset.bookingFilter;filters.querySelectorAll('button').forEach(x=>x.classList.toggle('selected',x===b));window.filterOwnerPortalBookings()});
 }
@@ -3615,7 +3727,18 @@ window.ownerEditSavedBooking=async function(id){
   const date=prompt('التاريخ YYYY-MM-DD',b.date||'');if(date===null)return;
   const time=prompt('الوقت HH:MM',b.time||'');if(time===null)return;
   if(!service.trim()||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date)||!/^[0-9]{2}:[0-9]{2}$/.test(time))throw Error('تحققي من الخدمة والتاريخ والوقت');
-  await ref.update({serviceName:service.trim().slice(0,500),staffName:matching[0].name,staffUid:matching[0].authUid,date,time,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  await firestore.runTransaction(async tx=>{
+   const current=await tx.get(ref);
+   if(!current.exists||!salonInvoiceSame(current.data(),b))throw Error('تغيّر الحجز. حدّثي القائمة قبل التعديل');
+   const patch={serviceName:service.trim().slice(0,500),staffName:matching[0].name,staffUid:matching[0].authUid,date,time,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+   if(b.queueNumber&&date!==b.date){
+    if(b.status!=='confirmed')throw Error('تغيير يوم الحجز المرقّم متاح قبل وصول العميلة فقط');
+    const queue=await salonPrepareBookingQueue(tx,{...b,date});
+    patch.queueNumber=queue.number;patch.queueDate=date;
+    queue.write();
+   }
+   tx.update(ref,patch);
+  });
   if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();toast('تم تعديل الحجز وربطه بحساب الموظفة الصحيح');
  }catch(err){toast('تعذر تعديل الحجز: '+String(err.message||err))}
 };
@@ -4353,33 +4476,24 @@ publishPortalCatalog=async function(){
    if(!initial.exists)throw Error('الحجز غير موجود');
    const b=initial.data();
    if(!['pending','confirmed'].includes(b.status))throw Error('حالة الحجز لا تسمح بالتأكيد');
+   if(b.date<salonSaudiDate())throw Error('يوم الطلب مضى. عدّلي الموعد أولًا ثم وافقي عليه');
    const staff=getStaff(b.staffUid);
    if(!staff||staff.active===false||!staff.authUid)throw Error('الموظفة ليست نشطة أو غير مربوطة بحساب Firebase');
    if(!qualified(staff,skillIdsFromBooking(b)))throw Error('الموظفة لا تقدم إحدى الخدمات المطلوبة. غيّري الموظفة أو صلاحياتها أولًا.');
-   const profile=await firestore.collection('employeeProfiles').doc(String(staff.authUid)).get({source:'server'});
-   if(!profile.exists||profile.data()?.active!==true||profile.data()?.archived===true)throw Error('حساب الموظفة موقوف أو غير مربوط');
    const sameDate=await refBookings.where('date','==',b.date).get({source:'server'});
    const overlaps=sameDate.docs.filter(d=>d.id!==id&&!['cancelled','noShow','no-show'].includes(d.data()?.status)&&staffKey(d.data())===String(staff.authUid)&&overlapping(b,d.data()));
    const confirmed=overlaps.filter(d=>occupies(d.data()));
    const pending=overlaps.filter(d=>d.data()?.status==='pending');
-   let question;
-   if(overlaps.length){
-    question='⚠️ تنبيه: للموظفة '+staff.name+' '+overlaps.length+' حجز آخر يتداخل مع موعد '+b.date+' الساعة '+b.time+' ('+confirmed.length+' مؤكد، '+pending.length+' بانتظار القرار).\n\n';
-    question+='بإمكانك تأكيد جميع الحجوزات حتى لو كانت لنفس الموظفة وفي نفس الوقت. هل توافقين على تأكيد حجز '+(b.clientName||'العميلة')+' أيضًا رغم التعارض، بعد التحقق من قدرتكم على تنفيذ الخدمات واستلام العربون؟';
-   }else question='هل استلمتِ العربون وتريدين تأكيد حجز '+(b.clientName||'العميلة')+' للموظفة '+staff.name+'؟';
-   if(!confirm(question))return;
-   // Re-read this booking immediately before writing to avoid confirming a cancelled request.
-   const latest=await target.get({source:'server'});
-   if(!latest.exists||!['pending','confirmed'].includes(latest.data()?.status))throw Error('تغيرت حالة الحجز، حدّثي الصفحة');
-   if(staffKey(latest.data())!==String(staff.authUid)||latest.data().date!==b.date||latest.data().time!==b.time)
-     throw Error('تغيّر موعد أو موظفة الحجز؛ أعيدي التأكيد');
-   // Intentionally do NOT reject overlap: the owner has explicitly approved it.
-   // No other bookings are updated, cancelled or automatically confirmed.
-   await target.update({status:'confirmed',depositStatus:'paid',staffUid:String(staff.authUid),staffName:String(staff.name),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
-   if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();
+   const approval=b.packageUseRequested?'هل تريدين الموافقة على حجز '+(b.clientName||'العميلة')+' من رصيد الباقة؟':
+    'هل استلمتِ العربون وتريدين تأكيد حجز '+(b.clientName||'العميلة')+' للموظفة '+staff.name+'؟';
+   const conflict=overlaps.length?'يوجد '+confirmed.length+' حجز مؤكد و'+pending.length+' طلب انتظار يتداخل مع الموعد لنفس الموظفة. التأكيد هنا يخص هذا الحجز فقط.\n\n':'';
+   if(!confirm(conflict+approval))return;
+   const number=await firestore.runTransaction(tx=>salonConfirmBookingWithQueue(tx,target,b,staff));
    if(ownerActiveTab==='appointments'&&typeof ownerTab==='function')ownerTab('appointments');
-   toast(overlaps.length?'تم تأكيد هذا الحجز بقرارك رغم تداخل الموعد. بقية الحجوزات لم تتغير.':'تم تأكيد الحجز وإرساله للموظفة');
-  }catch(err){console.error('Booking owner confirmation:',err);toast('تعذر تأكيد الحجز: '+String(err.message||err))}
+   if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();
+   toast('تم تأكيد الحجز برقم الدور '+number+'. أرسلي التأكيد للعميلة من زر واتساب.');
+  }catch(err){console.error('Booking owner confirmation:',err);toast('تعذر تأكيد الحجز: '+(err.code==='permission-denied'?'تأكدي من نشر قواعد Firestore التي تتضمن عداد الأدوار.':String(err.message||err)))}
+
  }
  window.ownerConfirmSavedBooking=confirmWithChoice;
  window.confirmPortalBooking=confirmWithChoice;
@@ -6320,7 +6434,7 @@ function renderShop(){
   const creditLine=kind?'رصيد '+p.creditsTotal+' استخدامات · '+(Number(p.validityMonths)===0?'بدون تاريخ انتهاء':'صلاحية '+(Number(p.validityMonths)||12)+' شهر'):'عرض يُنفذ في زيارة واحدة';
   return '<article class="salon-pkg-card" data-shop-kind="'+(kind?'credit':'instant')+'"><span class="salon-pkg-label '+(kind?'credit':'')+'">'+(kind?'باقة رصيد استخدامات':'عرض استخدام واحد')+'</span><h3>'+name+'</h3><p>'+desc+'</p><p>'+esc(creditLine)+'</p><b class="price">'+money(p.price)+'</b><button type="button" class="btn" data-package-buy="'+esc(p.id)+'">طلب الشراء عبر واتساب</button></article>';
  };
- section.innerHTML='<h2>✦ عروضنا وباقاتنا</h2><p class="salon-pkg-shop-intro">اختاري الباقة المناسبة وارسلي طلب الشراء إلى واتساب الصالون. الدفع واعتماد رصيد الباقة يتمان بعد تأكيد الصالون، وليس بمجرد فتح واتساب.</p>'+
+ section.innerHTML='<h2>العروض والباقات</h2><p class="salon-pkg-shop-intro">لتأكيد شراء الباقة، أرسلي الرسالة الجاهزة عبر واتساب الصالون لتنسيق الدفع. يتفعّل الرصيد بعد تأكيد الصالون.</p>'+
   '<div class="salon-pkg-tabs" role="group" aria-label="تصفية الباقات"><button type="button" class="active" data-pkg-filter="all">كل الباقات ('+all.length+')</button><button type="button" data-pkg-filter="instant">استخدام واحد ('+instant.length+')</button><button type="button" data-pkg-filter="credit">رصيد استخدامات ('+credits.length+')</button></div>'+
   '<div class="salon-pkg-grid">'+(all.length?all.map(renderCard).join(''):'<p class="salon-pkg-note">لا توجد باقات منشورة الآن. تستطيع المالكة إضافتها من صفحة الباقات ثم إعادة نشرها للعميلات.</p>')+'</div>'+
    '';
@@ -6664,7 +6778,8 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
        }
        const duration=Math.max(1,Number(service.duration)||30);
        if(timeToMin(time)+duration>1440){toast(localized('وقت الخدمة يتجاوز نهاية اليوم، اختاري وقتًا أبكر','This service would run past midnight. Choose an earlier time.'));return}
-       const button=form.querySelector('button[type="submit"]');button.disabled=true;
+       const button=form.querySelector('button[type="submit"]');if(button.disabled)return;button.disabled=true;
+       const popup=salonOpenRequestWindow();let saved=false;
        try{
          const bookingRef=firestore.collection('portalBookings').doc();
          // Verify BOTH live booking controls and the account-owned balance inside a single transaction.
@@ -6697,19 +6812,24 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
              createdAt:firebase.firestore.FieldValue.serverTimestamp()
            });
          });
+         saved=true;
+         const url=salonRequestWhatsApp(['طلب حجز من رصيد باقة — صالون جودة الأظافر','رقم الطلب: '+bookingRef.id,
+          'العميلة: '+String(portalUser.nameAr||portalUser.name||''),'الباقة: '+record.packageName,'الخدمة: '+service.name,
+          'الموظفة: '+staff.name,'اليوم والتاريخ: '+salonBookingDayLabel(date),'الوقت المطلوب: '+time,
+          'الحالة: قائمة الانتظار حتى موافقة الصالون.']);
+         salonFinishRequestWhatsApp(url,popup);
          try{await loadPortalBookings()}catch(e){console.warn('Saved package booking; bookings refresh unavailable',e)}
          salonClientPage='bookings';renderPortalClient();
-         const notice=document.createElement('div');notice.className='card';notice.style.margin='12px 0';
-         notice.innerHTML='<h3>'+localized('✅ تم إرسال طلب استخدام الباقة للصالون','✅ Package appointment requested')+'</h3><p>'+localized('رقم الطلب: ','Request number: ')+esc(bookingRef.id)+'</p><p>'+localized('بانتظار تأكيد الصالون. لا يخصم أي استخدام حتى تسجله المالكة في الكاشير.','Pending salon confirmation. No credit is deducted until the salon records the service in the cashier.')+'</p>';
-         const number=String(portalCatalog.settings?.whatsapp||WA_NUMBER).replace(/\D/g,'');
-         const phone=/^05\d{8}$/.test(number)?'966'+number.slice(1):number;
-         if(/^\d{9,15}$/.test(phone)){
-           const message=localized('طلب حجز باستخدام باقتي','Appointment request using my package')+' — '+String(record.packageName||'')+'\n'+localized('العميلة: ','Client: ')+String(portalUser.nameAr||portalUser.name||'')+'\n'+localized('الخدمة: ','Service: ')+String(service.name||'')+'\n'+localized('الموظفة: ','Specialist: ')+String(staff.name||'')+'\n'+date+' '+time+'\n'+localized('رقم الطلب: ','Request number: ')+bookingRef.id;
-           const a=document.createElement('a');a.className='btn secondary';a.target='_blank';a.rel='noopener noreferrer';a.href='https://wa.me/'+phone+'?text='+encodeURIComponent(message);a.textContent=localized('إرسال نسخة عبر واتساب (اختياري)','Send a copy by WhatsApp (optional)');notice.appendChild(a);
-         }
+         const notice=document.createElement('div');notice.className='card';notice.id='salonBookingRequestNotice';notice.style.margin='12px 0';
+         notice.innerHTML='<h3>تم تسجيل طلب استخدام الباقة</h3><p>رقم الطلب: '+esc(bookingRef.id)+'</p><p>طلبك في قائمة الانتظار حتى موافقة الصالون. يُسجّل الاستخدام عند تنفيذ الخدمة في الكاشير.</p>';
          const panel=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');panel?.prepend(notice);
-         toast(localized('تم إرسال طلب الباقة للصالون','Package appointment request sent'));
-       }catch(error){console.warn('Package booking request error',error);toast(error.code==='permission-denied'?localized('قواعد Firebase لا تسمح بالحجز. حدّثي قواعد portalBookings أولًا.','Firebase rules rejected the request. Update portalBookings rules first.'):String(error.message||error))}
+         if(url)salonFinishRequestWhatsApp(url,null,notice);
+         toast('تم تسجيل طلب الحجز من الباقة');
+       }catch(error){
+         if(!saved)popup?.close();
+         console.warn('Package booking request error',error);
+         toast(saved?'تم تسجيل الطلب. افتحي مواعيدي لمراجعته.':error.code==='permission-denied'?'تعذر تسجيل الطلب. راجعي قواعد Firebase وحالة الحجز.':String(error.message||error));
+       }
        finally{if(button.isConnected)button.disabled=false}
      }));
    }).catch(err=>{
@@ -8155,12 +8275,20 @@ document.addEventListener('click',async event=>{
  const b=event.target.closest?.('[data-package-buy]');if(!b||!client()||!b.closest('#salonCustomerPackagesShop'))return;
  event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
  if(buying)return;buying=true;b.disabled=true;
+ let popup,saved=false;
  try{
   const record=pActive().find(p=>String(p.id)===String(b.dataset.packageBuy));if(!record)throw Error('الباقة لم تعد منشورة');
   const uid=auth.currentUser.uid;
-  await packageOrders.add({clientUid:uid,clientName:clean(portalUser.nameAr||portalUser.name||''),clientPhone:clean(portalUser.phone||''),packageId:String(record.id),status:'pending',createdAt:timestamp()});
-  toast(tr('وصل طلب الباقة لصاحبة الصالون. لن تتفعّل إلا بعد تأكيد الدفع.','Package request received. Activation requires salon payment confirmation.'));
- }catch(e){notifyError('تعذر تسجيل طلب الباقة',e)}finally{buying=false;if(b.isConnected)b.disabled=false}
+  popup=salonOpenRequestWindow();
+  const created=await packageOrders.add({clientUid:uid,clientName:clean(portalUser.nameAr||portalUser.name||''),clientPhone:clean(portalUser.phone||''),packageId:String(record.id),status:'pending',createdAt:timestamp()});
+  saved=true;
+  const url=salonRequestWhatsApp(['طلب شراء باقة — صالون جودة الأظافر','رقم الطلب: '+created.id,
+   'العميلة: '+clean(portalUser.nameAr||portalUser.name),'الجوال: '+clean(portalUser.phone),
+   'الباقة: '+stableLabel(record),'السعر المعروض: '+amount(record.price),'يرجى تزويدي بطريقة الدفع لتأكيد شراء الباقة.']);
+  salonFinishRequestWhatsApp(url,popup,b.closest('.salon-pkg-shop'));
+  if(url)toast('تم تسجيل طلب الباقة. أرسلي الرسالة في واتساب لتنسيق الدفع.');
+ }catch(e){if(!saved)popup?.close();notifyError(saved?'تم حفظ الطلب وتعذر فتح واتساب':'تعذر تسجيل طلب الباقة',e)}
+ finally{buying=false;if(b.isConnected)b.disabled=false}
 },true);
 
 // 3: Gift request form with accurate service/package selection, voucher choices, and editable sender.
@@ -8168,7 +8296,7 @@ function giftsForm(){
  const services=sActive(),packages=pActive();
  const serviceOpts=services.map(s=>`<option value="${safe(s.id)}" data-price="${Number(s.price)||0}">${safe(stableLabel(s))} — ${amount(s.price)}</option>`).join('');
  const packageOpts=packages.map(p=>`<option value="${safe(p.id)}">${safe(stableLabel(p))} — ${amount(p.price)}</option>`).join('');
- return `<section class="quality-gift"><div class="quality-gift-intro"><span>🎁</span><div><h2>${tr('أهدي لحظات جمال','Gift beautiful moments')}</h2><p>${tr('اختاري الهدية ورسالتك، ونؤكدها بعد الدفع.','Choose a gift and add your message. Payment is confirmed by the salon.')}</p></div></div>
+ return `<section class="quality-gift"><div class="quality-gift-intro"><div><h2>${tr('أهدي لحظات جمال','Gift beautiful moments')}</h2><p>${tr('اختاري الهدية ورسالتك، ونؤكدها بعد الدفع.','Choose a gift and add your message. Payment is confirmed by the salon.')}</p></div></div>
  <form id="qualityGiftRequest" class="quality-form-grid">
  <label>${tr('المناسبة','Occasion')}<select name="occasion"><option value="birthday">${tr('عيد ميلاد','Birthday')}</option><option value="graduation">${tr('تخرج','Graduation')}</option><option value="thanks">${tr('شكر وتقدير','Thank you')}</option><option value="other">${tr('مناسبة أخرى','Other occasion')}</option></select></label>
  <label>${tr('نوع الهدية','Gift type')}<select name="kind" id="qualityGiftKind"><option value="service">${tr('إهداء خدمة','Service gift')}</option><option value="package">${tr('إهداء باقة','Package gift')}</option><option value="voucher">${tr('قسيمة مالية','Gift voucher')}</option></select></label>
@@ -8179,8 +8307,8 @@ function giftsForm(){
  <label>${tr('رقم جوال المستلمة','Recipient phone')}<input name="recipientPhone" type="tel" inputmode="tel" maxlength="20" required placeholder="05xxxxxxxx" dir="ltr"></label>
  <label class="wide">${tr('اسم مرسلة الهدية','Sender name')}<input name="senderName" maxlength="90" required placeholder="${tr('اكتبي اسمك','Your name')}" autocomplete="off"></label>
  <label class="wide">${tr('رسالة الإهداء','Gift message')}<textarea name="message" required maxlength="700" placeholder="${tr('كل عام وأنتِ أجمل صديقة…','Wishing you a wonderful day…')}"></textarea></label>
- <div class="quality-note wide">${tr('لن تصل الهدية للمستلمة قبل تأكيد الدفع وربط حسابها بشكل صحيح.','The gift is not activated until payment and recipient ownership are verified.')}</div>
- <button class="btn full wide" type="submit">${tr('إرسال طلب الهدية للصالون','Send gift request')}</button></form></section>`;
+ <div class="quality-note wide">${tr('لتأكيد الهدية، أرسلي الرسالة الجاهزة عبر واتساب الصالون لتنسيق الدفع. تُفعّل الهدية بعد تأكيد الدفع والتحقق من حساب المستلمة.','The gift is not activated until payment and recipient ownership are verified.')}</div>
+ <button class="btn full wide" type="submit">${tr('تسجيل طلب الهدية وفتح واتساب','Save gift request and open WhatsApp')}</button></form></section>`;
 }
 function installGifts(){const target=document.getElementById('salonClientPagePanel');if(!client()||salonClientPage!=='gifts'||!target)return;
  target.innerHTML=giftsForm();const form=target.querySelector('#qualityGiftRequest'),kind=form.querySelector('[name="kind"]');
@@ -8193,7 +8321,8 @@ function installGifts(){const target=document.getElementById('salonClientPagePan
  form.addEventListener('change',update);update();
  const svcInput=form.querySelector('#qualityGiftServiceSearch'),svcSelect=form.querySelector('#qualityGiftService');
  svcInput.addEventListener('input',()=>{const needle=clean(svcInput.value).toLocaleLowerCase();for(const o of Array.from(svcSelect.options).slice(1))o.hidden=!!needle&&!o.textContent.toLocaleLowerCase().includes(needle);const option=Array.from(svcSelect.options).slice(1).find(o=>!o.hidden);svcSelect.value=option?.value||''});
- form.addEventListener('submit',async e=>{e.preventDefault();const button=form.querySelector('button[type="submit"]');button.disabled=true;
+ form.addEventListener('submit',async e=>{e.preventDefault();const button=form.querySelector('button[type="submit"]');if(button.disabled)return;button.disabled=true;
+ let popup,saved=false;
  try{
   const d=new FormData(form),rPhone=phone(d.get('recipientPhone'));
   if(!/^5\d{8}$/.test(rPhone))throw Error('رقم جوال المستلمة غير صحيح؛ اكتبيه 05xxxxxxxx');
@@ -8204,15 +8333,20 @@ function installGifts(){const target=document.getElementById('salonClientPagePan
   else if(giftKind==='package'){const p=pActive().find(x=>String(x.id)===clean(d.get('packageId')));if(!p)throw Error('اختاري باقة متاحة');itemId=String(p.id);price=Math.max(0,Number(p.price)||0);title=stableLabel(p)}
   else if(giftKind==='voucher'){const chosen=clean(d.get('voucherChoice'));price=Number(chosen==='custom'?d.get('customAmount'):chosen);if(!Number.isSafeInteger(price)||price<1||price>10000)throw Error('حددي مبلغ القسيمة من 1 إلى 10,000 ريال');title='قسيمة مالية';itemId='voucher'}
   else throw Error('نوع الهدية غير صحيح');
+  popup=salonOpenRequestWindow();
   const created=await giftOrders.add({clientUid:auth.currentUser.uid,recipientName:clean(d.get('recipientName')),recipientPhone:'0'+rPhone,senderName:clean(d.get('senderName')),senderPhone:clean(portalUser?.phone||''),occasion:clean(d.get('occasion')),kind:giftKind,itemId,message,requestedAmount:price,status:'pending',createdAt:timestamp()});
-  const note=['🎁 طلب هدية — صالون جودة الأظافر','رقم الطلب: '+created.id,'المرسلة: '+clean(d.get('senderName')),'رقم المستلمة: 0'+rPhone,'اسم المستلمة: '+clean(d.get('recipientName')),'المناسبة: '+clean(d.get('occasion')),'الهدية: '+title,'القيمة المتوقعة: '+price+' ريال','رسالة الإهداء: '+message,'الطلب بانتظار تأكيد الدفع من الصالون'].join('\n');
-  const salonNumber=String(portalCatalog?.settings?.whatsapp||WA_NUMBER).replace(/\D/g,'').replace(/^0(?=5)/,'966');
-  if(/^9665\d{8}$/.test(salonNumber)){
-   const w=document.createElement('a');w.href='https://wa.me/'+salonNumber+'?text='+encodeURIComponent(note);w.target='_blank';w.rel='noopener noreferrer';w.className='btn secondary';w.textContent=tr('فتح واتساب الصالون بالطلب','Open request in salon WhatsApp');form.after(w);
-  }
-  toast(tr('وصل طلب الهدية للمالكة. أكّدي الدفع أولًا؛ يظهر زر واتساب لتنسيقها.','Gift request saved. Salon approval is required.'));
+  saved=true;
+  const occasion={birthday:'عيد ميلاد',graduation:'تخرج',thanks:'شكر وتقدير',other:'مناسبة أخرى'}[clean(d.get('occasion'))];
+  const url=salonRequestWhatsApp(['طلب هدية — صالون جودة الأظافر','رقم الطلب: '+created.id,
+   'المرسلة: '+clean(d.get('senderName')),'جوال المرسلة: '+clean(portalUser.phone),
+   'اسم المستلمة: '+clean(d.get('recipientName')),'رقم جوال المستلمة: 0'+rPhone,'الهدية: '+title,
+   'المناسبة: '+occasion,'القيمة المتوقعة: '+price+' ريال','رسالة الإهداء: '+message,'يرجى تزويدي بطريقة الدفع لتأكيد الهدية.']);
+  salonFinishRequestWhatsApp(url,popup,target.querySelector('.quality-gift'));
+  if(url)toast('تم تسجيل طلب الهدية. أرسلي الرسالة في واتساب لتنسيق الدفع.');
   form.reset();update();
- }catch(e){notifyError('تعذر حفظ طلب الهدية',e)}finally{if(button.isConnected)button.disabled=false}
+ }catch(e){if(!saved)popup?.close();notifyError(saved?'تم حفظ الهدية وتعذر فتح واتساب':'تعذر حفظ طلب الهدية',e)}
+ finally{if(button.isConnected)button.disabled=false}
+
  });
 }
 
@@ -8447,7 +8581,7 @@ function ownerRewardPage(){const services=db.services||[],packages=db.packages||
 // 6: Archive previous bookings but never delete them. Past results are opt-in search only.
 function injectBookingArchive(){if(!owner()||ownerActiveTab!=='appointments')return;
  const root=document.querySelector('.owner-content')||document.querySelector('.owner-main');if(!root||root.querySelector('#qualityHistorySearch'))return;
- const card=document.createElement('section');card.className='card quality-booking-archive';card.innerHTML='<h3>📚 أرشيف الحجوزات السابقة</h3><p class="muted">القديمة محفوظة، ولا تظهر إلا بعد البحث برقم الجوال.</p><div class="quality-admin-controls"><input id="qualityHistorySearch" type="tel" placeholder="رقم جوال العميلة 05xxxxxxxx"><button id="qualityHistoryFind" class="btn secondary" type="button">بحث</button></div><div id="qualityHistoryResults"></div>';
+ const card=document.createElement('section');card.className='card quality-booking-archive';card.innerHTML='<h3>أرشيف الحجوزات السابقة</h3><p class="muted">القديمة محفوظة، ولا تظهر إلا بعد البحث برقم الجوال.</p><div class="quality-admin-controls"><input id="qualityHistorySearch" type="tel" placeholder="رقم جوال العميلة 05xxxxxxxx"><button id="qualityHistoryFind" class="btn secondary" type="button">بحث</button></div><div id="qualityHistoryResults"></div>';
  root.append(card);
  const table=root.querySelector('#bookingsTable');if(table){const upcoming=(db.bookings||[]).filter(b=>String(b.date||'')>=today());table.innerHTML=typeof bookingTable==='function'?bookingTable(upcoming):'';}
  root.querySelector('#qualityHistoryFind').onclick=async()=>{const query=phone(card.querySelector('#qualityHistorySearch').value),dest=card.querySelector('#qualityHistoryResults');if(!/^5\d{8}$/.test(query)){dest.textContent='اكتبي رقم جوال كامل للبحث';return}dest.textContent='جارٍ البحث…';
@@ -8455,7 +8589,7 @@ function injectBookingArchive(){if(!owner()||ownerActiveTab!=='appointments')ret
   try{const calls=['0'+query,'966'+query,'+966'+query,query].map(v=>firestore.collection('portalBookings').where('clientPhone','==',v).get({source:'server'}));const remote=await Promise.all(calls);const seen=new Set(old.map(b=>String(b.id||b.bookingId||'')));for(const snap of remote)snap.forEach(d=>{const b=d.data();if(String(b.date||'')<today()&&phone(b.clientPhone)===query&&!seen.has(String(d.id))){old.push({id:d.id,...b});seen.add(String(d.id))}})}catch(e){console.warn('Portal archive unavailable',e)}
   dest.innerHTML=old.length?old.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(b=>`<div class="quality-order"><b>${safe(b.date||'')} ${safe(b.time||'')}</b> — ${safe(b.serviceName||'')}<div>${safe(b.customerName||b.clientName||'')} · ${safe(b.staffName||'')} · ${safe(b.status||'')}</div></div>`).join(''):'لا توجد حجوزات سابقة لهذا الرقم';
  };
- const portalArea=root.querySelector('#portalBookingsOwner');if(portalArea){portalArea.innerHTML='<p>اضغطي «تحديث» لعرض الحجوزات الحالية.</p>'}
+ const portalArea=root.querySelector('#portalBookingsOwner');if(portalArea)void showPortalBookingsOwner();
 }
 
 
@@ -8463,8 +8597,33 @@ function injectBookingArchive(){if(!owner()||ownerActiveTab!=='appointments')ret
 showPortalBookingsOwner=async function(){
  const host=document.getElementById('portalBookingsOwner');if(!host||!owner())return;
  try{const snap=await firestore.collection('portalBookings').get({source:'server'});
-  const data=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>String(b.date||'')>=today()).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time)));
-  host.innerHTML=data.length?data.map(b=>`<article class="quality-order"><strong>${safe(b.clientName)} — ${safe(b.date)} ${safe(b.time)}</strong><p>${safe(b.serviceName)} — ${safe(b.staffName)} — ${safe(b.status)}</p><div class="row"><button class="btn success small" data-confirm="${safe(b.id)}" ${b.status!=='pending'?'disabled':''}>تأكيد</button><button class="btn danger small" data-cancel="${safe(b.id)}" ${b.status==='cancelled'?'disabled':''}>إلغاء</button>${salonCancellationLink(b)}</div></article>`).join(''):'لا توجد حجوزات حالية.';
+  if(!host.isConnected)return;
+  const data=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time))||orderCreatedAt(a)-orderCreatedAt(b));
+  const waiting=data.filter(b=>b.status==='pending');
+  const recent=data.filter(b=>b.status!=='pending'&&String(b.date||'')>=today());
+  const active=['confirmed','arrived','inProgress','completed'];
+  const card=b=>{
+   const id=safe(b.id),hasNumber=b.queueNumber&&b.queueDate===b.date;
+   const date=safe(salonBookingDayLabel(b.date)),time=safe(b.time);
+   const collision=b.status==='pending'&&data.some(other=>other.id!==b.id&&other.date===b.date&&other.staffUid===b.staffUid&&
+    (other.status==='pending'||active.includes(other.status))&&timeToMin(b.time)<timeToMin(other.time)+Math.max(5,Number(other.duration)||30)&&
+    timeToMin(other.time)<timeToMin(b.time)+Math.max(5,Number(b.duration)||30));
+   return `<article class="quality-order"><header><strong>${safe(b.clientName)} — ${date} · ${time}</strong><span class="badge">${safe(salonBookingQueueStatus(b))}</span></header>
+    <p>${safe(b.serviceName)} — ${safe(b.staffName)} · ${safe(b.clientPhone)}</p>
+    ${b.pointsToRedeem>0?`<p>طلب استخدام ${safe(b.pointsToRedeem)} نقطة · الخصم المطلوب ${amount(b.loyaltyDiscountRequested)}</p>`:''}
+    ${collision?'<p class="quality-note">يوجد طلب آخر أو حجز متداخل في وقت الموظفة. يبقى كل طلب في الانتظار إلى أن تقرري الموافقة عليه.</p>':''}
+    ${hasNumber?`<p><strong>رقم الدور: ${safe(b.queueNumber)}</strong></p>`:''}
+    <div class="row">
+     ${b.status==='pending'||b.status==='confirmed'&&!hasNumber?`<button type="button" class="btn success small" data-confirm="${id}">${b.status==='pending'?'موافقة وتخصيص دور':'تخصيص دور للحجز المؤكد'}</button>`:''}
+     ${['pending','confirmed'].includes(b.status)?`<button type="button" class="btn secondary small" data-edit-booking="${id}">تعديل الموعد</button><button type="button" class="btn danger small" data-cancel="${id}">إلغاء</button>`:''}
+     ${salonBookingConfirmationLink(b)}${salonCancellationLink(b)}
+    </div></article>`;
+  };
+  host.innerHTML=`<h3>قائمة انتظار طلبات الحجز (${waiting.length})</h3>
+   <p class="muted">تستلمين العربون عبر واتساب قبل الموافقة. يبدأ ترقيم الدور من 1 لكل يوم موعد، حسب ترتيب موافقتك.</p>
+   ${waiting.length?waiting.map(card).join(''):'<p class="muted">لا توجد طلبات تنتظر الموافقة.</p>'}
+   <h3>الحجوزات المؤكدة والحالات الأخرى</h3>${recent.length?recent.map(card).join(''):'<p class="muted">لا توجد حجوزات حالية.</p>'}`;
+  host.querySelectorAll('[data-edit-booking]').forEach(button=>button.onclick=()=>window.ownerEditSavedBooking(button.dataset.editBooking));
   host.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await confirmPortalBooking(b.dataset.confirm)}catch(e){notifyError('تعذر تأكيد الحجز',e)}});
   host.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await cancelPortalBooking(b.dataset.cancel)}catch(e){notifyError('تعذر إلغاء الحجز',e)}});
  }catch(e){host.textContent='تعذر جلب الحجوزات: '+String(e.message||e)}
@@ -8534,8 +8693,34 @@ async function generateAndSharePDF(invoice,dialog){const btn=dialog.querySelecto
 }
 
 // 10: Tie upgrades into existing renderer, without replacing authenticated UI.
+let bookingQueueWatch=null,bookingQueueWatchUid='';
+function stopBookingQueueWatch(){
+ bookingQueueWatch?.();bookingQueueWatch=null;bookingQueueWatchUid='';
+}
+function watchBookingQueue(){
+ const uid=client()&&salonClientPage==='bookings'?String(auth.currentUser.uid):'';
+ if(uid===bookingQueueWatchUid)return;
+ stopBookingQueueWatch();
+ if(!uid)return;
+ bookingQueueWatchUid=uid;
+ bookingQueueWatch=firestore.collection('portalBookings').where('clientUid','==',uid).onSnapshot(snapshot=>{
+  if(!client()||auth.currentUser.uid!==uid||salonClientPage!=='bookings'){stopBookingQueueWatch();return}
+  const rows=snapshot.docs.map(d=>({...d.data(),id:d.id}));
+  if(salonInvoiceSame(rows,portalBookings))return;
+  portalBookings=rows;
+  const notice=document.querySelector('#salonBookingRequestNotice');
+  renderPortalClient();
+  if(notice)document.querySelector('#salonClientPagePanel')?.prepend(notice);
+ },err=>{console.warn('Booking queue watch:',err);stopBookingQueueWatch()});
+}
+auth.onAuthStateChanged(user=>{if(bookingQueueWatchUid&&user?.uid!==bookingQueueWatchUid)stopBookingQueueWatch()});
 const originalClient=renderPortalClient;
-renderPortalClient=function(...args){const result=originalClient.apply(this,args);if(client()){searchServices();installGifts();translateClientBits()}return result};
+renderPortalClient=function(...args){
+ const result=originalClient.apply(this,args);
+ if(client()){searchServices();installGifts();translateClientBits()}
+ watchBookingQueue();
+ return result;
+};
 const originalOwner=renderOwner;
 renderOwner=function(tab=ownerActiveTab){const result=originalOwner.apply(this,arguments);if(!owner())return result;
  if(tab==='qualityPackageOrders')ownerOrdersPage('package');
@@ -8543,6 +8728,17 @@ renderOwner=function(tab=ownerActiveTab){const result=originalOwner.apply(this,a
  if(tab==='qualityRewards')ownerRewardPage();
  if(tab==='qualityEmployeeAccess')ownerEmployeeAccess();
  if(tab==='appointments')injectBookingArchive();
+ if(tab==='waitlist'){
+  const host=document.querySelector('#app .owner-content');
+  if(host&&!host.querySelector('#portalBookingsOwner')){
+   const section=document.createElement('section');
+   section.className='card';
+   section.innerHTML='<div class="spread"><h2>طلبات الحجز من الموقع</h2><button type="button" class="btn secondary small">تحديث</button></div><div id="portalBookingsOwner"></div>';
+   host.prepend(section);
+   section.querySelector('button').onclick=()=>showPortalBookingsOwner();
+   void showPortalBookingsOwner();
+  }
+ }
  if(tab==='cashier')shareChoice();
  return result;
 };
