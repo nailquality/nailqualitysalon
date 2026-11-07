@@ -178,7 +178,7 @@ let salonInvoiceInitialization=null;
 let firebaseReady = false;
 let loginInProgress = false;
 let saveQueue = Promise.resolve();
-let cashierCart = [];let cashierEditingInvoiceId=null;
+let cashierCart = [];let cashierEditingInvoiceId=null;let cashierEditingInvoiceSource=null;
 const WA_NUMBER="966544267911";
 const translations={
  ar:{brand:"صالون جودة الأظافر",tagline:"الجمال يبدأ من هنا",home:"الرئيسية",footer:"نظام إدارة صالون جودة الأظافر • إصدار ملف واحد",switchLang:"English",welcomeTitle:"كل تفاصيل صالونك، في مكان واحد",welcomeDesc:"نظام لإدارة الحجوزات والموظفات والفواتير والمخزون ونقاط الولاء.",clientPortal:"بوابة العميلة",clientDesc:"تصفحي الخدمات، احجزي موعدك، تابعي نقاطك ومواعيدك.",employeePortal:"بوابة الموظفة",employeeDesc:"جدولك الشخصي، حالة الخدمات، العمولة والراحة.",ownerPortal:"بوابة صاحبة الصالون",ownerDesc:"إدارة شاملة للحجوزات والماليات والموظفات والمخزون.",enter:"دخول",features:"أدوات النظام",feat1:"حجز ومواعيد",feat2:"كاشير وفواتير",feat3:"مخزون وموظفات",feat4:"تقارير ونسخ احتياطي",login:"تسجيل الدخول",createAccount:"إنشاء حساب عميلة",name:"الاسم الكامل",phone:"رقم الجوال",email:"البريد الإلكتروني (اختياري)",password:"كلمة المرور",continue:"متابعة",cancel:"إلغاء",back:"رجوع",save:"حفظ",delete:"حذف",edit:"تعديل",close:"إغلاق",clientLogin:"دخول العميلة",employeeLogin:"دخول الموظفة",ownerLogin:"دخول المالكة",clientRegister:"إنشاء حساب عميلة",myBookings:"مواعيدي",book:"احجزي موعدًا",services:"الخدمات والأسعار",loyalty:"نقاط الولاء",redeem:"استبدال النقاط عبر واتساب",points:"نقاط",code:"كود العميلة",chooseService:"اختاري الخدمة",chooseEmployee:"اختاري الموظفة",date:"التاريخ",time:"الوقت",notes:"ملاحظات",submitBooking:"تأكيد طلب الحجز",bookingSuccess:"تم تسجيل طلب الحجز وفتح واتساب لإرسال التفاصيل.",bookingFail:"تعذر إنشاء الحجز",noBookings:"لا توجد حجوزات حتى الآن.",status:"الحالة",employee:"الموظفة",service:"الخدمة",price:"السعر",duration:"المدة",minutes:"دقيقة",pending:"بانتظار التأكيد",confirmed:"مؤكد",inProgress:"جاري التنفيذ",completed:"مكتمل",cancelled:"ملغي",noShow:"لم تحضر",actions:"الإجراءات",today:"اليوم",dashboard:"لوحة التحكم",appointments:"الحجوزات",schedule:"إغلاق المواعيد",cashier:"الكاشير والفواتير",inventory:"المخزون",staff:"الموظفات",reports:"التقارير",expenses:"المصروفات",servicesManage:"إدارة الخدمات",backup:"النسخ الاحتياطي",logout:"تسجيل الخروج",revenue:"الإيرادات المسجلة",bills:"عدد الفواتير",stockItems:"أصناف المخزون",bookingsCount:"عدد الحجوزات",closeDay:"إغلاق اليوم كاملًا",blockPeriod:"إغلاق فترة",startTime:"من الساعة",endTime:"إلى الساعة",allStaff:"جميع الموظفات",reason:"السبب",blocked:"الأوقات المغلقة",reopen:"إعادة فتح",dateRequired:"اختاري التاريخ.",invalidTime:"تحققي من وقت البداية والنهاية.",blockedSaved:"تم حفظ الإغلاق.",reopened:"تمت إعادة فتح الوقت.",confirmCancel:"هل تريدين إلغاء هذا الحجز؟",cancelBooking:"إلغاء الحجز",confirm:"تأكيد",markConfirmed:"تأكيد الحجز",startService:"بدء الخدمة",complete:"إكمال الخدمة",markNoShow:"لم تحضر",onlyOwnerCancel:"إلغاء الحجوزات متاح للمالكة فقط.",loginRequired:"سجلي الدخول أولًا.",cashierTitle:"إنشاء فاتورة",customer:"العميلة",payment:"طريقة الدفع",cash:"نقدًا",card:"شبكة",pointsPay:"نقاط الولاء",addInvoice:"إصدار الفاتورة",invoiceArchive:"أرشيف الفواتير",amount:"المبلغ",expenseTitle:"تسجيل مصروف",category:"التصنيف",addExpense:"حفظ المصروف",inventoryTitle:"إضافة / تعديل صنف",itemName:"اسم الصنف",quantity:"الكمية الحالية",minQuantity:"حد التنبيه",unitCost:"تكلفة الوحدة",addItem:"حفظ الصنف",lowStock:"مخزون منخفض",staffTitle:"إدارة الموظفات",staffName:"اسم الموظفة",staffPhone:"رقم الجوال",commission:"العمولة %",addStaff:"إضافة موظفة",serviceTitle:"إضافة / تعديل خدمة",serviceName:"اسم الخدمة",servicePrice:"السعر بالريال",serviceDuration:"المدة بالدقائق",addService:"حفظ الخدمة",monthlyReports:"ملخص الأداء",totalRevenue:"إجمالي الفواتير",completedServices:"الخدمات المكتملة",expensesTotal:"إجمالي المصروفات",net:"صافي تقديري",staffPerformance:"أداء الموظفات (خدمات)",export:"تنزيل نسخة احتياطية",restore:"استعادة نسخة",print:"طباعة",reset:"مسح جميع البيانات المحلية",resetWarn:"سيتم حذف إعدادات هذا المتصفح وتسجيل الخروج فقط. لن تُحذف الخدمات أو الموظفات أو الفواتير من Firebase. هل تريدين المتابعة؟",restoreWarn:"ستُضاف العناصر المفقودة من النسخة الاحتياطية دون استبدال السجلات الحالية. راجعي محتويات النسخة قبل الاستعادة.",backupDone:"تم تنزيل النسخة الاحتياطية.",saved:"تم الحفظ.",required:"أكملي الحقول المطلوبة.",noData:"لا توجد بيانات لعرضها.",clientOnly:"بوابة العميلة",ownerOnly:"المالكة فقط",employeeOnly:"بوابة الموظفة",demoNotice:"تُحفظ بيانات الإدارة في Firebase. نزّلي نسخة احتياطية بانتظام؛ حذف إعدادات المتصفح لا يحذف قاعدة Firebase.",localAuth:"دخول محلي",loginHint:"هذه نسخة ملف واحد: أنشئي حساباتك من داخل الصفحة. لا تستخدمي كلمات مرور حقيقية أو بيانات حساسة هنا.",ownerPin:"رمز دخول المالكة",employeeCode:"رقم الموظفة",invalidLogin:"بيانات الدخول غير صحيحة.",profile:"حسابي",whatsapp:"فتح واتساب",loyaltyRedeemText:"أرغب في استبدال نقاط الولاء",pointsApplied:"تم خصم النقاط.",redeemAsk:"كم نقطة تريدين استبدالها؟",redeemAmount:"عدد النقاط",redeemDone:"تم تسجيل طلب الاستبدال. أكدي الخصم بعد التحقق من العميلة.",noSlots:"لا توجد أوقات متاحة في هذا اليوم.",timeTaken:"هذا الوقت متعارض مع حجز أو وقت مغلق.",datePast:"لا يمكن الحجز في تاريخ سابق.",cashierNote:"يخصم النظام المواد المرتبطة بالخدمة عند إكمال الفاتورة إذا كانت الوصفة محددة.",noService:"لا توجد خدمة",bookingId:"رقم الحجز",invoiceId:"رقم الفاتورة",clientList:"العميلات",clientCode:"كود العميلة",loyaltyAdmin:"إدارة نقاط الولاء",addPoints:"إضافة نقاط",removePoints:"خصم نقاط",pointReason:"سبب التعديل",quickActions:"إجراءات سريعة",choose:"اختاري",start:"ابدئي",employeeBreak:"استراحة الموظفة",addBreak:"إضافة استراحة",restoresuccess:"تمت استعادة البيانات.",notFound:"العنصر غير موجود.",revenueByStaff:"الإيرادات حسب الموظفة",rated:"التقييمات",rate:"التقييم",rateService:"تقييم الخدمة",sendRating:"إرسال التقييم",ratingSaved:"شكرًا لتقييمك.",loginAs:"دخول بصفة",newCustomer:"عميلة جديدة",adminSettings:"إعدادات النظام",businessName:"اسم الصالون",saveSettings:"حفظ الإعدادات",dayClosed:"هذا اليوم مغلق للحجز.",serviceCompleted:"تم إكمال الخدمة وتحديث السجل.",invoiceCreated:"تم إصدار الفاتورة.",confirmDelete:"هل تريدين حذف هذا العنصر؟",opening:"جارٍ التحميل…",noEmployees:"أضيفي الموظفات من لوحة المالكة أولًا.",noServices:"أضيفي الخدمات من لوحة المالكة أولًا.",noPermission:"ليست لديك صلاحية لهذه العملية."},
@@ -247,6 +247,12 @@ function salonCashierOfferButtons(){
 }
 function salonSelectedCustomer(){return db.clients.find(c=>String(c.id)===String(document.querySelector('#invoiceClient')?.value||''))||null}
 function salonBalances(){return Array.isArray(db.clientPackages)?db.clientPackages:[]}
+function salonCreditCartDelta(balance){
+ const previous=cashierEditingInvoiceSource;
+ const onBalance=x=>x.itemKind==='packageUse'&&String(x.packageUseBalanceId)===String(balance.id);
+ const oldCount=String(previous?.clientId)===String(balance.clientId)?salonPackageLines(previous).filter(onBalance).length:0;
+ return cashierCart.filter(onBalance).length-oldCount;
+}
 function salonRenderCustomerPackages(){
  const root=document.querySelector('#salonCashierPackageBalances');if(!root)return;
  const client=salonSelectedCustomer(),newMode=!document.querySelector('#existingCustomerFields')?.classList.contains('hidden');
@@ -256,13 +262,13 @@ function salonRenderCustomerPackages(){
  if(!balances.length){root.innerHTML='<p class="muted tiny">ما لدى هذه العميلة باقات رصيد مسجلة. يمكن شراء باقة من قائمة الخدمات والباقات.</p>';return}
  root.innerHTML=balances.map(b=>{
   const remaining=Math.max(0,Number(b.total||0)-Number(b.used||0));
-  const expired=!!b.expiresOn&&b.expiresOn<today(),active=remaining>0&&!expired;
-  const reserved=cashierCart.filter(x=>x.itemKind==='packageUse'&&String(x.packageUseBalanceId)===String(b.id)).length;
+  const reserved=salonCreditCartDelta(b);
+  const expired=!!b.expiresOn&&b.expiresOn<today(),active=remaining>reserved&&!expired;
   const allowed=(b.eligibleServiceIds||[]).map((id,index)=>({id:String(id),name:String((db.services||[]).find(s=>String(s.id)===String(id))?.name||b.eligibleNames?.[index]||id)}));
   return `<div class="salon-balance-tile"><div class="spread"><b>${esc(b.packageName||'باقة رصيد')}</b><span class="badge ${active?'green':expired?'red':''}">${expired?'منتهية':remaining?'نشطة':'مكتملة'}</span></div>
    <div class="salon-credit-numbers"><span>المشتراة: <b>${Math.max(0,Number(b.total)||0)}</b></span><span>المستخدمة: <b>${Math.max(0,Number(b.used)||0)}</b></span><span>المتبقية: <b style="color:#247c5a">${remaining}</b></span></div>
    <small class="muted">الشراء: ${esc(b.purchasedOn||'—')} · الصلاحية: ${esc(b.expiresOn||'بدون تاريخ انتهاء')}</small>
-   ${reserved?`<p class="tiny">الرصيد الآن: ${remaining} · سيُخصم عند الحفظ: ${reserved} · المتبقي بعد الفاتورة: ${Math.max(0,remaining-reserved)}</p>`:''}
+   ${reserved?`<p class="tiny">الرصيد الآن: ${remaining} · ${reserved>0?'سيُخصم عند الحفظ: '+reserved:'سيُعاد عند الحفظ: '+(-reserved)} · المتبقي بعد الفاتورة: ${Math.max(0,remaining-reserved)}</p>`:''}
    ${active?`<div class="salon-credit-buttons">${allowed.map(x=>`<button type="button" class="btn secondary small" data-use-credit="${esc(b.id)}" data-credit-service="${esc(x.id)}" ${remaining<=reserved?'disabled':''}>استخدام: ${esc(x.name)}</button>`).join('')}</div>`:`<p class="tiny muted">${expired?'لا يمكن استخدام باقة منتهية الصلاحية.':'تم استخدام الرصيد كاملًا.'}</p>`}
    </div>`
  }).join('');
@@ -280,7 +286,7 @@ async function salonRefreshPackageBalances(withFeedback=true){
 function salonUseCredit(balanceId,serviceId){
  const client=salonSelectedCustomer(),balance=salonBalances().find(x=>String(x.id)===String(balanceId));
  if(!client||!balance||String(balance.clientId)!==String(client.id)){cashierFormIssue('اختاري العميلة المالكة للباقة أولًا');return}
- const reserved=cashierCart.filter(x=>x.itemKind==='packageUse'&&String(x.packageUseBalanceId)===String(balance.id)).length;
+ const reserved=salonCreditCartDelta(balance);
  if(balance.expiresOn&&balance.expiresOn<today()){cashierFormIssue('انتهت صلاحية الباقة');return}
  if(Number(balance.total||0)-Number(balance.used||0)<=reserved){cashierFormIssue('رصيد الباقة المتبقي غير كافٍ');return}
  if(!(balance.eligibleServiceIds||[]).map(String).includes(String(serviceId))){cashierFormIssue('الخدمة غير مشمولة في هذه الباقة');return}
@@ -310,22 +316,27 @@ function persist(){
   saveQueue=saveQueue.then(async()=>{
     // Reading the current server document prevents overwriting unrelated work from other tabs/devices.
     if(!firebaseReady||auth.currentUser?.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2")throw Error('انتهت جلسة المالكة');
-    const remoteSnapshot=await salonDoc.get({source:'server'});
-    if(!remoteSnapshot.exists)throw Error('قاعدة الصالون غير موجودة في Firebase؛ لن نستبدلها ببيانات فارغة');
-    const remote=remoteSnapshot.data()||{};
-    const baseline=salonCloudBaseline||startingBaseline||remote;
-    const patch={};
-    for(const key of tracked){
-      // Skip stale local values when this session did not edit them.
-      if(stringify(snapshot[key])===stringify(baseline[key]))continue;
-      // Skip values already written by live roster / other authorized writers.
-      if(stringify(snapshot[key])===stringify(remote[key]))continue;
-      patch[key]=snapshot[key];
-    }
-    if(!Object.keys(patch).length)return true;
-    patch.updatedAt=new Date().toISOString();patch.schemaVersion=3;
-    await salonDoc.set(patch,{merge:true});
-    salonCloudBaseline={...baseline,...patch};
+    let committedBaseline;
+    await firestore.runTransaction(async tx=>{
+      const remoteSnapshot=await tx.get(salonDoc);
+      if(!remoteSnapshot.exists)throw Error('قاعدة الصالون غير موجودة في Firebase');
+      const remote=remoteSnapshot.data()||{};
+      const baseline=salonCloudBaseline||startingBaseline||remote;
+      const patch={};
+      for(const key of tracked){
+        const original=startingBaseline||baseline;
+        if(stringify(snapshot[key])===stringify(original[key])||salonInvoiceSame(snapshot[key],remote[key]))continue;
+        if(['clients','inventory','packages','settings'].includes(key)&&!salonInvoiceSame(remote[key],original[key]))
+          throw Error('تغيّرت بيانات الصالون منذ فتح الصفحة. حدّثي البيانات قبل إعادة الحفظ');
+        patch[key]=snapshot[key];
+      }
+      if(Object.keys(patch).length){
+        patch.updatedAt=new Date().toISOString();patch.schemaVersion=3;
+        tx.set(salonDoc,patch,{merge:true});
+      }
+      committedBaseline=patch;
+    });
+    salonCloudBaseline={...(salonCloudBaseline||{}),...committedBaseline};
     return true;
   }).catch(err=>{console.error("Firestore save failed",err);toast("تعذر حفظ البيانات في Firebase: "+String(err.message||err));return false});
   return saveQueue;
@@ -381,7 +392,7 @@ function closeModal(){$("#modalRoot").innerHTML=""}
 function headerPanel(title,subtitle=""){return `<div class="hero"><div><h2>${esc(title)}</h2><p>${esc(subtitle)}</p></div><div class="hero-art">✿</div></div>`}
 function nav(items,active){return `<div class="nav no-print">${items.map(([id,label])=>`<button class="${id===active?"active":""}" onclick="ownerTab('${id}')">${esc(t(label))}</button>`).join("")}</div>`}
 let ownerActiveTab="dashboard";
-function renderOwner(tab=ownerActiveTab){if(db.session?.type!=="owner"||!firebaseReady||auth.currentUser?.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){renderHome();return}ownerActiveTab=tab;$("#homeBtn").classList.remove("hidden");applyLang();const total=db.invoices.reduce((s,x)=>s+x.total,0),todayBookings=db.bookings.filter(b=>b.date===today()).length,low=db.inventory.filter(x=>Number(x.quantity)<=Number(x.minQuantity)).length;
+function renderOwner(tab=ownerActiveTab){if(db.session?.type!=="owner"||!firebaseReady||auth.currentUser?.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2"){renderHome();return}ownerActiveTab=tab;$("#homeBtn").classList.remove("hidden");applyLang();const total=db.invoices.reduce((s,x)=>s+salonInvoiceNet(x),0),todayBookings=db.bookings.filter(b=>b.date===today()).length,low=db.inventory.filter(x=>Number(x.quantity)<=Number(x.minQuantity)).length;
 const tabs=[["dashboard","dashboard"],["clients","العميلات"],["appointments","appointments"],["newbooking","حجز جديد"],["schedule","schedule"],["cashier","cashier"],["invoices","سجل الفواتير"],["inventory","inventory"],["staff","staff"],["services","servicesManage"],["expenses","expenses"],["reports","reports"],["assistant","مساعد المالكة"],["backup","backup"]];
 let body="";
 if(tab==="dashboard")body=`<div class="stats"><div class="stat"><span>${esc(t("revenue"))}</span><strong>${money(total)}</strong></div><div class="stat"><span>${esc(t("bookingsCount"))}</span><strong>${db.bookings.length}</strong></div><div class="stat"><span>${esc(t("bills"))}</span><strong>${db.invoices.length}</strong></div><div class="stat"><span>${esc(t("lowStock"))}</span><strong>${low}</strong></div></div><div class="section-head"><h3>${esc(t("quickActions"))}</h3></div><div class="grid"><button class="card portal" onclick="ownerTab('appointments')"><div class="portal-icon">📅</div><h3>${esc(t("appointments"))}</h3><p>${todayBookings} ${esc(t("today"))}</p></button><button class="card portal" onclick="ownerTab('newbooking')"><div class="portal-icon">🗓️</div><h3>تسجيل حجز جديد</h3><p>صفحة الحجوزات المستقلة</p></button><button class="card portal" onclick="ownerTab('cashier')"><div class="portal-icon">🧾</div><h3>${esc(t("cashier"))}</h3><p>${esc(t("addInvoice"))}</p></button><button class="card portal" onclick="ownerTab('schedule')"><div class="portal-icon">⏰</div><h3>${esc(t("schedule"))}</h3><p>${esc(t("closeDay"))}</p></button></div><div class="section-head"><h3>${esc(t("appointments"))}</h3><button class="btn secondary small" onclick="ownerTab('appointments')">${esc(t("actions"))}</button></div>${bookingTable(db.bookings.slice().sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5),true)}`;
@@ -407,7 +418,7 @@ const OWNER_MENU=[['dashboard','الرئيسية','⌂'],['cashier','الكاش�
 function ownerThemeColor(){return localStorage.getItem('salonOwnerAccent')||'#c56b93'}
 function changeOwnerAccent(value){if(!/^#[0-9a-f]{6}$/i.test(value))return;localStorage.setItem('salonOwnerAccent',value);document.documentElement.style.setProperty('--owner-accent',value)}
 function ownerLayout(tab,content){
- const total=db.invoices.reduce((n,x)=>n+Number(x.total||0),0);
+ const total=db.invoices.reduce((n,x)=>n+salonInvoiceNet(x),0);
  const expense=db.expenses.reduce((n,x)=>n+Number(x.amount||0),0);
  const todayCount=db.bookings.filter(b=>b.date===today()).length;
  const recent=db.invoices.slice(-5).reverse();
@@ -660,7 +671,7 @@ function setupOwnerBooking(){const client=$("#obClient"),name=$("#obName"),phone
  });
  client.addEventListener("change",()=>{const c=db.clients.find(x=>x.id===client.value);name.value=c?.name||"";phone.value=c?.phone||"";name.readOnly=!!c;phone.readOnly=!!c});$("#obLocation").addEventListener("change",()=>$("#obAddressWrap").classList.toggle("hidden",$("#obLocation").value!=="home"));$$(".ob-service").forEach(x=>x.addEventListener("change",()=>{const services=$$(".ob-service:checked").map(el=>db.services.find(s=>s.id===el.value)).filter(Boolean);$("#obSummary").textContent=`${services.length} خدمات — ${money(services.reduce((a,s)=>a+Number(s.price||0),0))} — ${services.reduce((a,s)=>a+(Number(s.duration)||30),0)} دقيقة`;}));$("#ownerBookingForm").addEventListener("submit",saveOwnerBooking)}
 function saveOwnerBooking(e){e.preventDefault();if(db.session?.type!=="owner")return;const services=$$(".ob-service:checked").map(el=>db.services.find(s=>s.id===el.value&&s.active!==false)).filter(Boolean),staff=db.staff.find(x=>x.id===$("#obStaff").value&&x.active!==false),date=$("#obDate").value,time=$("#obTime").value,location=$("#obLocation").value,address=$("#obAddress").value.trim(),name=$("#obName").value.trim(),phone=$("#obPhone").value.trim();if(!services.length||!staff||!date||!time||!name||!phone){toast("أكملي البيانات واختاري خدمة واحدة على الأقل");return}if(date<today()){toast(t("datePast"));return}if(location==="home"&&db.settings.homeServiceEnabled!==true){toast("الخدمة المنزلية غير مفعلة");return}if(location==="home"&&!address){toast("أدخلي عنوان الخدمة المنزلية");return}const duration=services.reduce((a,s)=>a+(Number(s.duration)||30),0),start=timeToMin(time),end=start+duration;if(end>1440){toast("مدة الخدمات تتجاوز نهاية اليوم");return}const blocked=db.blocks.some(b=>b.date===date&&(b.staffId==="all"||b.staffId===staff.id)&&(b.fullDay||(start<timeToMin(b.endTime)&&end>timeToMin(b.startTime))));if(blocked){toast("هذا الموعد مغلق من جدول المواعيد");return}if(conflicts(date,time,staff.id,duration)&&!confirm("⚠️ يوجد حجز آخر بنفس وقت الموظفة. هل تريدين إضافة هذا الحجز أيضًا بقرارك؟"))return;let client=db.clients.find(c=>c.id===$("#obClient").value);if(!client){client=db.clients.find(c=>String(c.phone||"").replace(/\s/g,"")===phone.replace(/\s/g,""));if(!client){client={id:uid("cl"),code:"CL-"+db.counter++,name,phone,points:0,createdAt:new Date().toISOString()};db.clients.push(client)}}const b={id:uid("book"),clientId:client.id,clientCode:client.code,customerName:client.name,phone:client.phone,serviceId:services[0].id,serviceIds:services.map(s=>s.id),serviceName:services.map(s=>textService(s)).join("، "),staffId:staff.id,date,time,duration,price:services.reduce((a,s)=>a+Number(s.price||0),0),serviceLocation:location,homeAddress:location==="home"?address:"",notes:$("#obNotes").value.trim(),status:"pending",createdAt:new Date().toISOString()};db.bookings.push(b);persist();renderOwner("appointments");toast("تم حفظ الحجز بنجاح")}
-function cashierPanel(){cashierCart=[];cashierEditingInvoiceId=null;return `<div class="cashier-layout"><section class="card"><div class="spread"><div><h2>الكاشير</h2><p class="muted">أضيفي الخدمات وسجّلي العميلة أو ابحثي عن عميلة مسجلة.</p></div><span class="badge green">نظام الفواتير</span></div><div class="row" style="align-items:center;gap:10px;margin:8px 0 12px;flex-wrap:wrap"><button type="button" class="btn secondary small" onclick="salonDiagnoseInvoiceRead()">فحص اتصال الفواتير</button><small id="salonInvoiceReadDiagnostic" class="muted" role="status">الفحص للقراءة فقط؛ لا يغيّر أي فاتورة.</small></div><form id="invoiceForm" class="form-grid" novalidate><div id="cashierFormError" class="notice hidden full" role="alert" aria-live="assertive" style="border:1px solid #b64152;color:#8b243d;background:#fff1f3;margin:0"></div><div class="field"><label>البحث عن خدمة أو باقة</label><input id="serviceSearchCashier" placeholder="اكتبي اسم الخدمة أو العرض…" autocomplete="off"></div><div class="field"><label>اختاري الخدمة أو الباقة</label><select id="invoiceService"><option value="">اختاري خدمة للإضافة</option>${salonCashierAllItems().map(s=>`<option value="${esc(s.id)}">${esc(textService(s))} — ${money(salonEffectivePrice(s.price,db.settings?.serviceOffers?.[s.id]))}${salonOfferIsActive(db.settings?.serviceOffers?.[s.id])?' (خصم '+Number(db.settings.serviceOffers[s.id].percent)+'%)':''}</option>`).join("")}</select></div><div class="full" id="cashierSearchResults"></div>
+function cashierPanel(){cashierCart=[];cashierEditingInvoiceId=null;cashierEditingInvoiceSource=null;return `<div class="cashier-layout"><section class="card"><div class="spread"><div><h2>الكاشير</h2><p class="muted">أضيفي الخدمات وسجّلي العميلة أو ابحثي عن عميلة مسجلة.</p></div><span class="badge green">نظام الفواتير</span></div><div class="row" style="align-items:center;gap:10px;margin:8px 0 12px;flex-wrap:wrap"><button type="button" class="btn secondary small" onclick="salonDiagnoseInvoiceRead()">فحص اتصال الفواتير</button><small id="salonInvoiceReadDiagnostic" class="muted" role="status">الفحص للقراءة فقط؛ لا يغيّر أي فاتورة.</small></div><form id="invoiceForm" class="form-grid" novalidate><div id="cashierFormError" class="notice hidden full" role="alert" aria-live="assertive" style="border:1px solid #b64152;color:#8b243d;background:#fff1f3;margin:0"></div><div class="field"><label>البحث عن خدمة أو باقة</label><input id="serviceSearchCashier" placeholder="اكتبي اسم الخدمة أو العرض…" autocomplete="off"></div><div class="field"><label>اختاري الخدمة أو الباقة</label><select id="invoiceService"><option value="">اختاري خدمة للإضافة</option>${salonCashierAllItems().map(s=>`<option value="${esc(s.id)}">${esc(textService(s))} — ${money(salonEffectivePrice(s.price,db.settings?.serviceOffers?.[s.id]))}${salonOfferIsActive(db.settings?.serviceOffers?.[s.id])?' (خصم '+Number(db.settings.serviceOffers[s.id].percent)+'%)':''}</option>`).join("")}</select></div><div class="full" id="cashierSearchResults"></div>
 <div class="full card salon-cashier-package-picker" style="background:#fff9fc;border:1px solid #e6c3d3">
  <div><h3 style="margin:0 0 5px">العروض والباقات المسجلة</h3><p class="muted tiny" style="margin:0 0 10px">اختاري عرض الاستخدام الواحد مباشرة، أو بيعي باقة رصيد للعميلة. العرض الفردي يُنفذ في الزيارة نفسها، وباقة الرصيد يبقى منها رصيد للزيارات القادمة.</p></div>
  ${salonCashierOfferButtons()}
@@ -737,10 +748,10 @@ function invoiceLineStaffOptions(item){
  return '<option value="">حددي الموظفة المنفذة</option>'+visible.map(s=>`<option value="${esc(s.id)}" ${String(s.id)===selected?'selected':''}>${esc(s.name||'موظفة')} ${s.active===false?'(سابقة)':''}</option>`).join('');
 }
 
-function cashierTotals(){const threshold=Math.max(1,Number(db.settings.redeemPoints)||50),value=Math.max(0,Number(db.settings.redeemRiyals)||10),used=Math.max(0,Math.floor(Number($("#invoicePointsUse")?.value)||0)),loyaltyDiscount=Math.floor(used/threshold)*value;const subtotal=cashierCart.reduce((a,x)=>a+x.price*x.quantity,0),discount=Math.min(subtotal,Math.max(0,Number($("#invoiceDiscount")?.value)||0)+loyaltyDiscount),taxable=Math.max(0,subtotal-discount),tax=taxable*Math.max(0,Number($("#invoiceTaxRate")?.value)||0)/100;return {subtotal,discount,loyaltyDiscount,tax,total:taxable+tax}}
+function cashierTotals(){const threshold=Math.max(1,Number(db.settings.redeemPoints)||50),value=Math.max(0,Number(db.settings.redeemRiyals)||10),used=Math.max(0,Math.floor(Number($("#invoicePointsUse")?.value)||0)),existing=cashierEditingInvoiceId?db.invoices.find(i=>String(i.id)===String(cashierEditingInvoiceId)):null,loyaltyDiscount=existing&&used===Number(existing.pointsUsed||0)?Number(existing.loyaltyDiscount||0):Math.floor(used/threshold)*value;const subtotal=cashierCart.reduce((a,x)=>a+x.price*x.quantity,0),discount=Math.min(subtotal,Math.max(0,Number($("#invoiceDiscount")?.value)||0)+loyaltyDiscount),taxable=Math.max(0,subtotal-discount),tax=taxable*Math.max(0,Number($("#invoiceTaxRate")?.value)||0)/100;return {subtotal,discount,loyaltyDiscount,tax,total:taxable+tax}}
 function renderCashierCart(){const root=$('#cashierCartRows');if(!root)return;
  root.innerHTML=cashierCart.length?cashierCart.map(x=>`<div class="cart-row salon-service-invoice-row" style="grid-template-columns:minmax(0,1fr) minmax(135px,175px) 95px 75px auto;gap:8px;align-items:end">
-  <div><b>${esc(x.name)}</b>${x.itemKind==='packageUse'?'<div class="tiny" style="color:#247c5a">مشمولة برصيد الباقة — بدون دفع إضافي</div>':x.itemKind==='packagePurchase'?`<div class="tiny" style="color:#7c405c">${x.packageType==='credit'?'شراء باقة رصيد خدمات':'عرض/باقة استخدام واحد — يُحسب مرة واحدة'}</div>`:''}<div class="tiny muted">${money(x.price)} لكل خدمة • ${Math.max(0,Number(db.services.find(s=>String(s.id)===String(x.serviceId))?.loyaltyPoints)||0)} نقطة</div></div>
+  <div><b>${esc(x.name)}</b>${x.itemKind==='packageUse'?'<div class="tiny" style="color:#247c5a">مشمولة برصيد الباقة — بدون دفع إضافي</div>':x.itemKind==='packagePurchase'?`<div class="tiny" style="color:#7c405c">${x.packageType==='credit'?'شراء باقة رصيد خدمات':'عرض/باقة استخدام واحد — يُحسب مرة واحدة'}</div>`:''}<div class="tiny muted">${money(x.price)} لكل خدمة • ${x.itemKind==='packagePurchase'?(x.packagePoints??((db.invoices||[]).some(i=>String(i.id)===String(cashierEditingInvoiceId)&&salonPackageLines(i).some(row=>row.lineId===x.lineId))?0:salonPackageReward(db.settings,x.packageId))):x.itemKind==='packageUse'?0:Math.max(0,Number(db.services.find(s=>String(s.id)===String(x.serviceId))?.loyaltyPoints)||0)} نقطة</div></div>
   <div><label class="tiny muted" for="staff-${esc(x.lineId)}">الموظفة المنفذة</label><select ${x.itemKind==='packagePurchase'&&x.packageType==='credit'?'disabled':''} id="staff-${esc(x.lineId)}" aria-label="الموظفة المنفذة لخدمة ${esc(x.name)}" onchange="changeCartStaff('${esc(x.lineId)}',this.value)" style="width:100%;min-width:0">${invoiceLineStaffOptions(x)}</select></div>
   <div><label class="tiny muted">السعر</label><input style="width:100%" aria-label="سعر الخدمة" type="number" ${x.itemKind==='packageUse'?'disabled':''} min="0" step=".01" value="${x.price}" onchange="changeCartPrice('${esc(x.lineId)}',this.value)"></div>
   <div><label class="tiny muted">الكمية</label><input style="width:100%" aria-label="الكمية (تفصل لأسطر مستقلة)" type="number" ${x.itemKind?'disabled':''} min="1" max="10" step="1" value="${x.quantity}" onchange="changeCartQty('${esc(x.lineId)}',this.value)"></div>
@@ -774,22 +785,41 @@ function cashierFormIssue(message,field){
  else if(el)el.scrollIntoView({block:'nearest',behavior:'smooth'});
  return false;
 }
+function salonCancellationLink(booking){
+ if(booking.status!=='cancelled')return '';
+ const url=salonCancellationWhatsApp(booking);
+ return url?'<a class="btn secondary small" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">إبلاغ العميلة بالإلغاء عبر واتساب</a>':'';
+}
+function salonCancellationWhatsApp(booking){
+ const customer=(db.clients||[]).find(c=>String(c.id)===String(booking.clientId)||booking.clientUid&&String(c.authUid)===String(booking.clientUid));
+ const digits=salonNormalizePhone(customer?.phone||booking.clientPhone||booking.customerPhone||booking.phone);
+ if(!/^5\d{8}$/.test(digits))return '';
+ const message=['صالون جودة الأظافر — إشعار إلغاء موعد',
+  'تم إلغاء موعد '+(booking.serviceName||'الخدمة')+' بتاريخ '+booking.date+' الساعة '+booking.time+'.'].join('\n');
+ return 'https://wa.me/966'+digits+'?text='+encodeURIComponent(message);
+}
 function invoiceWhatsAppURL(invoice){
- const digits=String(invoice.customerPhone||'').replace(/\D/g,'');
- let phone=digits.startsWith('00966')?digits.slice(2):digits;
- if(/^05\d{8}$/.test(phone))phone='966'+phone.slice(1);
- if(/^5\d{8}$/.test(phone))phone='966'+phone;
- if(!/^9665\d{8}$/.test(phone))return '';
+ const customer=(db.clients||[]).find(c=>String(c.id)===String(invoice.clientId));
+ const digits=salonNormalizePhone(customer?.phone||invoice.customerPhone);
+ if(!/^5\d{8}$/.test(digits))return '';
+ const phone='966'+digits;
+ if(invoice.refund){
+  const r=invoice.refund;
+  const lines=['صالون جودة الأظافر — إشعار استرجاع','الفاتورة #'+invoice.number,'تاريخ الاسترجاع: '+r.date,
+   'قبل الاسترجاع: '+money(invoice.total),'المبلغ المسترجع: '+money(r.amount),'بعد الاسترجاع: '+money(salonInvoiceNet(invoice))];
+  if(r.voucherAmount)lines.push('أعيد إلى رصيد قسيمة الهدية: '+money(r.voucherAmount));
+  return 'https://wa.me/'+phone+'?text='+encodeURIComponent(lines.join('\n'));
+ }
  const lines=['🧾 فاتورة صالون جودة الأظافر','رقم الفاتورة: #'+invoice.number,'التاريخ: '+invoice.date,'العميلة: '+invoice.customerName,'الخدمات:\n'+invoiceLineRows(invoice).map(x=>(x.name||'خدمة')+' ×'+(Number(x.quantity)||1)+' — '+invoiceItemStaffLabel(invoice,x)).join('\n'),'طريقة الدفع: '+invoice.payment,'الإجمالي: '+money(invoice.total),'شكرًا لزيارتكِ 💗'];
  return 'https://wa.me/'+phone+'?text='+encodeURIComponent(lines.join('\n'));
 }
 function shareInvoiceWhatsApp(id){
  if(db.session?.type!=='owner')return;
  const invoice=db.invoices.find(i=>String(i.id)===String(id));if(!invoice){toast('الفاتورة غير موجودة');return}
- const url=invoiceWhatsAppURL(invoice);if(!url){toast('رقم جوال العميلة غير صالح للواتساب؛ عدليه في بيانات الفاتورة');return}
- const opened=window.open(url,'_blank','noopener,noreferrer');
- if(!opened){const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent='فتح فاتورة الواتساب';link.className='btn';document.querySelector('.owner-content')?.prepend(link);toast('اسمحي بالنوافذ المنبثقة أو اضغطي رابط الواتساب الظاهر')}
- else toast('تم فتح واتساب. اضغطي إرسال داخل واتساب لإرسال الفاتورة.');
+ const url=invoiceWhatsAppURL(invoice);if(!url){toast('رقم الجوال غير صالح للواتساب؛ راجعيه في بيانات العميلة');return}
+ const link=document.createElement('a');
+ link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.click();
+ toast('اضغطي «إرسال» داخل واتساب. الإرسال التلقائي يتطلب WhatsApp Business API.');
 }
 function salonOwnerInvoicePermission(){return firebaseReady&&db.session?.type==='owner'&&auth.currentUser?.uid==='AvRinM2frzLkDWH1CsH7CnIhFnK2'}
 function salonInvoiceMerge(legacy,individual){
@@ -943,23 +973,22 @@ function salonUpdateInvoiceBaseline(fields){
 async function salonSyncInvoiceOptionalViews(saved,wasEdited=false){
  const warnings=[];
  try{
-  const remote=await salonDoc.get({source:'server'});
-  const linked=(remote.data()?.clients||[]).find(c=>String(c.id)===String(saved.clientId));
-  const uid=String(linked?.authUid||'');
-  const receipt=firestore.collection('clientInvoices').doc(encodeURIComponent(String(saved.id)));
-  if(!uid){
-   if(wasEdited){try{await receipt.delete()}catch(err){warnings.push('تعذّر تنظيف نسخة الفاتورة السابقة من حساب العميلة: '+String(err.message||err))}}
-   return warnings;
-  }
-  const profile=await firestore.collection('clientProfiles').doc(uid).get({source:'server'});
-  const normalize=p=>{let v=String(p||'').replace(/\D/g,'');if(v.startsWith('00966'))v=v.slice(5);else if(v.startsWith('966'))v=v.slice(3);return v.startsWith('0')?v.slice(1):v};
-  if(!profile.exists||normalize(profile.data()?.phone).length!==9||normalize(profile.data()?.phone)!==normalize(linked.phone)){
-   warnings.push('لم تُنشر نسخة العميلة: ارتباط الحساب والجوال يحتاج مراجعة المالكة');
-   return warnings;
-  }
-  try{
-   await receipt.set(window.salonMakeClientInvoiceView(saved,uid,linked.id));
-  }catch(err){warnings.push('تعذّر عرض نسخة الفاتورة في «فواتيري»: '+String(err.message||err))}
+  let linked,uid;
+  await firestore.runTransaction(async tx=>{
+   const remote=await tx.get(salonDoc);
+   const current=await tx.get(salonInvoiceDocument(saved.id));
+   if(!current.exists||current.data().refund||!salonInvoiceSame({...current.data(),id:String(current.data().id||saved.id)},saved))return;
+   linked=(remote.data()?.clients||[]).find(c=>String(c.id)===String(saved.clientId));
+   uid=String(linked?.authUid||'');
+   const receipt=firestore.collection('clientInvoices').doc(encodeURIComponent(String(saved.id)));
+   if(!uid){if(wasEdited)tx.delete(receipt);return}
+   const profile=await tx.get(firestore.collection('clientProfiles').doc(uid));
+   if(!profile.exists||!/^5\d{8}$/.test(salonNormalizePhone(linked.phone))||salonNormalizePhone(profile.data().phone)!==salonNormalizePhone(linked.phone)){
+    throw Error('ارتباط حساب العميلة بالجوال يحتاج إلى مراجعة');
+   }
+   tx.set(receipt,window.salonMakeClientInvoiceView(saved,uid,linked.id));
+  });
+  if(!uid)return warnings;
   try{
    await firestore.runTransaction(async tx=>{
     const current=await tx.get(salonDoc);
@@ -979,6 +1008,242 @@ async function salonSyncInvoiceOptionalViews(saved,wasEdited=false){
 window.salonSyncInvoiceOptionalViews=salonSyncInvoiceOptionalViews;
 // Atomically save ONE invoice and the linked customer points / inventory deltas.
 // No invoice array or bulk salon data is written to salonData/main.
+function salonPackageLines(invoice){
+ return invoiceLineRows(invoice).filter(x=>x.itemKind==='packagePurchase'||x.itemKind==='packageUse');
+}
+function salonVerifyPackageInvoiceLinks(remote,invoice){
+ if(!invoice)return;
+ const id=String(invoice.id),lines=salonPackageLines(invoice);
+ for(const b of remote.clientPackages||[]){
+  if(String(b.purchaseInvoiceId||'')===id&&!lines.some(x=>x.itemKind==='packagePurchase'&&x.packageType==='credit'&&String(b.id)==='bal-'+id+'-'+x.lineId))
+   throw Error('توجد باقة مشتراة من هذه الفاتورة بأسطر قديمة تحتاج مطابقة يدوية');
+  if((b.uses||[]).some(u=>String(u.invoiceId)===id&&!lines.some(x=>x.itemKind==='packageUse'&&String(x.lineId)===String(u.lineId)&&String(x.packageUseBalanceId)===String(b.id))))
+   throw Error('توجد استخدامات مرتبطة بهذه الفاتورة تحتاج مطابقة يدوية');
+ }
+}
+function salonReconcilePackageLines(remote,before,after,clientId){
+ const balances=(remote.clientPackages||[]).map(x=>({...x,uses:[...(x.uses||[])]}));
+ const old=salonPackageLines(before),next=salonPackageLines(after);
+ for(const lines of [old,next]){
+  if(lines.some(x=>!x.lineId||Number(x.quantity)!==1)||new Set(lines.map(x=>String(x.lineId))).size!==lines.length)throw Error('تحتاج أسطر الباقة إلى مراجعة: معرّف مفقود أو مكرر أو كمية غير صحيحة');
+ }
+ const invoiceId=String((before||after).id),sameClient=String(before?.clientId)===String(clientId);
+ const key=x=>JSON.stringify([x.lineId,x.itemKind,x.packageType||'',x.packageId||'',x.packageUseBalanceId||'',x.serviceId]);
+ const kept=new Map(sameClient?old.filter(x=>next.some(y=>key(x)===key(y))).map(x=>[key(x),x]):[]);
+ if(!sameClient&&old.some(x=>x.itemKind==='packagePurchase'&&next.some(y=>key(x)===key(y))))
+  throw Error('تغيير عميلة الشراء يتطلب إزالة سطر الشراء القديم وإضافة سطر جديد بعد التحقق من الرصيد');
+ const removed=old.filter(x=>!kept.has(key(x)));
+ const removedBalances=new Set();
+ const now=salonSaudiDate();
+ function findUse(line){
+  const balance=balances.find(b=>String(b.id)===String(line.packageUseBalanceId));
+  const match=u=>String(u.invoiceId)===invoiceId&&String(u.lineId)===String(line.lineId);
+  const matches=(balance?.uses||[]).filter(match);
+  if(!balance||String(balance.clientId)!==String(before.clientId)||matches.length!==1||
+     String(matches[0].serviceId)!==String(line.serviceId)||!Number.isSafeInteger(Number(balance.used))||Number(balance.used)<balance.uses.length)
+   throw Error('تعذر مطابقة استخدام الباقة مع سجلها الأصلي. راجعي الرصيد قبل تعديل الفاتورة');
+  return {balance,match};
+ }
+ for(const line of removed.filter(x=>x.itemKind==='packageUse')){
+  const {balance,match}=findUse(line);
+  balance.used=Number(balance.used)-1;
+  balance.uses=balance.uses.filter(u=>!match(u));
+ }
+ for(const line of old.filter(x=>x.itemKind==='packagePurchase'&&x.packageType==='credit')){
+  const id='bal-'+invoiceId+'-'+line.lineId;
+  const balance=balances.find(b=>String(b.id)===id);
+  if(!balance||String(balance.purchaseInvoiceId)!==invoiceId||String(balance.clientId)!==String(before.clientId)||
+     String(balance.packageId)!==String(line.packageId)||balance.purchaseOrderId)
+   throw Error('تعذر مطابقة شراء الباقة مع رصيده الأصلي. راجعي سجل الشراء');
+  if(kept.has(key(line)))continue;
+  if(Number(balance.used)!==0||balance.uses.length)throw Error('هذه الباقة لها استخدامات مسجلة. صححي فواتير الاستخدام أولًا قبل حذف الشراء أو تغيير صاحبته');
+  removedBalances.add(id);
+ }
+ const current=balances.filter(b=>!removedBalances.has(String(b.id)));
+ for(const item of next){
+  const previous=kept.get(key(item));
+  if(item.itemKind==='packageUse'){
+   if(Number(item.price)!==0||Number(item.lineTotal)!==0||!item.staffId)throw Error('استخدام الباقة مجاني ويتطلب تحديد الموظفة المنفذة');
+   if(previous){
+    const {balance,match}=findUse(previous);
+    balance.uses=balance.uses.map(u=>match(u)?{...u,staffId:String(item.staffId)}:u);
+    continue;
+   }
+   const balance=current.find(b=>String(b.id)===String(item.packageUseBalanceId));
+   if(!balance||String(balance.clientId)!==String(clientId))throw Error('رصيد الباقة لا يعود لهذه العميلة');
+   if(balance.expiresOn&&balance.expiresOn<now)throw Error('انتهت صلاحية الباقة');
+   const used=Number(balance.used),total=Number(balance.total);
+   if(!Number.isSafeInteger(used)||used<balance.uses.length||!Number.isSafeInteger(total)||used>=total)throw Error('رصيد الباقة غير كافٍ أو يحتاج إلى مراجعة');
+   if(!(balance.eligibleServiceIds||[]).map(String).includes(String(item.serviceId)))throw Error('الخدمة غير مشمولة في رصيد الباقة');
+   if(balance.uses.some(u=>String(u.invoiceId)===invoiceId&&String(u.lineId)===String(item.lineId)))throw Error('سبق تسجيل هذا الاستخدام');
+   balance.used=used+1;
+   balance.uses.push({invoiceId,lineId:String(item.lineId),serviceId:String(item.serviceId),staffId:String(item.staffId),date:now});
+   continue;
+  }
+  if(previous){
+   item.packagePoints=Number(previous.packagePoints)||0;
+   if(previous.includedServices)item.includedServices=previous.includedServices;
+   continue;
+  }
+  const template=(remote.packages||[]).find(p=>String(p.id)===String(item.packageId)&&p.active!==false);
+  if(!template||String(item.serviceId)!==salonCashierPackageServiceId(template.id))throw Error('الباقة غير متاحة. أعيدي اختيارها من الكاشير');
+  const credit=template.kind==='credit';
+  if(item.packageType!==(credit?'credit':'instant'))throw Error('تغيّر نوع الباقة. أعيدي اختيارها من الكاشير');
+  const rows=(template.items||[]).filter(r=>Number(r.quantity)>0);
+  if(!rows.length)throw Error('الباقة لا تحتوي خدمات');
+  item.packagePoints=salonPackageReward(remote.settings,template.id);
+  if(!credit){
+   item.includedServices=rows.map(r=>({serviceId:String(r.serviceId),quantity:Number(r.quantity)}));
+   continue;
+  }
+  const total=Number(template.creditsTotal),months=Number(template.validityMonths??12);
+  if(!Number.isSafeInteger(total)||total<1||total>999||!Number.isSafeInteger(months)||months<0||months>120)throw Error('راجعي عدد استخدامات الباقة وصلاحيتها');
+  const id='bal-'+invoiceId+'-'+item.lineId;
+  if(current.some(b=>String(b.id)===id))throw Error('سبق تسجيل رصيد هذا الشراء');
+  const eligibleServiceIds=[...new Set(rows.map(r=>String(r.serviceId)))];
+  current.push({id,clientId,phone:after.customerPhone||'',packageId:String(template.id),packageName:String(template.nameAr||'باقة'),
+   packageNameEn:String(template.nameEn||''),kind:'credit',total,used:0,uses:[],eligibleServiceIds,
+   eligibleNames:eligibleServiceIds.map(id=>String((remote.services||[]).find(s=>String(s.id)===id)?.name||id)),
+   purchasedOn:now,expiresOn:months?salonCreditExpiry(now,months):'',purchaseInvoiceId:invoiceId,createdAt:new Date().toISOString()});
+ }
+ return current;
+}
+function salonInvoiceServiceQuantities(invoice){
+ const quantities=new Map();
+ for(const line of invoiceLineRows(invoice)){
+  if(!line.itemKind)quantities.set(String(line.serviceId), (quantities.get(String(line.serviceId))||0)+Number(line.quantity||1));
+ }
+ return [...quantities].sort(([a],[b])=>a.localeCompare(b));
+}
+function salonOwnedPackagesPanel(){
+ const balances=salonBalances();
+ const ids=new Set(balances.map(b=>String(b.clientId)));
+ const people=(db.clients||[]).filter(c=>ids.has(String(c.id)));
+ return `<section class="card"><div class="spread"><h2>أرصدة الباقات المشتراة</h2><button type="button" class="btn secondary small" id="salonOwnedRefresh">تحديث من Firebase</button></div>
+ <p class="muted">اختاري عميلة لتعديل الرصيد الذي اشترته ومراجعة عدد الخدمات المسجلة في الفواتير.</p>
+ <label class="field">العميلة<select id="salonOwnedClient"><option value="">اختاري عميلة</option>${people.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} · ${esc(c.phone||'')}</option>`).join('')}</select></label>
+ <div id="salonOwnedRows"></div></section>`;
+}
+function salonBindOwnedPackages(){
+ const select=document.querySelector('#salonOwnedClient'),host=document.querySelector('#salonOwnedRows');
+ if(!select||!host)return;
+ function draw(){
+  host.innerHTML=salonBalances().filter(b=>String(b.clientId)===select.value).map(b=>{
+   const uses=b.uses||[],counts=new Map();
+   for(const use of uses)counts.set(String(use.serviceId),(counts.get(String(use.serviceId))||0)+1);
+   const serviceIds=[...new Set([...(b.eligibleServiceIds||[]).map(String),...counts.keys()])];
+   return `<form class="card form-grid" data-balance="${esc(b.id)}">
+    <div class="field full"><h3>${esc(b.packageName||'باقة')}</h3><small>${b.expiresOn?'الصلاحية حتى '+esc(b.expiresOn):'بدون تاريخ انتهاء'}</small></div>
+    <label class="field">إجمالي الاستخدامات<input type="number" required min="1" step="1" max="999" name="total" value="${Number(b.total)||0}"></label>
+    <label class="field">المستخدمة<input type="number" required min="${uses.length}" step="1" max="999" name="used" value="${Number(b.used)||0}"></label>
+    <label class="field">المتبقية<input type="number" required min="0" step="1" max="999" name="remaining" value="${Math.max(0,Number(b.total)-Number(b.used))}"></label>
+    <label class="field">سبب التعديل<input name="reason" required maxlength="180"></label>
+    <div class="field full"><small>المسجلة في الفواتير: ${uses.length} · استخدامات يدوية أو سابقة بلا سطر فاتورة: ${Math.max(0,Number(b.used)-uses.length)}</small>
+    ${serviceIds.length?`<ul>${serviceIds.map(id=>`<li>${esc((db.services||[]).find(s=>String(s.id)===id)?.name||b.eligibleNames?.[(b.eligibleServiceIds||[]).map(String).indexOf(id)]||id)} · ${counts.get(id)||0} في الفواتير</li>`).join('')}</ul>`:''}</div>
+    <button type="submit" class="btn full">حفظ رصيد العميلة</button></form>`;
+  }).join('');
+ }
+ select.addEventListener('change',draw);
+ document.querySelector('#salonOwnedRefresh').onclick=async()=>{
+  const selected=select.value;
+  await salonRefreshPackageBalances();
+  if(select.isConnected){window.salonResetPackageEditor();const next=document.querySelector('#salonOwnedClient');if(next){next.value=selected;next.dispatchEvent(new Event('change'))}}
+ };
+ host.addEventListener('input',e=>{
+  const form=e.target.closest('form[data-balance]');if(!form||e.target.value==='')return;
+  const {total,used,remaining}=form.elements;
+  if(e.target===remaining)used.value=String(Number(total.value)-Number(remaining.value));
+  else if(e.target===total||e.target===used)remaining.value=String(Number(total.value)-Number(used.value));
+ });
+ host.addEventListener('submit',async e=>{
+  e.preventDefault();if(!salonOwnerInvoicePermission())return;
+  const form=e.target,button=form.querySelector('button');
+  if(button.disabled)return;
+  const displayed=salonBalances().find(b=>String(b.id)===form.dataset.balance);
+  const {total,used,reason}=form.elements,nextTotal=Number(total.value),nextUsed=Number(used.value),note=reason.value.trim();
+  if(!displayed||!note||![nextTotal,nextUsed].every(Number.isSafeInteger)||nextTotal<1||nextTotal>999||nextUsed<0||nextUsed>nextTotal){toast('راجعي الأعداد واكتبي سبب التعديل');return}
+  button.disabled=true;
+  try{
+   await saveQueue;
+   let updated;
+   await firestore.runTransaction(async tx=>{
+    const main=await tx.get(salonDoc);
+    if(!main.exists)throw Error('سجل الصالون غير متاح');
+    const remote=main.data(),balances=remote.clientPackages||[];
+    const balance=balances.find(b=>String(b.id)===String(displayed.id));
+    if(!balance||String(balance.clientId)!==String(displayed.clientId)||Number(balance.total)!==Number(displayed.total)||Number(balance.used)!==Number(displayed.used))
+     throw Error('تغيّر الرصيد. حدّثي القائمة قبل حفظ التعديل');
+    if(nextUsed<(balance.uses||[]).length)throw Error('العدد أقل من الاستخدامات المسجلة في الفواتير. صححي الفاتورة ذات الصلة');
+    if(nextUsed===Number(balance.used)&&nextTotal===Number(balance.total)){updated=balances;return}
+    const at=new Date().toISOString();
+    const adjusted={...balance,total:nextTotal,used:nextUsed,lastAdjustment:{previousTotal:Number(balance.total),previousUsed:Number(balance.used),total:nextTotal,used:nextUsed,reason:note,at,ownerUid:auth.currentUser.uid}};
+    updated=balances.map(b=>b===balance?adjusted:b);
+    const writes=await salonPreparePackageViews(tx,remote.clients||[],updated,[balance.clientId],false);
+    tx.update(salonDoc,{clientPackages:updated,updatedAt:at});
+    for(const write of writes)write();
+   });
+   db.clientPackages=updated;salonCreditLocalRevision++;
+   salonUpdateInvoiceBaseline({clientPackages:updated});
+   draw();toast('تم حفظ رصيد الباقة');
+  }catch(err){toast('تعذر حفظ الرصيد: '+String(err.message||err))}
+  finally{button.disabled=false}
+ });
+}
+
+function salonPackageReward(settings,id){
+ const points=Number(settings?.rewardPointsByItem?.['package:'+id]??0);
+ return Number.isSafeInteger(points)&&points>=0&&points<=9999?points:0;
+}
+function salonApplyInvoicePoints(clients,before,after){
+ const deltas=new Map();
+ for(const [invoice,sign] of [[before,-1],[after,1]]){
+  if(!invoice||invoice.pendingPoints===true)continue;
+  const added=Number(invoice.pointsAdded||0),used=Number(invoice.pointsUsed||0);
+  if(![added,used].every(n=>Number.isSafeInteger(n)&&n>=0))throw Error('سجل نقاط الفاتورة يحتاج إلى مراجعة');
+  const id=String(invoice.clientId||'');
+  deltas.set(id,(deltas.get(id)||0)+sign*(added-used));
+ }
+ for(const [id,delta] of deltas){
+  if(!delta)continue;
+  const client=clients.find(c=>String(c.id)===id);
+  if(!client)throw Error('حساب صاحبة النقاط غير موجود');
+  const next=Number(client.points||0)+delta;
+  if(!Number.isSafeInteger(next)||next<0)throw Error('تؤدي التسوية إلى رصيد نقاط سالب. راجعي النقاط المكتسبة التي سبق استخدامها');
+  client.points=next;
+  client.updatedAt=new Date().toISOString();
+ }
+}
+async function salonPreparePackageViews(tx,clients,balances,clientIds,syncWallet=true){
+ const writes=[];
+ for(const id of new Set(clientIds.map(String))){
+  const client=clients.find(c=>String(c.id)===id),uid=String(client?.authUid||'');
+  if(!uid)continue;
+  const profile=await tx.get(firestore.collection('clientProfiles').doc(uid));
+  const phone=salonNormalizePhone(client.phone);
+  if(!profile.exists||!/^5\d{8}$/.test(phone)||salonNormalizePhone(profile.data().phone)!==phone)
+   throw Error('راجعي ربط حساب العميلة برقم جوالها قبل تعديل الباقة أو الفاتورة');
+  const viewRef=firestore.collection('clientPackageViews').doc(uid);
+  const existingView=await tx.get(viewRef);
+  if(existingView.exists&&existingView.data().clientId&&String(existingView.data().clientId)!==id)
+   throw Error('حساب الباقات مرتبط بسجل عميلة آخر. راجعي الربط');
+  const timestamp=firebase.firestore.FieldValue.serverTimestamp();
+  const rows=balances.filter(b=>String(b.clientId)===id).map(b=>({
+   id:String(b.id),packageId:String(b.packageId||''),packageName:String(b.packageName||''),packageNameEn:String(b.packageNameEn||''),
+   kind:String(b.kind||'credit'),total:Number(b.total)||0,used:Number(b.used)||0,expiresOn:String(b.expiresOn||''),purchasedOn:String(b.purchasedOn||''),
+   eligibleServiceIds:(b.eligibleServiceIds||[]).map(String),eligibleServiceNames:(b.eligibleNames||[]).map(String)
+  }));
+  writes.push(()=>tx.set(viewRef,{clientId:id,balances:rows,updatedAt:timestamp},{merge:true}));
+  if(!syncWallet)continue;
+  const walletRef=firestore.collection('loyaltyAccounts').doc(uid),wallet=await tx.get(walletRef);
+  if(wallet.exists&&wallet.data().approved===true&&String(wallet.data().clientId)===id){
+   const points=Number(client.points||0);
+   if(!Number.isSafeInteger(points)||points<0)throw Error('رصيد نقاط العميلة يحتاج إلى مراجعة');
+   writes.push(()=>tx.update(walletRef,{points,updatedAt:timestamp}));
+  }
+ }
+ return writes;
+}
+
 async function salonSaveIndependentInvoice(proposed,client,mode){
  if(!salonOwnerInvoicePermission())throw Error('دخول المالكة مطلوب');
  // The separate invoice collection is the write source of truth. A pending historical
@@ -994,25 +1259,24 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
   // invoiceStorageVersion is only a migration marker, not a prerequisite for a
   // new salonInvoices document. Do not delete or modify historical invoices here.
   const remote=main.data()||{};
-  const before=prev.exists?prev.data():null;
+  const before=prev.exists?{...prev.data(),id:String(prev.data().id||proposed.id)}:null;
+  if(before?.refund)throw Error('الفاتورة مسترجعة ومحفوظة في السجل');
+  if(before&&proposed.__source&&!salonInvoiceSame(before,proposed.__source))throw Error('تغيّرت الفاتورة على جهاز آخر. حدّثي سجل الفواتير وافتحيها مجددًا');
   // Every Firestore transaction READ happens before its first WRITE.
-  const appliedVoucherId=String(proposed.voucherId||'').trim();
-  const appliedVoucherAmount=Number(proposed.voucherAmountUsed||0);
-  if(!Number.isSafeInteger(Math.round(appliedVoucherAmount*100))||appliedVoucherAmount<0||appliedVoucherAmount>10000)throw Error('مبلغ القسيمة غير صحيح');
-  if((before?.voucherAmountUsed||0)>0||before?.voucherId)throw Error('لا يمكن تعديل فاتورة استخدمت قسيمة بعد حفظها؛ استخدمي إجراء تصحيح مالي منفصل');
-  if(proposed.__edit&&(appliedVoucherAmount>0||appliedVoucherId))throw Error('لا يمكن تطبيق قسيمة أثناء تعديل فاتورة محفوظة');
-  if(Boolean(appliedVoucherId)!==(appliedVoucherAmount>0))throw Error('اختاري رمز قسيمة وقيمة صرف صحيحة معًا');
-  const appliedVoucherRef=appliedVoucherId?firestore.collection('salonGiftVouchers').doc(appliedVoucherId):null;
+  const existingVoucher=Boolean(before?.voucherId||Number(before?.voucherAmountUsed)>0);
+  const appliedVoucherId=String((existingVoucher?before.voucherId:proposed.voucherId)||'').trim();
+  const appliedVoucherAmount=Number((existingVoucher?before.voucherAmountUsed:proposed.voucherAmountUsed)||0);
+  if(!Number.isFinite(appliedVoucherAmount)||appliedVoucherAmount<0||appliedVoucherAmount>10000)throw Error('مبلغ القسيمة غير صحيح');
+  if(proposed.__edit&&!existingVoucher&&(appliedVoucherAmount>0||appliedVoucherId))throw Error('لا يمكن تطبيق قسيمة أثناء تعديل فاتورة محفوظة');
+  if(Boolean(appliedVoucherId)!==(appliedVoucherAmount>0))throw Error('بيانات القسيمة تحتاج إلى مراجعة');
+  const appliedVoucherRef=appliedVoucherId&&!existingVoucher?firestore.collection('salonGiftVouchers').doc(appliedVoucherId):null;
   const appliedVoucherSnap=appliedVoucherRef?await transaction.get(appliedVoucherRef):null;
   if(proposed.__edit&&!before)throw Error('الفاتورة الأصلية غير موجودة في المجموعة الجديدة، لن ننشئ فاتورة مكررة');
   if(!proposed.__edit&&before)throw Error('رقم تعريف الفاتورة مستخدم مسبقًا، راجعي سجل الفواتير');
-  if(before&&(salonInvoiceHasPackageMovements(before)||salonInvoiceHasPackageMovements(proposed)))throw Error('لا يمكن تعديل فاتورة مرتبطة بشراء أو استخدام باقة. يلزم إجراء تصحيح مستقل.');
-  const clients=Array.isArray(remote.clients)?remote.clients.map(x=>({...x})):[];
-  const supplies=Array.isArray(remote.inventory)?remote.inventory.map(x=>({...x})):[];
-  if(before){
-   const previous=clients.find(c=>String(c.id)===String(before.clientId));
-   if(previous)previous.points=Math.max(0,Number(previous.points||0)+Number(before.pointsUsed||0)-Number(before.pointsAdded||0));
-  }
+  salonVerifyPackageInvoiceLinks(remote,before);
+  const packageChange=salonInvoiceHasPackageMovements(before)||salonInvoiceHasPackageMovements(proposed);
+  const clients=(remote.clients||[]).map(x=>({...x}));
+  const supplies=(remote.inventory||[]).map(x=>({...x}));
   let target=clients.find(c=>String(c.id)===String(client.id));
   if(!target){
    if(mode==='existing')throw Error('العميلة غير موجودة في Firebase');
@@ -1032,68 +1296,44 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
    if(spend<=0||spend>due)throw Error('مبلغ استخدام القسيمة أكبر من قيمة الفاتورة');
    if(spend>balance)throw Error('رصيد القسيمة غير كافٍ في Firebase');
   }
-  if(Number(target.points||0)<Number(proposed.pointsUsed||0))throw Error('رصيد النقاط في Firebase غير كافٍ');
-  target.points=Math.max(0,Number(target.points||0)-Number(proposed.pointsUsed||0)+Number(proposed.pointsAdded||0));
-  target.updatedAt=new Date().toISOString();
-  const movementItems=invoiceLineRows(proposed).filter(item=>item.itemKind==='packagePurchase'||item.itemKind==='packageUse');
-  if(new Set(movementItems.map(it=>String(it.lineId||''))).size!==movementItems.length)throw Error('معرفات متكررة لأسطر الباقات');
-  const clientPackages=Array.isArray(remote.clientPackages)?remote.clientPackages.map(x=>({...x,uses:[...(x.uses||[])]})):[];
-  const serverNow=salonSaudiDate();
-  for(let idx=0;idx<movementItems.length;idx++){
-   const item=movementItems[idx];
-   if(Number(item.quantity)!==1)throw Error('يجب أن تكون كمية شراء أو استخدام الباقة واحدة لكل سطر');
-   if(item.itemKind==='packagePurchase'){
-    const tmpl=(remote.packages||[]).find(p=>String(p.id)===String(item.packageId));
-    if(!tmpl||tmpl.active===false)throw Error('الباقة غير متاحة حاليًا؛ حدّثي الكاشير.');
-    if(String(item.serviceId)!==salonCashierPackageServiceId(tmpl.id))throw Error('معرف الباقة غير صحيح');
-    if(String(item.packageType)!==String((tmpl.kind||'instant')==='credit'?'credit':'instant'))throw Error('تغيّر نوع الباقة. احذفي السطر ثم أضيفي الباقة مجددًا.');
-    if(!String(item.lineId||'').trim())throw Error('معرف سطر الباقة مفقود');
-    if((tmpl.kind||'instant')!=='credit'){
-     item.includedServices=(tmpl.items||[]).filter(r=>Number(r.quantity)>0).map(r=>({serviceId:String(r.serviceId),quantity:Math.max(1,Number(r.quantity)||1)}));
-     if(!item.includedServices.length)throw Error('الباقة المتكاملة لا تحتوي خدمات');
-    }
-    if((tmpl.kind||'instant')==='credit'){
-     const total=Math.floor(Number(tmpl.creditsTotal)||0),eligible=(tmpl.items||[]).filter(row=>Number(row.quantity)>0).map(row=>String(row.serviceId));
-     if(!Number.isInteger(total)||total<1||total>999||!eligible.length)throw Error('إعدادات رصيد الباقة غير مكتملة');
-     const months=Math.floor(Number(tmpl.validityMonths??12));
-     if(!Number.isInteger(months)||months<0||months>120)throw Error('مدة الباقة غير صحيحة');
-     const balanceId='bal-'+String(proposed.id)+'-'+String(item.lineId);
-     if(clientPackages.some(x=>String(x.id)===balanceId))throw Error('تم تسجيل عملية شراء الباقة من قبل');
-     clientPackages.push({id:balanceId,clientId:target.id,phone:target.phone||client.phone,
-      packageId:String(tmpl.id),packageName:String(tmpl.nameAr||'باقة'),total,used:0,uses:[],
-      eligibleServiceIds:[...new Set(eligible)],eligibleNames:(tmpl.items||[]).filter(row=>Number(row.quantity)>0).map(row=>String((remote.services||[]).find(s=>String(s.id)===String(row.serviceId))?.name||row.serviceId)),
-      purchasedOn:serverNow,expiresOn:months===0?'':salonCreditExpiry(serverNow,months),
-      purchaseInvoiceId:String(proposed.id),createdAt:new Date().toISOString()});
-    }
-   }else{
-    const balance=clientPackages.find(x=>String(x.id)===String(item.packageUseBalanceId));
-    if(!balance||String(balance.clientId)!==String(target.id))throw Error('لا توجد باقة رصيد لهذه العميلة');
-    if(balance.expiresOn&&String(balance.expiresOn)<serverNow)throw Error('انتهت صلاحية الباقة');
-    if(Number(balance.used||0)>=Number(balance.total||0))throw Error('انتهى رصيد الباقة؛ لا يمكن تكرار خصم الخدمة');
-    if(!(balance.eligibleServiceIds||[]).map(String).includes(String(item.serviceId)))throw Error('الخدمة غير مشمولة في رصيد هذه الباقة');
-    if(Number(item.price)!==0||Number(item.lineTotal)!==0||!item.staffId)throw Error('خدمة رصيد الباقة يجب أن تكون مجانية وبموظفة منفذة');
-    if((balance.uses||[]).some(u=>String(u.invoiceId)===String(proposed.id)&&String(u.lineId)===String(item.lineId)))throw Error('سبق تسجيل استخدام هذه الخدمة');
-    balance.used=Number(balance.used||0)+1;
-    balance.uses.push({invoiceId:String(proposed.id),lineId:String(item.lineId),serviceId:String(item.serviceId),staffId:String(item.staffId),date:serverNow});
-   }
-  }
+  if(existingVoucher&&(String(before.clientId)!==String(target.id)||appliedVoucherAmount>Number(proposed.total||0)))
+   throw Error('احتفظي بعميلة القسيمة وتأكدي أن الإجمالي يغطي مبلغها');
+  const clientPackages=packageChange?salonReconcilePackageLines(remote,before,{...proposed,customerPhone:target.phone},target.id):(remote.clientPackages||[]);
+  const earnedFromPackages=salonPackageLines(proposed).reduce((sum,item)=>sum+(Number(item.packagePoints)||0),0);
+  const unchangedServiceRows=before&&JSON.stringify(salonInvoiceServiceQuantities(before))===JSON.stringify(salonInvoiceServiceQuantities(proposed));
+  const serviceEarned=unchangedServiceRows?Math.max(0,Number(before.pointsEarned||0)-Number(before.packagePointsEarned||0)):Number(proposed.pointsEarned||0);
+  const manual=Number(proposed.pointsAdded||0)-Number(proposed.pointsEarned||0);
+  const pointsEarned=serviceEarned+earnedFromPackages;
+  const pointsAdded=manual+pointsEarned;
+  const previousSpend=before&&String(before.clientId)===String(target.id)?Number(before.pointsUsed||0):0;
+  if(Number(proposed.pointsUsed||0)>Number(target.points||0)+previousSpend)throw Error('رصيد النقاط غير كافٍ لاستخدام النقاط المحددة');
+  salonApplyInvoicePoints(clients,before,{...proposed,clientId:target.id,pointsAdded,pendingPoints:false});
+  const packageWrites=packageChange?await salonPreparePackageViews(transaction,clients,clientPackages,[target.id,before?.clientId||'']):[];
+  const stockDeltas=new Map();
   const adjust=(item,sign)=>{
+   if(item.itemKind==='packagePurchase'&&item.packageType==='credit')return;
    const activities=item.itemKind==='packagePurchase'&&item.packageType==='instant'?(item.includedServices||[]):[item];
    for(const activity of activities){
     const service=(remote.services||[]).find(s=>String(s.id)===String(activity.serviceId));
     for(const mat of service?.materials||[]){
      const stock=supplies.find(x=>String(x.id)===String(mat.itemId));
-     if(stock)stock.quantity=Math.max(0,Number(stock.quantity||0)+sign*Number(mat.qty||0)*Math.max(1,Number(activity.quantity)||1));
+     if(stock)stockDeltas.set(stock,(stockDeltas.get(stock)||0)+sign*Number(mat.qty||0)*Math.max(1,Number(activity.quantity)||1));
     }
    }
   };
   if(before)invoiceLineRows(before).forEach(item=>adjust(item,+1));
   invoiceLineRows(proposed).forEach(item=>adjust(item,-1));
+  for(const [stock,delta] of stockDeltas)if(delta)stock.quantity=Math.max(0,Number(stock.quantity||0)+delta);
   const counter=Math.max(1,Number(remote.invoiceCounter||1));
   const number=before?before.number:counter;
   const saved={...proposed,id:proposed.id,number,createdAt:before?.createdAt||proposed.createdAt,
    clientId:target.id,customerName:target.name||proposed.customerName,customerPhone:target.phone||proposed.customerPhone};
   delete saved.__edit;
+  delete saved.__source;
+  saved.pointsEarned=pointsEarned;
+  saved.pointsAdded=pointsAdded;
+  saved.packagePointsEarned=earnedFromPackages;
+  if(saved.pendingPoints===true)saved.pendingPoints=false;
   // Preserve voucher tender details on the receipt and in the same commit.
   saved.voucherId=appliedVoucherId;
   saved.voucherAmountUsed=appliedVoucherAmount;
@@ -1113,7 +1353,8 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
   // outdated Firestore rules for clientInvoices/loyaltyAccounts cannot block a sale.
   transaction.set(ref,saved);
   const patch={clients,inventory:supplies,updatedAt:new Date().toISOString()};
-  if(movementItems.length)patch.clientPackages=clientPackages;
+  if(packageChange)patch.clientPackages=clientPackages;
+  for(const write of packageWrites)write();
   if(!before){patch.invoiceCounter=counter+1;if(mode==='new')patch.counter=Number(remote.counter||1001)+1}
   transaction.update(salonDoc,patch);
   result={invoice:saved,clients,inventory:supplies,clientPackages,invoiceCounter:before?counter:counter+1,
@@ -1136,7 +1377,7 @@ async function submitInvoice(e){
  if(db.session?.type!=='owner'||!firebaseReady||auth.currentUser?.uid!=='AvRinM2frzLkDWH1CsH7CnIhFnK2'){toast('دخول المالكة مطلوب');return}
  if(!cashierCart.length){cashierFormIssue('أضيفي خدمة واحدة على الأقل');return}
  const oldId=cashierEditingInvoiceId;
- const existing=oldId?db.invoices.find(i=>String(i.id)===String(oldId)):null;
+ const existing=oldId?cashierEditingInvoiceSource:null;
  if(oldId&&!existing){toast('الفاتورة الأصلية لم تعد موجودة؛ لم يتم الحفظ');return}
  const mode=$('#newCustomerFields').classList.contains('hidden')?'existing':'new';let client=null;
  if(mode==='new'){
@@ -1153,16 +1394,16 @@ async function submitInvoice(e){
  const pointsUse=Math.max(0,Math.floor(Number($('#invoicePointsUse').value)||0));
  const pointsAdd=Math.max(0,Math.floor(Number($('#invoicePointsAdd').value)||0));
  const threshold=Math.max(1,Number(db.settings.redeemPoints)||50);
- if(pointsUse%threshold!==0){cashierFormIssue('يجب استبدال النقاط بمضاعفات الحد المحدد','#invoicePointsUse');return}
- const availablePoints=Number(client.points||0)+(existing&&String(existing.clientId)===String(client.id)?(Number(existing.pointsAdded||0)-Number(existing.pointsUsed||0)):0);
+ if(pointsUse!==Number(existing?.pointsUsed||0)&&pointsUse%threshold!==0){cashierFormIssue('يجب استبدال النقاط بمضاعفات الحد المحدد','#invoicePointsUse');return}
+ const availablePoints=Number(client.points||0)+(existing&&String(existing.clientId)===String(client.id)?Number(existing.pointsUsed||0):0);
  if(pointsUse>availablePoints){cashierFormIssue('رصيد نقاط العميلة غير كافٍ','#invoicePointsUse');return}
  const roster=invoiceStaffRoster();
  const selected=[];
  for(let index=0;index<cashierCart.length;index++){
   const x=cashierCart[index],sid=String(x.staffId||'');
   const record=roster.find(s=>String(s.id)===sid);
-  if(x.itemKind==='packageUse'&&!record){cashierFormIssue('استخدام رصيد الباقة يتطلب تحديد الموظفة المنفذة للسطر '+(index+1), '#staff-'+x.lineId);return}
-  if(sid&&!record){cashierFormIssue('الموظفة المحددة غير موجودة في القائمة. امسحي اختيارها أو اختاري موظفة صحيحة للسطر '+(index+1), '#staff-'+x.lineId);return}
+  if(x.itemKind==='packageUse'&&!sid){cashierFormIssue('استخدام رصيد الباقة يتطلب تحديد الموظفة المنفذة للسطر '+(index+1), '#staff-'+x.lineId);return}
+  if(sid&&!record&&!invoiceLineRows(existing).some(old=>String(old.staffId??existing?.staffId??'')===sid&&String(old.serviceId)===String(x.serviceId))){cashierFormIssue('الموظفة المحددة غير موجودة في القائمة. امسحي اختيارها أو اختاري موظفة صحيحة للسطر '+(index+1), '#staff-'+x.lineId);return}
   if(!Number.isFinite(Number(x.price))||Number(x.price)<0||!Number.isInteger(Number(x.quantity))||Number(x.quantity)<1){cashierFormIssue('تحققي من السعر والكمية للخدمة «'+x.name+'»');return}
   selected.push({...x,staffId:sid,staffName:String(record?.name||(!sid?'بدون اسم موظفة':x.staffName||''))});
  }
@@ -1206,8 +1447,8 @@ async function submitInvoice(e){
  const wantsWhatsApp=invoice.whatsappRequested;salonInvoiceSaving=true;
  let popup=null,savedInvoice=null;
  try{
-  if(wantsWhatsApp)popup=window.open('about:blank','_blank');
-  savedInvoice=await salonSaveIndependentInvoice({...invoice,__edit:!!existing},client,mode);
+  if(wantsWhatsApp){popup=window.open('about:blank','_blank');if(popup)popup.opener=null}
+  savedInvoice=await salonSaveIndependentInvoice({...invoice,__edit:!!existing,__source:existing},client,mode);
   cashierEditingInvoiceId=null;cashierCart=[];renderOwner('invoices');
   if(salonInvoiceLocalDate(savedInvoice)!==today()&&$('#invoiceHistoryFrom')&&$('#invoiceHistoryTo')){
     $('#invoiceHistoryFrom').value=salonInvoiceLocalDate(savedInvoice);
@@ -1276,7 +1517,7 @@ function invoiceServiceStaffHTML(invoice){
 }
 function invoiceEmployeeRevenue(invoice,employeeId){
  const rows=invoiceLineRows(invoice),subtotal=rows.reduce((sum,x)=>sum+Math.max(0,Number(x.lineTotal??(Number(x.price||0)*Number(x.quantity||1)))),0);
- const total=Number(invoice.total)||0;
+ const total=salonInvoiceNet(invoice);
  if(subtotal<=0){return rows.some(x=>String(x.staffId||invoice.staffId||'')===String(employeeId))?total:0;}
  return rows.reduce((sum,x)=>{
    const id=String(x.staffId||invoice.staffId||'');if(id!==String(employeeId))return sum;
@@ -1286,15 +1527,14 @@ function invoiceEmployeeRevenue(invoice,employeeId){
 function openInvoiceInCashier(id){
  if(db.session?.type!=='owner'||!firebaseReady){toast('التعديل متاح للمالكة فقط');return}
  const invoice=db.invoices.find(i=>String(i.id)===String(id));if(!invoice){toast('الفاتورة غير موجودة');return}
- if(salonInvoiceHasPackageMovements(invoice)){toast('هذه الفاتورة مرتبطة برصيد باقة. حُظر تعديلها لحماية رصيد العميلة؛ يلزم تصحيحها بإجراء عكسي موثق.');return}
- // The cashier creates a fresh form. Load the same saved invoice AFTER rendering it.
- renderOwner('cashier');cashierEditingInvoiceId=String(invoice.id);
- cashierCart=invoiceLineRows(invoice).flatMap(x=>Array.from({length:Math.min(30,Math.max(1,Math.floor(Number(x.quantity)||1)))},()=>({
-   lineId:uid('line'),serviceId:x.serviceId||'',name:x.name||invoice.serviceName||'خدمة',
-   price:Math.max(0,Number(x.price??0)||0),quantity:1,
+ if(invoice.refund){toast('الفاتورة مسترجعة ومحفوظة في السجل');return}
+ renderOwner('cashier');cashierEditingInvoiceId=String(invoice.id);cashierEditingInvoiceSource=invoice;
+ cashierCart=invoiceLineRows(invoice).map(x=>({
+   ...x,lineId:x.itemKind&&x.lineId?x.lineId:uid('line'),serviceId:x.serviceId||'',name:x.name||invoice.serviceName||'خدمة',
+   price:Math.max(0,Number(x.price??0)||0),quantity:Math.max(1,Number(x.quantity)||1),
    duration:Number(x.duration)||30,manualPrice:true,
-   staffId:String(x.staffId||invoice.staffId||''),staffName:x.staffName||invoice.staffName||''
- })));
+   staffId:String(x.staffId??invoice.staffId??''),staffName:x.staffName||invoice.staffName||''
+ }));
  // If the old invoice contains discontinued services, show them in the cart without deleting them.
  const client=(db.clients||[]).find(c=>String(c.id)===String(invoice.clientId))||
     (db.clients||[]).find(c=>String(c.phone||'').replace(/\D/g,'')===String(invoice.customerPhone||'').replace(/\D/g,''));
@@ -1308,6 +1548,11 @@ function openInvoiceInCashier(id){
  $('#invoicePointsUse').value=Number(invoice.pointsUsed)||0;
  $('#invoiceNotes').value=invoice.notes||'';
  $('#invoiceWhatsAppChoice').value='no';
+ if(invoice.voucherId){
+  for(const selector of ['#invoiceGiftVoucherCode','#invoiceGiftVoucherAmount','#invoiceGiftVoucherVerified']){
+   const input=document.querySelector(selector);if(input)input.disabled=true;
+  }
+ }
  // Owner may override the global default, but existing service assignments stay unchanged.
  $('#invoiceStaff').value=activeStaff().some(s=>String(s.id)===String(invoice.staffId))?String(invoice.staffId):'';
  const banner=document.createElement('div');banner.className='salon-edit-invoice-banner';
@@ -1319,7 +1564,7 @@ function openInvoiceInCashier(id){
 function editInvoice(id){openInvoiceInCashier(id)}
 
 function invoiceTable(list=db.invoices){if(!list.length)return `<div class="empty">لا توجد فواتير مطابقة.</div>`;
- return `<div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميلة</th><th>الخدمات والموظفات</th><th>الموظفة المنفذة</th><th>الدفع</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead><tbody>${list.slice().sort((a,b)=>(b.date||String(b.createdAt||'').slice(0,10)).localeCompare(a.date||String(a.createdAt||'').slice(0,10))).map(i=>`<tr><td>#${esc(i.number)}</td><td>${esc(i.date||String(i.createdAt||'').slice(0,10))}</td><td>${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))}<br><small>${esc(i.customerPhone||'')}</small></td><td>${invoiceServiceStaffHTML(i)}</td><td><b>${esc(invoiceStaffDisplay(i))}</b></td><td>${esc(i.payment||'cash')}</td><td>${money(i.total)}</td><td><div class="row"><button class="btn secondary small" onclick="openInvoiceInCashier('${esc(i.id)}')">تعديل في الكاشير</button><button class="btn small" onclick="printInvoice('${esc(i.id)}')">طباعة</button><button class="btn success small" onclick="shareInvoiceWhatsApp('${esc(i.id)}')">واتساب</button><button class="btn danger small" onclick="deleteInvoice('${esc(i.id)}')">حذف</button></div></td></tr>`).join('')}</tbody></table></div>`;
+ return `<div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميلة</th><th>الخدمات والموظفات</th><th>الموظفة المنفذة</th><th>الدفع</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead><tbody>${list.slice().sort((a,b)=>(b.date||String(b.createdAt||'').slice(0,10)).localeCompare(a.date||String(a.createdAt||'').slice(0,10))).map(i=>`<tr><td>#${esc(i.number)}</td><td>${esc(i.date||String(i.createdAt||'').slice(0,10))}</td><td>${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))}<br><small>${esc(i.customerPhone||'')}</small></td><td>${invoiceServiceStaffHTML(i)}</td><td><b>${esc(invoiceStaffDisplay(i))}</b></td><td>${esc(i.payment||'cash')}</td><td>${money(i.total)}${i.refund?'<br><small>مسترجعة: '+money(i.refund.amount)+' · '+esc(i.refund.date)+'<br>بعد الاسترجاع: '+money(salonInvoiceNet(i))+'</small>':''}</td><td><div class="row">${i.refund?'':`<button class="btn secondary small" onclick="openInvoiceInCashier('${esc(i.id)}')">تعديل في الكاشير</button><button class="btn secondary small" onclick="refundInvoice('${esc(i.id)}')">استرجاع كامل</button><button class="btn danger small" onclick="deleteInvoice('${esc(i.id)}')">حذف</button>`}<button class="btn small" onclick="printInvoice('${esc(i.id)}')">طباعة</button><button class="btn success small" onclick="shareInvoiceWhatsApp('${esc(i.id)}')">${i.refund?'إبلاغ العميلة عبر واتساب':'إرسال الفاتورة واتساب'}</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function chooseInvoiceEmployee(invoiceId){openInvoiceInCashier(invoiceId)}
@@ -1330,8 +1575,8 @@ function monthOptions(selected){return Array.from({length:12},(_,i)=>i+1).map(m=
 function invoicesPanel(){
  const d=today();
  const todayInvoices=db.invoices.filter(i=>salonInvoiceLocalDate(i)===d);
- const total=todayInvoices.reduce((sum,i)=>sum+Number(i.total||0),0);
- return `<div class="card"><div class="spread"><div><h2>سجل الفواتير</h2><p class="muted">فواتير اليوم (${esc(d)}) تظهر تلقائيًا. في بداية يوم جديد يصبح العرض فارغًا حتى تُصدري أول فاتورة، وتبقى كل الفواتير السابقة محفوظة للبحث بالتاريخ.</p></div><button class="btn secondary" type="button" onclick="window.print()">طباعة النتائج</button></div><div class="form-grid" style="margin-top:14px"><div class="field"><label for="invoiceHistoryFrom">من تاريخ</label><input id="invoiceHistoryFrom" type="date" min="2024-01-01" max="2050-12-31" value="${d}"></div><div class="field"><label for="invoiceHistoryTo">إلى تاريخ</label><input id="invoiceHistoryTo" type="date" min="2024-01-01" max="2050-12-31" value="${d}"></div><div class="row full"><button class="btn" type="button" id="invoiceHistorySearchBtn">بحث بالتواريخ</button><button class="btn secondary" type="button" id="invoiceHistoryResetBtn">فواتير اليوم</button><button class="btn outline" type="button" id="invoiceHistoryAllBtn">عرض كل الفواتير</button></div><p class="muted tiny full" id="invoiceHistoryMessage" aria-live="polite">المعروض الآن فواتير اليوم فقط؛ لتصفّح الفواتير القديمة حددي يومًا أو فترة واضغطي «بحث بالتواريخ». لا يتم حذف أي فاتورة عند تغير اليوم.</p></div></div><div class="stats" style="margin:14px 0"><div class="stat"><span>عدد الفواتير المعروضة</span><strong id="invoiceHistoryCount">${todayInvoices.length}</strong></div><div class="stat"><span>إجمالي المبيعات المعروضة</span><strong id="invoiceHistoryTotal">${money(total)}</strong></div></div><div id="invoiceHistoryTable" data-invoice-view="today">${invoiceTable(todayInvoices)}</div>`;
+ const total=todayInvoices.reduce((sum,i)=>sum+salonInvoiceNet(i),0);
+ return `<div class="card"><div class="spread"><div><h2>سجل الفواتير</h2><p class="muted">فواتير اليوم (${esc(d)}) تظهر تلقائيًا. في بداية يوم جديد يصبح العرض فارغًا حتى تُصدري أول فاتورة، وتبقى كل الفواتير السابقة محفوظة للبحث بالتاريخ.</p></div><button class="btn secondary" type="button" onclick="window.print()">طباعة النتائج</button></div><div class="form-grid" style="margin-top:14px"><div class="field"><label for="invoiceHistoryFrom">من تاريخ</label><input id="invoiceHistoryFrom" type="date" min="2024-01-01" max="2050-12-31" value="${d}"></div><div class="field"><label for="invoiceHistoryTo">إلى تاريخ</label><input id="invoiceHistoryTo" type="date" min="2024-01-01" max="2050-12-31" value="${d}"></div><div class="row full"><button class="btn" type="button" id="invoiceHistorySearchBtn">بحث بالتواريخ</button><button class="btn secondary" type="button" id="invoiceHistoryResetBtn">فواتير اليوم</button><button class="btn outline" type="button" id="invoiceHistoryAllBtn">عرض كل الفواتير</button></div><p class="muted tiny full" id="invoiceHistoryMessage" aria-live="polite">المعروض الآن فواتير اليوم فقط؛ لتصفّح الفواتير القديمة حددي يومًا أو فترة واضغطي «بحث بالتواريخ». لا يتم حذف أي فاتورة عند تغير اليوم.</p></div></div><div class="stats" style="margin:14px 0"><div class="stat"><span>عدد الفواتير المعروضة</span><strong id="invoiceHistoryCount">${todayInvoices.length}</strong></div><div class="stat"><span>صافي المبيعات المعروضة بعد الاسترجاع</span><strong id="invoiceHistoryTotal">${money(total)}</strong></div></div><div id="invoiceHistoryTable" data-invoice-view="today">${invoiceTable(todayInvoices)}</div>`;
 }
 function setupInvoiceFilters(){
  const searchBtn=$("#invoiceHistorySearchBtn"),todayBtn=$("#invoiceHistoryResetBtn"),allBtn=$("#invoiceHistoryAllBtn");
@@ -1349,7 +1594,7 @@ function salonUpdateInvoiceHistoryTable(list,message){
  const root=$("#invoiceHistoryTable");if(!root)return;
  root.innerHTML=invoiceTable(list);
  $("#invoiceHistoryCount").textContent=list.length;
- $("#invoiceHistoryTotal").textContent=money(list.reduce((sum,i)=>sum+Number(i.total||0),0));
+ $("#invoiceHistoryTotal").textContent=money(list.reduce((sum,i)=>sum+salonInvoiceNet(i),0));
  $("#invoiceHistoryMessage").textContent=message;
 }
 function filterInvoiceHistory(){
@@ -1375,30 +1620,104 @@ function showAllInvoiceHistory(){
  salonUpdateInvoiceHistoryTable(db.invoices,'عرض جميع الفواتير المحفوظة، دون حذف أو تعديل أي سجل.');
 }
 
-async function deleteInvoice(id){
- if(!salonOwnerInvoicePermission())return;
- const source=db.invoices.find(i=>String(i.id)===String(id));
- if(source&&salonInvoiceHasPackageMovements(source)){toast('لا يمكن حذف فاتورة شراء أو استخدام باقة، لأن ذلك سيُفسد سجل الرصيد. استخدمي إجراء تصحيح منفصل.');return;}
- if(!confirm('هل تريدين حذف الفاتورة نهائيًا؟ لن تتغير نقاط العميلة أو المخزون تلقائيًا.'))return;
- try{
-  if(!salonInvoiceStorageReady)throw Error('يجب إكمال نقل الفواتير قبل الحذف');
-  await saveQueue;
-   await firestore.runTransaction(async tx=>{
-    const invoiceRef=salonInvoiceDocument(id);
-    const existing=await tx.get(invoiceRef);
-    if(!existing.exists)throw Error('الفاتورة غير موجودة');
-    tx.delete(invoiceRef);
-    tx.delete(firestore.collection('clientInvoices').doc(encodeURIComponent(String(id))));
-   });
-  db.invoices=db.invoices.filter(item=>String(item.id)!==String(id));
-  renderOwner('invoices');toast('تم حذف الفاتورة من Firebase');
- }catch(err){toast('فشل حذف الفاتورة: '+String(err.message||err))}
+function salonInvoiceNet(invoice){
+ return Math.round(((Number(invoice.total)||0)-(Number(invoice.refund?.amount)||0))*100)/100;
 }
+function refundInvoice(id){return salonReverseInvoice(id,true)}
+function deleteInvoice(id){return salonReverseInvoice(id,false)}
+async function salonReverseInvoice(id,refund){
+ if(!salonOwnerInvoicePermission()||salonInvoiceSaving)return;
+ const source=db.invoices.find(i=>String(i.id)===String(id));
+ if(!source||source.refund)return;
+ if(!refund&&(source.voucherId||Number(source.voucherAmountUsed)>0)){toast('استخدمي الاسترجاع الكامل لإعادة رصيد القسيمة وحفظ حركة الاسترجاع');return}
+ let reason='';
+ if(refund){
+  const value=prompt('استرجاع الفاتورة #'+source.number+' بالكامل ('+money(source.total)+'). اكتبي سبب الاسترجاع لتأكيد التسجيل. المبلغ المدفوع يُرد عبر وسيلة الدفع الأصلية، ويعاد رصيد القسيمة داخل النظام إن وُجد.');
+  if(!value?.trim())return;
+  reason=value.trim().slice(0,300);
+ }else if(!confirm('حذف الفاتورة نهائيًا؟ تُسوّى نقاط وأرصدة الباقة إذا كانت الفاتورة تحتوي على باقة. للحفاظ على سجل المبالغ المردودة استخدمي «استرجاع كامل».'))return;
+ salonInvoiceSaving=true;
+ let result,committed=false;
+ try{
+  await saveQueue;
+  await firestore.runTransaction(async tx=>{
+   const invoiceRef=salonInvoiceDocument(id);
+   const main=await tx.get(salonDoc),existing=await tx.get(invoiceRef);
+   if(!main.exists||!existing.exists)throw Error('الفاتورة غير متاحة في مجموعة الفواتير المستقلة');
+   const remote=main.data(),invoice={...existing.data(),id:String(existing.data().id||id)};
+   if(invoice.refund)throw Error('تم تسجيل الاسترجاع مسبقًا');
+   if(!salonInvoiceSame(invoice,source))throw Error('تغيّرت الفاتورة. حدّثي السجل قبل المتابعة');
+   if(!refund&&(remote.invoices||[]).some(i=>String(i.id)===String(id)))throw Error('أكملي نقل هذه الفاتورة من الأرشيف القديم قبل الحذف');
+   salonVerifyPackageInvoiceLinks(remote,invoice);
+   const packageChange=salonInvoiceHasPackageMovements(invoice);
+   const settle=refund||packageChange;
+   const clients=(remote.clients||[]).map(c=>({...c}));
+   const balances=packageChange?salonReconcilePackageLines(remote,invoice,null,''):(remote.clientPackages||[]);
+   if(settle)salonApplyInvoicePoints(clients,invoice,null);
+   const writes=settle?await salonPreparePackageViews(tx,clients,balances,[invoice.clientId]):[];
+   const amount=Math.round(Number(invoice.total)*100)/100;
+   const voucherAmount=Math.round(Number(invoice.voucherAmountUsed||0)*100)/100;
+   const saved=refund?{...invoice,refund:{amount,voucherAmount,reason,date:salonSaudiDate(),recordedAt:new Date().toISOString(),recordedBy:auth.currentUser.uid}}:null;
+   if(refund){
+    if(!Number.isFinite(amount)||amount<0||!Number.isFinite(voucherAmount)||voucherAmount<0||voucherAmount>amount)throw Error('مبالغ الفاتورة تحتاج إلى مراجعة');
+    const status=String(invoice.paymentStatus||invoice.status||'').toLowerCase();
+    if(amount>0&&(['pending','unpaid','cancelled','canceled','void'].includes(status)||invoice.payment==='points'&&amount>voucherAmount||invoice.paidAmount!=null&&invoice.paidAmount!==''&&Number(invoice.paidAmount)<amount-voucherAmount))
+     throw Error('الفاتورة ليست مسددة بالكامل. راجعي المدفوع قبل تسجيل استرجاع كامل');
+   }
+   if(invoice.voucherId||voucherAmount>0){
+    if(!refund||!invoice.voucherId||voucherAmount<=0)throw Error('بيانات القسيمة تحتاج إلى مراجعة');
+    const voucherRef=firestore.collection('salonGiftVouchers').doc(String(invoice.voucherId));
+    const voucher=await tx.get(voucherRef),v=voucher.data();
+    const left=Math.round(Number(v?.remainingAmount)*100),spent=Math.round(Number(v?.spentAmount)*100),returned=Math.round(voucherAmount*100);
+    if(!voucher.exists||!['active','redeemed'].includes(v.status)||!Number.isSafeInteger(left)||left<0||!Number.isSafeInteger(spent)||spent<returned||
+       salonNormalizePhone(v.recipientPhone)!==salonNormalizePhone(invoice.customerPhone))throw Error('تعذر مطابقة المبلغ مع رصيد القسيمة');
+    const patch={remainingAmount:(left+returned)/100,spentAmount:(spent-returned)/100,status:'active'};
+    writes.push(()=>tx.update(voucherRef,{...patch,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}));
+    if(v.recipientUid&&v.orderId){
+     const giftRef=firestore.collection('clientGiftViews').doc(String(v.recipientUid)).collection('gifts').doc(String(v.orderId));
+     const gift=await tx.get(giftRef);
+     if(gift.exists)writes.push(()=>tx.update(giftRef,{remainingAmount:patch.remainingAmount,status:'active'}));
+    }
+   }
+   const receipt=firestore.collection('clientInvoices').doc(encodeURIComponent(String(id)));
+   const linked=clients.find(c=>String(c.id)===String(invoice.clientId))?.authUid;
+   if(saved){
+    tx.set(invoiceRef,saved);
+    if(linked)tx.set(receipt,window.salonMakeClientInvoiceView(saved,linked,invoice.clientId));
+    else tx.delete(receipt);
+   }else{
+    tx.delete(invoiceRef);
+    tx.delete(receipt);
+   }
+   for(const write of writes)write();
+   if(settle)tx.update(salonDoc,{clients,...(packageChange?{clientPackages:balances}:{}),updatedAt:new Date().toISOString()});
+   result={saved,clients,balances,settle,packageChange};
+  });
+  committed=true;
+  if(result.settle){
+   db.clients=result.clients;
+   if(result.packageChange){db.clientPackages=result.balances;salonCreditLocalRevision++}
+   salonUpdateInvoiceBaseline({clients:db.clients,...(result.packageChange?{clientPackages:db.clientPackages}:{})});
+  }
+  db.invoices=refund?db.invoices.map(i=>String(i.id)===String(id)?result.saved:i):db.invoices.filter(i=>String(i.id)!==String(id));
+  if(refund){
+   const table=document.querySelector('#invoiceHistoryTable');
+   if(table){
+    const date=salonInvoiceLocalDate(result.saved);
+    $('#invoiceHistoryFrom').value=date;$('#invoiceHistoryTo').value=date;
+    filterInvoiceHistory();
+   }else renderOwner('invoices');
+   toast('سُجّل الاسترجاع. اضغطي «إبلاغ العميلة عبر واتساب» لإرسال الإشعار.');
+  }else{renderOwner('invoices');toast('تم حذف الفاتورة')}
+ }catch(err){toast(committed?'راجعي سجل الفواتير للتأكد من نتيجة العملية.':'تعذرت العملية: '+String(err.message||err))}
+ finally{salonInvoiceSaving=false}
+}
+
 function printInvoice(id){
  const i=db.invoices.find(x=>String(x.id)===String(id));if(!i)return;
  const w=window.open('','_blank','width=760,height=700');if(!w){toast('اسمحي بالنوافذ المنبثقة للطباعة');return}
  const rows=invoiceLineRows(i).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(invoiceItemStaffLabel(i,x))}</td><td>${Math.max(1,Number(x.quantity)||1)}</td><td>${money(x.price)}</td><td>${money(Number(x.price||0)*Number(x.quantity||1))}</td></tr>`).join('');
- w.document.write(`<html lang="${lang}" dir="${lang==='ar'?'rtl':'ltr'}"><meta charset="utf-8"><title>Invoice #${esc(i.number)}</title><style>body{font-family:Arial;padding:32px}h1{color:#7c405c}table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #ddd;text-align:right}</style><h1>${esc(db.settings.salonName)}</h1><h2>فاتورة / Invoice #${esc(i.number)}</h2><p>العميلة: ${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))} | ${esc(i.customerPhone||'')}</p><p>التاريخ: ${esc(i.date||String(i.createdAt||'').slice(0,10))}</p><table><thead><tr><th>الخدمة</th><th>الموظفة المنفذة</th><th>الكمية</th><th>السعر</th><th>المجموع</th></tr></thead><tbody>${rows}</tbody></table><p>الخصم: ${money(i.discount)} | الضريبة: ${money(i.tax)} | الدفع: ${esc(i.payment)}</p><h2>الإجمالي: ${money(i.total)}</h2><p>شكرًا لزيارتكم / Thank you</p><script>window.print()<\/script></html>`);w.document.close();
+ w.document.write(`<html lang="${lang}" dir="${lang==='ar'?'rtl':'ltr'}"><meta charset="utf-8"><title>Invoice #${esc(i.number)}</title><style>body{font-family:Arial;padding:32px}h1{color:#7c405c}table{width:100%;border-collapse:collapse}td,th{padding:12px;border-bottom:1px solid #ddd;text-align:right}</style><h1>${esc(db.settings.salonName)}</h1><h2>فاتورة / Invoice #${esc(i.number)}</h2><p>العميلة: ${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))} | ${esc(i.customerPhone||'')}</p><p>التاريخ: ${esc(i.date||String(i.createdAt||'').slice(0,10))}</p><table><thead><tr><th>الخدمة</th><th>الموظفة المنفذة</th><th>الكمية</th><th>السعر</th><th>المجموع</th></tr></thead><tbody>${rows}</tbody></table><p>الخصم: ${money(i.discount)} | الضريبة: ${money(i.tax)} | الدفع: ${esc(i.payment)}</p><h2>الإجمالي: ${money(i.total)}</h2>${i.refund?`<p>تم الاسترجاع في ${esc(i.refund.date)} · المسترجع: ${money(i.refund.amount)} · الصافي: ${money(salonInvoiceNet(i))}</p>`:""}<p>شكرًا لزيارتكم / Thank you</p><script>window.print()<\/script></html>`);w.document.close();
 }
 
 function inventoryPanel(){return `<div class="card"><h3>${esc(t("inventoryTitle"))}</h3><form id="inventoryForm" class="form-grid"><div class="field"><label>${esc(t("itemName"))}</label><input name="name" required maxlength="100"></div><div class="field"><label>${esc(t("quantity"))}</label><input name="quantity" type="number" min="0" step=".01" required></div><div class="field"><label>${esc(t("minQuantity"))}</label><input name="minQuantity" type="number" min="0" step=".01" value="3" required></div><div class="field"><label>${esc(t("unitCost"))}</label><input name="unitCost" type="number" min="0" step=".01" value="0" required></div><button class="btn full">${esc(t("addItem"))}</button></form></div><div class="section-head"><h3>${esc(t("inventory"))}</h3></div>${db.inventory.length?`<div class="grid">${db.inventory.map(i=>`<div class="card"><div class="spread"><h3>${esc(i.name)}</h3><span class="badge ${Number(i.quantity)<=Number(i.minQuantity)?"red":"green"}">${Number(i.quantity)<=Number(i.minQuantity)?esc(t("lowStock")):"OK"}</span></div><p>${esc(t("quantity"))}: <b>${i.quantity}</b></p><div class="progress"><i style="width:${Math.min(100,Math.max(3,Number(i.quantity)/(Math.max(Number(i.minQuantity)*3,1))*100))}%"></i></div><p class="muted tiny">${esc(t("unitCost"))}: ${money(i.unitCost)}</p><div class="row"><button class="btn secondary small" onclick="adjustStock('${i.id}',1)">+1</button><button class="btn secondary small" onclick="adjustStock('${i.id}',-1)">−1</button><button class="btn danger small" onclick="deleteInventory('${i.id}')">${esc(t("delete"))}</button></div></div>`).join("")}</div>`:`<div class="empty">${esc(t("noData"))}</div>`}`}
@@ -1480,10 +1799,10 @@ async function editService(id){
 function expensesPanel(){return `<div class="card"><h3>${esc(t("expenseTitle"))}</h3><form id="expenseForm" class="form-grid"><div class="field"><label>${esc(t("category"))}</label><select name="category"><option>إيجار / Rent</option><option>رواتب / Salaries</option><option>مستلزمات / Supplies</option><option>فواتير / Bills</option><option>أخرى / Other</option></select></div><div class="field"><label>${esc(t("amount"))}</label><input name="amount" type="number" min=".01" step=".01" required></div><div class="field"><label>تاريخ المصروف</label><input name="date" type="date" min="2024-01-01" max="2050-12-31" value="${today()}" required></div><div class="field full"><label>${esc(t("notes"))}</label><input name="notes" maxlength="200"></div><button class="btn full">${esc(t("addExpense"))}</button></form></div><div class="section-head"><h3>${esc(t("expenses"))}</h3></div>${db.expenses.length?`<div class="table-wrap"><table><thead><tr><th>${esc(t("date"))}</th><th>${esc(t("category"))}</th><th>${esc(t("notes"))}</th><th>${esc(t("amount"))}</th><th></th></tr></thead><tbody>${db.expenses.slice().reverse().map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.category)}</td><td>${esc(e.notes)}</td><td>${money(e.amount)}</td><td><button class="btn danger small" onclick="deleteExpense('${e.id}')">${esc(t("delete"))}</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">${esc(t("noData"))}</div>`}`}
 function setupExpenses(){const f=$("#expenseForm");if(!f)return;f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f);db.expenses.push({id:uid("exp"),category:String(fd.get("category")),amount:Number(fd.get("amount")),notes:String(fd.get("notes")).trim(),date:String(fd.get("date")||today()),createdAt:new Date().toISOString()});persist();renderOwner("expenses");toast(t("saved"))})}
 function deleteExpense(id){if(!confirm(t("confirmDelete")))return;db.expenses=db.expenses.filter(x=>x.id!==id);persist();renderOwner("expenses")}
-function reportsPanel(){const d=today(),year=Number(d.slice(0,4))||2026,month=d.slice(5,7);return `<div class="card"><div class="spread"><div><h2>تقارير الأرباح والإيرادات</h2><p class="muted">اختاري فترة زمنية مخصصة أو شهرًا أو سنة من 2024 إلى 2050.</p></div></div><div class="form-grid" style="margin-top:12px"><div class="field"><label>الفترة</label><select id="reportMode"><option value="month">شهر محدد</option><option value="year">سنة كاملة</option><option value="range">من تاريخ إلى تاريخ</option><option value="all">كل الفترات</option></select></div><div class="field"><label>السنة</label><select id="reportYear">${yearOptions(year)}</select></div><div class="field"><label>الشهر</label><select id="reportMonth">${monthOptions(month)}</select></div><div class="field"><label>من تاريخ</label><input id="reportFrom" type="date" min="2024-01-01" max="2050-12-31" value="${d.slice(0,4)>="2024"?d:"2024-01-01"}"></div><div class="field"><label>إلى تاريخ</label><input id="reportTo" type="date" min="2024-01-01" max="2050-12-31" value="${d.slice(0,4)<="2050"?d:"2050-12-31"}"></div><div class="row full"><button class="btn" onclick="drawReports()">عرض التقرير</button><button class="btn secondary" onclick="setReportPreset('month')">هذا الشهر</button><button class="btn secondary" onclick="setReportPreset('year')">هذه السنة</button></div></div></div><div class="stats" style="margin-top:14px"><div class="stat"><span>الإيرادات</span><strong id="reportRevenue">0.00 ر.س</strong></div><div class="stat"><span>المصروفات</span><strong id="reportExpenses">0.00 ر.س</strong></div><div class="stat"><span>صافي الربح التقديري</span><strong id="reportProfit">0.00 ر.س</strong></div><div class="stat"><span>عدد الفواتير</span><strong id="reportInvoiceCount">0</strong></div></div><div class="section-head"><h3>الرسم البياني لصافي الربح</h3></div><div class="card"><p id="reportPeriodLabel" class="muted tiny"></p><div id="profitChart" class="chart-bars" style="height:230px"></div><div id="profitChartLabels" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px"></div></div><div class="section-head"><h3>أداء الموظفات ضمن الفترة</h3></div><div class="card"><div id="staffChart" class="chart-bars"></div><div id="staffRows"></div></div><div class="section-head"><h3>الإيرادات حسب الموظفة</h3></div><div class="card" id="revenueStaff"></div>`}
+function reportsPanel(){const d=today(),year=Number(d.slice(0,4))||2026,month=d.slice(5,7);return `<div class="card"><div class="spread"><div><h2>تقارير الأرباح والإيرادات</h2><p class="muted">اختاري فترة بحسب تاريخ إصدار الفاتورة. المبالغ المسترجعة تخص الفواتير الصادرة ضمن الفترة، ويظهر تاريخ تسجيل الاسترجاع في سجل الفاتورة.</p></div></div><div class="form-grid" style="margin-top:12px"><div class="field"><label>الفترة</label><select id="reportMode"><option value="month">شهر محدد</option><option value="year">سنة كاملة</option><option value="range">من تاريخ إلى تاريخ</option><option value="all">كل الفترات</option></select></div><div class="field"><label>السنة</label><select id="reportYear">${yearOptions(year)}</select></div><div class="field"><label>الشهر</label><select id="reportMonth">${monthOptions(month)}</select></div><div class="field"><label>من تاريخ</label><input id="reportFrom" type="date" min="2024-01-01" max="2050-12-31" value="${d.slice(0,4)>="2024"?d:"2024-01-01"}"></div><div class="field"><label>إلى تاريخ</label><input id="reportTo" type="date" min="2024-01-01" max="2050-12-31" value="${d.slice(0,4)<="2050"?d:"2050-12-31"}"></div><div class="row full"><button class="btn" onclick="drawReports()">عرض التقرير</button><button class="btn secondary" onclick="setReportPreset('month')">هذا الشهر</button><button class="btn secondary" onclick="setReportPreset('year')">هذه السنة</button></div></div></div><div class="stats" style="margin-top:14px"><div class="stat"><span>قبل الاسترجاع</span><strong id="reportGross">0.00 ر.س</strong></div><div class="stat"><span>المبالغ المسترجعة</span><strong id="reportRefunds">0.00 ر.س</strong></div><div class="stat"><span>بعد الاسترجاع</span><strong id="reportRevenue">0.00 ر.س</strong></div><div class="stat"><span>المصروفات</span><strong id="reportExpenses">0.00 ر.س</strong></div><div class="stat"><span>صافي الربح التقديري</span><strong id="reportProfit">0.00 ر.س</strong></div><div class="stat"><span>عدد الفواتير</span><strong id="reportInvoiceCount">0</strong></div></div><div class="section-head"><h3>الرسم البياني لصافي الربح</h3></div><div class="card"><p id="reportPeriodLabel" class="muted tiny"></p><div id="profitChart" class="chart-bars" style="height:230px"></div><div id="profitChartLabels" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px"></div></div><div class="section-head"><h3>أداء الموظفات ضمن الفترة</h3></div><div class="card"><div id="staffChart" class="chart-bars"></div><div id="staffRows"></div></div><div class="section-head"><h3>الإيرادات حسب الموظفة</h3></div><div class="card" id="revenueStaff"></div>`}
 function setReportPreset(mode){$("#reportMode").value=mode;drawReports()}
 function reportDateFilter(date){const mode=$("#reportMode")?.value||"month",year=$("#reportYear")?.value||today().slice(0,4),month=$("#reportMonth")?.value||today().slice(5,7),from=$("#reportFrom")?.value,to=$("#reportTo")?.value;if(!date)return false;if(mode==="month")return date.startsWith(`${year}-${month}`);if(mode==="year")return date.startsWith(`${year}-`);if(mode==="range")return (!from||date>=from)&&(!to||date<=to);return true}
-function drawReports(){const chart=$("#profitChart");if(!chart)return;const invoices=db.invoices.filter(i=>reportDateFilter(i.date||String(i.createdAt||"").slice(0,10))),expenses=db.expenses.filter(e=>reportDateFilter(e.date||String(e.createdAt||"").slice(0,10))),revenue=invoices.reduce((a,i)=>a+Number(i.total||0),0),costs=expenses.reduce((a,e)=>a+Number(e.amount||0),0),profit=revenue-costs;$("#reportRevenue").textContent=money(revenue);$("#reportExpenses").textContent=money(costs);$("#reportProfit").textContent=money(profit);$("#reportInvoiceCount").textContent=invoices.length;const mode=$("#reportMode").value,year=$("#reportYear").value,month=$("#reportMonth").value,from=$("#reportFrom").value,to=$("#reportTo").value;let keys=[];if(mode==="month"){const days=new Date(Number(year),Number(month),0).getDate();keys=Array.from({length:days},(_,i)=>`${year}-${month}-${String(i+1).padStart(2,"0")}`)}else if(mode==="year"){keys=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,"0")}`)}else if(mode==="range"&&from&&to){const a=new Date(from+"T12:00:00"),b=new Date(to+"T12:00:00");if(a<=b){const days=Math.round((b-a)/86400000)+1;if(days<=31){keys=Array.from({length:days},(_,i)=>{const x=new Date(a);x.setDate(x.getDate()+i);return x.toISOString().slice(0,10)})}else{let x=new Date(a.getFullYear(),a.getMonth(),1);while(x<=b){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}}else{const all=[...db.invoices.map(i=>i.date||String(i.createdAt||"").slice(0,10)),...db.expenses.map(e=>e.date||String(e.createdAt||"").slice(0,10))].filter(Boolean).sort();if(all.length){let x=new Date(all[0].slice(0,7)+"-01T12:00:00"),last=new Date(all[all.length-1].slice(0,7)+"-01T12:00:00");while(x<=last&&keys.length<36){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}const monthly=keys.map(key=>{const sumInv=invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,i)=>a+Number(i.total||0),0),sumExp=expenses.filter(e=>(e.date||String(e.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,e)=>a+Number(e.amount||0),0);return {key,profit:sumInv-sumExp,revenue:sumInv,expenses:sumExp}});const max=Math.max(1,...monthly.map(x=>Math.abs(x.profit)));chart.innerHTML=monthly.length?monthly.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,Math.abs(x.profit)/max*170)}px;${x.profit<0?"background:linear-gradient(#e9a1a8,#a32d3d)":""}" title="صافي الربح: ${money(x.profit)}"></div>${esc(x.key.length===10?x.key.slice(8):x.key.slice(5)+"/"+x.key.slice(0,4))}<br><b>${money(x.profit)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات ضمن الفترة المحددة.</div>`;$("#reportPeriodLabel").textContent=mode==="month"?`الشهر ${month}/${year}`:mode==="year"?`السنة ${year}`:mode==="range"?`من ${from||"البداية"} إلى ${to||"النهاية"}`:"كل الفترات";$("#profitChartLabels").innerHTML=`<div><small>إجمالي الإيرادات</small><br><b>${money(revenue)}</b></div><div><small>إجمالي المصروفات</small><br><b>${money(costs)}</b></div><div><small>صافي الربح التقديري</small><br><b>${money(profit)}</b></div>`;const data=activeStaff().map(s=>({name:s.name,count:db.bookings.filter(b=>b.staffId===s.id&&b.status==="completed"&&reportDateFilter(b.date)).length,revenue:invoices.reduce((a,i)=>a+invoiceEmployeeRevenue(i,s.id),0)}));const cmax=Math.max(1,...data.map(x=>x.count));$("#staffChart").innerHTML=data.length?data.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,x.count/cmax*135)}px" title="${x.count}"></div>${esc(x.name)}<br><b>${x.count}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`;$("#staffRows").innerHTML=data.map(x=>`<div style="margin-top:12px"><div class="spread"><span>${esc(x.name)}</span><b>${x.count} خدمات مكتملة</b></div><div class="progress"><i style="width:${x.count/cmax*100}%"></i></div></div>`).join("");$("#revenueStaff").innerHTML=data.length?data.map(x=>`<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(x.name)}</span><b>${money(x.revenue)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`}
+function drawReports(){const chart=$("#profitChart");if(!chart)return;const invoices=db.invoices.filter(i=>reportDateFilter(i.date||String(i.createdAt||"").slice(0,10))),expenses=db.expenses.filter(e=>reportDateFilter(e.date||String(e.createdAt||"").slice(0,10))),gross=invoices.reduce((a,i)=>a+Number(i.total||0),0),refunded=invoices.reduce((a,i)=>a+Number(i.refund?.amount||0),0),revenue=gross-refunded,costs=expenses.reduce((a,e)=>a+Number(e.amount||0),0),profit=revenue-costs;$("#reportGross").textContent=money(gross);$("#reportRefunds").textContent=money(refunded);$("#reportRevenue").textContent=money(revenue);$("#reportExpenses").textContent=money(costs);$("#reportProfit").textContent=money(profit);$("#reportInvoiceCount").textContent=invoices.length;const mode=$("#reportMode").value,year=$("#reportYear").value,month=$("#reportMonth").value,from=$("#reportFrom").value,to=$("#reportTo").value;let keys=[];if(mode==="month"){const days=new Date(Number(year),Number(month),0).getDate();keys=Array.from({length:days},(_,i)=>`${year}-${month}-${String(i+1).padStart(2,"0")}`)}else if(mode==="year"){keys=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,"0")}`)}else if(mode==="range"&&from&&to){const a=new Date(from+"T12:00:00"),b=new Date(to+"T12:00:00");if(a<=b){const days=Math.round((b-a)/86400000)+1;if(days<=31){keys=Array.from({length:days},(_,i)=>{const x=new Date(a);x.setDate(x.getDate()+i);return x.toISOString().slice(0,10)})}else{let x=new Date(a.getFullYear(),a.getMonth(),1);while(x<=b){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}}else{const all=[...db.invoices.map(i=>i.date||String(i.createdAt||"").slice(0,10)),...db.expenses.map(e=>e.date||String(e.createdAt||"").slice(0,10))].filter(Boolean).sort();if(all.length){let x=new Date(all[0].slice(0,7)+"-01T12:00:00"),last=new Date(all[all.length-1].slice(0,7)+"-01T12:00:00");while(x<=last&&keys.length<36){keys.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);x.setMonth(x.getMonth()+1)}}}const monthly=keys.map(key=>{const sumInv=invoices.filter(i=>(i.date||String(i.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,i)=>a+salonInvoiceNet(i),0),sumExp=expenses.filter(e=>(e.date||String(e.createdAt||"").slice(0,10)).startsWith(key)).reduce((a,e)=>a+Number(e.amount||0),0);return {key,profit:sumInv-sumExp,revenue:sumInv,expenses:sumExp}});const max=Math.max(1,...monthly.map(x=>Math.abs(x.profit)));chart.innerHTML=monthly.length?monthly.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,Math.abs(x.profit)/max*170)}px;${x.profit<0?"background:linear-gradient(#e9a1a8,#a32d3d)":""}" title="صافي الربح: ${money(x.profit)}"></div>${esc(x.key.length===10?x.key.slice(8):x.key.slice(5)+"/"+x.key.slice(0,4))}<br><b>${money(x.profit)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات ضمن الفترة المحددة.</div>`;$("#reportPeriodLabel").textContent=mode==="month"?`الشهر ${month}/${year}`:mode==="year"?`السنة ${year}`:mode==="range"?`من ${from||"البداية"} إلى ${to||"النهاية"}`:"كل الفترات";$("#profitChartLabels").innerHTML=`<div><small>الإيرادات بعد الاسترجاع</small><br><b>${money(revenue)}</b></div><div><small>إجمالي المصروفات</small><br><b>${money(costs)}</b></div><div><small>صافي الربح التقديري</small><br><b>${money(profit)}</b></div>`;const data=activeStaff().map(s=>({name:s.name,count:db.bookings.filter(b=>b.staffId===s.id&&b.status==="completed"&&reportDateFilter(b.date)).length,revenue:invoices.reduce((a,i)=>a+invoiceEmployeeRevenue(i,s.id),0)}));const cmax=Math.max(1,...data.map(x=>x.count));$("#staffChart").innerHTML=data.length?data.map(x=>`<div class="bar-col"><div class="bar" style="height:${Math.max(3,x.count/cmax*135)}px" title="${x.count}"></div>${esc(x.name)}<br><b>${x.count}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`;$("#staffRows").innerHTML=data.map(x=>`<div style="margin-top:12px"><div class="spread"><span>${esc(x.name)}</span><b>${x.count} خدمات مكتملة</b></div><div class="progress"><i style="width:${x.count/cmax*100}%"></i></div></div>`).join("");$("#revenueStaff").innerHTML=data.length?data.map(x=>`<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(x.name)}</span><b>${money(x.revenue)}</b></div>`).join(""):`<div class="empty">لا توجد بيانات</div>`}
 function backupPanel(){return `<div class="grid"><div class="card"><div class="portal-icon">📥</div><h3>${esc(t("export"))}</h3><p class="muted">${esc(t("backup"))} — JSON</p><button class="btn" onclick="downloadBackup()">${esc(t("export"))}</button></div><div class="card"><div class="portal-icon">📤</div><h3>${esc(t("restore"))}</h3><p class="muted">${esc(t("restoreWarn"))}</p><input id="restoreFile" type="file" accept=".json,application/json"><button class="btn secondary" style="margin-top:10px" onclick="restoreBackup()">${esc(t("restore"))}</button></div><div class="card"><div class="portal-icon">⚙️</div><h3>${esc(t("adminSettings"))}</h3><button class="btn secondary" onclick="ownerSettings()">${esc(t("adminSettings"))}</button><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><button class="btn danger" onclick="resetLocalData()">${esc(t("reset"))}</button></div></div><div class="notice" style="margin-top:14px">${esc(t("demoNotice"))} النسخة تشمل بيانات العميلات والحجوزات والفواتير والموظفات والمخزون.</div>`}
 function downloadBackup(){const data={...db,exportedAt:new Date().toISOString(),format:"quality-nail-salon-backup-v1"};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`quality-nail-salon-backup-${today()}.json`;a.click();URL.revokeObjectURL(url);toast(t("backupDone"))}
 async function restoreBackup(){
@@ -1558,12 +1877,12 @@ $("#homeBtn").addEventListener("click",()=>{clearSession()});
 /* مساعد المالكة المحلي: تحليل بيانات فعلية وإدخال فواتير نصية بمراجعة بشرية. */
 let assistantDraft=[];
 function ownerAssistantPanel(){
- const invoices=db.invoices||[], total=invoices.reduce((n,i)=>n+Number(i.total||0),0), expenses=(db.expenses||[]).reduce((n,e)=>n+Number(e.amount||0),0);
+ const invoices=db.invoices||[], total=invoices.reduce((n,i)=>n+salonInvoiceNet(i),0), expenses=(db.expenses||[]).reduce((n,e)=>n+Number(e.amount||0),0);
  const month=today().slice(0,7), thisMonth=invoices.filter(i=>String(i.date||i.createdAt||'').startsWith(month));
- const monthly=thisMonth.reduce((n,i)=>n+Number(i.total||0),0);
+ const monthly=thisMonth.reduce((n,i)=>n+salonInvoiceNet(i),0);
  const byService={};invoices.forEach(i=>(i.items||[]).forEach(x=>{const k=x.name||serviceName(x.serviceId);byService[k]=(byService[k]||0)+Number(x.quantity||1)}));
  const top=Object.entries(byService).sort((a,b)=>b[1]-a[1]).slice(0,5);
- const byStaff={};invoices.forEach(i=>{const entries=invoiceLineRows(i),subtotal=entries.reduce((a,x)=>a+Math.max(0,Number(x.lineTotal??(Number(x.price||0)*Number(x.quantity||1)))),0);entries.forEach(x=>{const k=invoiceItemStaffLabel(i,x),line=Math.max(0,Number(x.lineTotal??(Number(x.price||0)*Number(x.quantity||1))));byStaff[k]=(byStaff[k]||0)+(subtotal?Number(i.total||0)*line/subtotal:Number(i.total||0)/Math.max(1,entries.length))})});
+ const byStaff={};invoices.forEach(i=>{const entries=invoiceLineRows(i),subtotal=entries.reduce((a,x)=>a+Math.max(0,Number(x.lineTotal??(Number(x.price||0)*Number(x.quantity||1)))),0);entries.forEach(x=>{const k=invoiceItemStaffLabel(i,x),line=Math.max(0,Number(x.lineTotal??(Number(x.price||0)*Number(x.quantity||1))));byStaff[k]=(byStaff[k]||0)+(subtotal?salonInvoiceNet(i)*line/subtotal:salonInvoiceNet(i)/Math.max(1,entries.length))})});
  return `<div class="card"><h2>مساعد المالكة — تحليل الإيرادات</h2><p class="muted">التحليل يعتمد على الفواتير والمصروفات المحفوظة في النظام، وليس توقعات أو بيانات خارجية.</p><div class="stats"><div class="stat"><span>إيرادات الشهر الحالي</span><strong>${money(monthly)}</strong></div><div class="stat"><span>جميع الإيرادات</span><strong>${money(total)}</strong></div><div class="stat"><span>المصروفات المسجلة</span><strong>${money(expenses)}</strong></div><div class="stat"><span>صافي تقديري إجمالي</span><strong>${money(total-expenses)}</strong></div></div><h3>الخدمات الأكثر تنفيذًا</h3><p>${top.length?top.map(([k,v])=>`${esc(k)} (${v})`).join(' • '):'لا توجد بيانات كافية'}</p><h3>الإيرادات حسب الموظفة</h3><p>${Object.entries(byStaff).map(([k,v])=>`${esc(k)}: ${money(v)}`).join(' • ')||'لا توجد بيانات كافية'}</p></div>
  <div class="card" style="margin-top:14px"><h2>تسجيل فواتير من رسالة أو صورة</h2><div class="field"><label>ارفعي صورة كشف أو لقطة محادثة واتساب</label><input id="assistantImage" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" multiple onchange="assistantImagesSelected()"><small class="muted">يمكن اختيار عدة صور. تتم قراءة النص داخل المتصفح ثم مراجعته قبل إنشاء الفواتير.</small></div><div class="row" style="margin:12px 0"><button type="button" class="btn secondary" id="assistantOcrBtn" onclick="readAssistantImages()">قراءة الصور واستخراج النص</button><span id="assistantOcrStatus" class="muted tiny"></span></div><div id="assistantImagePreviews" class="row"></div><h3>النص المستخرج أو المكتوب</h3><p class="muted">كل عميلة في سطر مستقل: الاسم، رقم الجوال، الخدمة أو الخدمات، الموظفة (اختياري)، طريقة الدفع (اختياري). يمكن لصق رسائل متعددة. يجب مراجعة النتائج قبل الحفظ.</p><textarea id="assistantInput" rows="7" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:12px" placeholder="نورة أحمد، 0501234567، مانيكير وباديكير، ليان، شبكة&#10;سارة محمد، 0551234567، جل، نقدًا"></textarea><div class="row" style="margin-top:12px"><button class="btn" onclick="parseAssistantInvoices()">استخراج الفواتير للمراجعة</button><button class="btn secondary" onclick="ownerTab('services')">إدارة أسعار الخدمات</button></div><div id="assistantPreview" style="margin-top:14px"></div><p class="notice">قراءة الصور تستخدم مكتبة Tesseract.js يتم تنزيلها من الإنترنت عند الاستخدام لأول مرة، وتعمل المعالجة في المتصفح. لا يتم إرسال الصور إلى نموذج ذكاء اصطناعي، لكن يلزم اتصال لتحميل المكتبة وملفات اللغة. راجعي النص المستخرج، فقد يخطئ في الأسماء والأرقام. لا يتم حفظ أي فاتورة قبل تأكيدك.</p></div>`;
 }
@@ -1971,7 +2290,7 @@ async function publishPortalCatalog(){
 }
 async function showPortalBookingsOwner(){try{const snap=await firestore.collection('portalBookings').get();const rows=snap.docs.map(d=>({id:d.id,...d.data()}));$("#portalBookingsOwner").innerHTML=rows.map(b=>`<div class="card" style="margin-bottom:8px"><b>${esc(b.clientName)} — ${esc(b.date)} ${esc(b.time)}</b><p>${esc(b.serviceName)} — ${money(b.price)} — ${esc(b.staffName)}</p><p>${esc(b.location==='home'?'منزل':'صالون')} — ${esc(b.status)}</p>${b.status==='pending'?`<button class="btn small" onclick="confirmPortalBooking('${esc(b.id)}')">تأكيد الحجز</button><button class="btn small danger" onclick="cancelPortalBooking('${esc(b.id)}')">إلغاء الحجز</button>`:`<span class="badge">${esc(b.status)}</span>`}</div>`).join('')||'لا توجد طلبات' }catch(e){toast(e.message)}}
 async function confirmPortalBooking(id){try{await firestore.collection('portalBookings').doc(id).update({status:'confirmed'});await showPortalBookingsOwner()}catch(e){toast(e.message)}}
-async function cancelPortalBooking(id){if(!confirm('هل تريدين إلغاء هذا الحجز؟'))return;try{await firestore.collection('portalBookings').doc(id).update({status:'cancelled'});await showPortalBookingsOwner();toast('تم إلغاء الحجز')}catch(e){toast('تعذر الإلغاء: '+e.message)}}
+async function cancelPortalBooking(id){if(!confirm('هل تريدين إلغاء هذا الحجز؟'))return;try{await firestore.collection('portalBookings').doc(id).update({status:'cancelled'});await showPortalBookingsOwner();toast('تم إلغاء الحجز. يمكنك إبلاغ العميلة من زر واتساب بجانب الحجز.')}catch(e){toast('تعذر الإلغاء: '+e.message)}}
 const legacyOwnerRender=renderOwner;
 renderOwner=function(tab=ownerActiveTab){legacyOwnerRender(tab);if(tab==='appointments'){const div=document.createElement('section');div.innerHTML='<div class="section-head"><h3>حجوزات بوابة العميلات</h3><button class="btn secondary small" onclick="showPortalBookingsOwner()">تحديث</button></div><div id="portalBookingsOwner"></div>';$("#app").append(div);showPortalBookingsOwner()}if(tab==='services'){const btn=document.createElement('button');btn.className='btn gold';btn.textContent='نشر الخدمات والموظفات لبوابة العميلات';btn.onclick=publishPortalCatalog;$("#app").append(btn)}};
 const priorClearSession=clearSession;
@@ -2007,8 +2326,8 @@ function extensionPanel(tab){
   return `<div class="section-head"><h3>طلبات الموظفات</h3><button class="btn secondary" onclick="loadStaffRequestsOwner()">تحديث الطلبات السحابية</button></div><div id="cloudStaffRequests"></div>${extTable(['النوع','الموظفة','التاريخ','الملاحظات'],db.staffRequests.map(r=>extRow([esc(r.type),esc(r.name),esc(r.date),esc(r.notes)])))}`;
  }
  if(tab==='financeExt'){
-  const start=db.invoices.reduce((a,x)=>a+Number(x.total||0),0),cost=db.expenses.reduce((a,x)=>a+Number(x.amount||0),0),paidRent=db.leasePayments.filter(x=>x.paid).reduce((a,x)=>a+Number(x.amount||0),0),deposits=db.depositRecords.filter(x=>x.status==='received').reduce((a,x)=>a+Number(x.amount||0),0);
-  return `<div class="stats"><div class="stat"><span>إجمالي الفواتير</span><strong>${money(start)}</strong></div><div class="stat"><span>المصروفات المسجلة</span><strong>${money(cost)}</strong></div><div class="stat"><span>إيجارات مدفوعة (سجل منفصل)</span><strong>${money(paidRent)}</strong></div><div class="stat"><span>عربونات متحقق منها (ليست إيرادًا إضافيًا)</span><strong>${money(deposits)}</strong></div></div><div class="card" style="margin-top:14px"><h3>صافي تقديري من السجلات</h3><strong class="invoice-total">${money(start-cost-paidRent)}</strong><p class="notice">قد تتكرر الإيجارات إن كانت مسجلة أيضًا ضمن المصروفات. العربونات لا تضاف للإيراد مرة أخرى. هذه أرقام تشغيلية وليست قوائم محاسبية معتمدة.</p></div>`;
+  const gross=db.invoices.reduce((a,x)=>a+Number(x.total||0),0),refunded=db.invoices.reduce((a,x)=>a+Number(x.refund?.amount||0),0),start=gross-refunded,cost=db.expenses.reduce((a,x)=>a+Number(x.amount||0),0),paidRent=db.leasePayments.filter(x=>x.paid).reduce((a,x)=>a+Number(x.amount||0),0),deposits=db.depositRecords.filter(x=>x.status==='received').reduce((a,x)=>a+Number(x.amount||0),0);
+  return `<div class="stats"><div class="stat"><span>قبل الاسترجاع</span><strong>${money(gross)}</strong></div><div class="stat"><span>المبالغ المسترجعة</span><strong>${money(refunded)}</strong></div><div class="stat"><span>بعد الاسترجاع</span><strong>${money(start)}</strong></div><div class="stat"><span>المصروفات المسجلة</span><strong>${money(cost)}</strong></div><div class="stat"><span>إيجارات مدفوعة (سجل منفصل)</span><strong>${money(paidRent)}</strong></div><div class="stat"><span>عربونات متحقق منها (ليست إيرادًا إضافيًا)</span><strong>${money(deposits)}</strong></div></div><div class="card" style="margin-top:14px"><h3>صافي تقديري من السجلات</h3><strong class="invoice-total">${money(start-cost-paidRent)}</strong><p class="notice">قد تتكرر الإيجارات إن كانت مسجلة أيضًا ضمن المصروفات. العربونات لا تضاف للإيراد مرة أخرى. هذه أرقام تشغيلية وليست قوائم محاسبية معتمدة.</p></div>`;
  }
  return '';
 }
@@ -2643,8 +2962,9 @@ submitPortalBooking=async function(event){
  finally{if(button&&button.isConnected)button.disabled=false}
 };
 function ownerBookingCard(b){
+ const cancelUrl=b.status==='cancelled'?salonCancellationWhatsApp(b):'';
  const id=esc(b.id),pending=b.status==='pending',closed=['cancelled','completed'].includes(b.status);
- return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${b.packageUseRequested?'🎁 طلب استخدام باقة «'+esc(b.packageName||'')+'» — مشمول بالرصيد':money(b.price)} — ${esc(b.staffName||'')}</p>${Number(b.pointsToRedeem)>0?'<p><strong>✦ طلب خصم نقاط: '+esc(b.pointsToRedeem)+' نقطة = '+money(b.loyaltyDiscountRequested)+'</strong> · يراجع عند إصدار الفاتورة.</p>':''}<p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · ${b.packageUseRequested?'طلب من باقاتي — لا يتم الخصم إلا عند تسجيل الخدمة في الكاشير':('العربون: '+(b.depositStatus==='paid'?'مدفوع':'غير مدفوع'))}</p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">${b.packageUseRequested?'تأكيد موعد الباقة':(pending?'تأكيد بعد العربون':'تحديث تأكيد العربون')}</button><button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}</div></div>`;
+ return `<div class="card" style="margin:10px 0"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date)} ${esc(b.time)}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${b.packageUseRequested?'🎁 طلب استخدام باقة «'+esc(b.packageName||'')+'» — مشمول بالرصيد':money(b.price)} — ${esc(b.staffName||'')}</p>${Number(b.pointsToRedeem)>0?'<p><strong>✦ طلب خصم نقاط: '+esc(b.pointsToRedeem)+' نقطة = '+money(b.loyaltyDiscountRequested)+'</strong> · يراجع عند إصدار الفاتورة.</p>':''}<p>الجوال: ${esc(b.clientPhone||'—')} · المكان: ${b.location==='home'?'منزل':'الصالون'} · ${b.packageUseRequested?'طلب من باقاتي — لا يتم الخصم إلا عند تسجيل الخدمة في الكاشير':('العربون: '+(b.depositStatus==='paid'?'مدفوع':'غير مدفوع'))}</p><p class="muted tiny">رقم الطلب: ${id}${b.notes?' · ملاحظات: '+esc(b.notes):''}</p><div class="row">${!closed?`<button class="btn success small" onclick="ownerConfirmSavedBooking('${id}')">${b.packageUseRequested?'تأكيد موعد الباقة':(pending?'تأكيد بعد العربون':'تحديث تأكيد العربون')}</button><button class="btn secondary small" onclick="ownerEditSavedBooking('${id}')">تعديل الحجز</button><button class="btn danger small" onclick="ownerCancelSavedBooking('${id}')">إلغاء</button>`:''}${cancelUrl?`<a class="btn secondary small" href="${esc(cancelUrl)}" target="_blank" rel="noopener noreferrer">إبلاغ العميلة بالإلغاء عبر واتساب</a>`:''}</div></div>`;
 }
 showPortalBookingsOwner=async function(){
  const host=document.querySelector('#portalBookingsOwner');if(!host)return;
@@ -2675,7 +2995,7 @@ window.ownerConfirmSavedBooking=async id=>{
 };
 window.ownerCancelSavedBooking=async id=>{
  if(!confirm('هل تريدين إلغاء طلب الحجز؟'))return;
- try{await bookingCollection.doc(id).update({status:'cancelled',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم إلغاء الطلب')}
+ try{await bookingCollection.doc(id).update({status:'cancelled',updatedAt:firebase.firestore.FieldValue.serverTimestamp()});await showPortalBookingsOwner();toast('تم الإلغاء. اضغطي «إبلاغ العميلة بالإلغاء عبر واتساب» لإرسال الإشعار.')}
  catch(err){toast('تعذر الإلغاء: '+err.message)}
 };
 window.ownerEditSavedBooking=async id=>{
@@ -2822,7 +3142,7 @@ showPortalBookingsOwner=async function(){
  const legacyRender=renderOwner;
  const legacyChange=changeBooking;
  function ownerDailySummary(){
-  const d=today(), bills=db.invoices.filter(i=>invoiceDate(i)===d), amount=bills.reduce((n,i)=>n+Number(i.total||0),0);
+  const d=today(), bills=db.invoices.filter(i=>invoiceDate(i)===d), amount=bills.reduce((n,i)=>n+salonInvoiceNet(i),0);
   const expenseToday=db.expenses.filter(e=>salonInvoiceLocalDate(e)===d).reduce((n,e)=>n+Number(e.amount||0),0);
   const local=db.bookings.filter(b=>bookingDate(b)===d&&isOpen(b));
   const kpis=document.querySelectorAll('.owner-kpi');
@@ -2852,7 +3172,7 @@ showPortalBookingsOwner=async function(){
  window.dailyLocalStatus=(id,status)=>{const b=db.bookings.find(x=>String(x.id)===String(id));if(!b||!hasOwner())return;if(['completed','noShow'].includes(status)&&!confirm('تأكيد تغيير حالة الحجز إلى: '+statusName(status)+'؟'))return;legacyChange(id,status);renderBookingRows()};
  window.dailyPortalStatus=async(id,status)=>{if(!hasOwner())return;if(['completed','noShow'].includes(status)&&!confirm('تأكيد تغيير حالة الحجز إلى: '+statusName(status)+'؟'))return;try{await firestore.collection('portalBookings').doc(id).update({status,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),...(status==='completed'?{completedAt:firebase.firestore.FieldValue.serverTimestamp()}:{})});await loadDailyBookings();toast('تم حفظ حالة الحجز')}catch(e){toast('تعذر حفظ الحالة: '+e.message)}};
  function dailyAppointments(){return `<div class="card"><h2>الحجوزات والمواعيد</h2><p class="muted">تظهر حجوزات اليوم والقادمة والمعلقة حتى تؤكد الموظفة إتمام الخدمة. لا تُحذف السجلات عند نهاية اليوم.</p><div class="row" style="margin:12px 0;flex-wrap:wrap"><button class="btn secondary small" data-daily-mode="active" onclick="dailyBookingView('active')">الحجوزات النشطة والقادمة</button><button class="btn secondary small" data-daily-mode="history" onclick="dailyBookingView('history')">البحث بالتاريخ</button><button class="btn secondary small" data-daily-mode="all" onclick="dailyBookingView('all')">كل السجلات</button><input id="dailyHistoryDate" type="date" value="${historyDate}" hidden onchange="dailyHistoryDate(this.value)"><button class="btn secondary small" onclick="ownerTab('appointments')">تحديث</button></div><div id="dailyBookingNotice" class="muted"></div><div id="dailyBookingRows"></div></div>`}
- function dailyInvoices(){const d=today(),list=db.invoices.filter(i=>invoiceDate(i)===d),total=list.reduce((n,i)=>n+Number(i.total||0),0);return `<div class="card"><h2>فواتير اليوم</h2><p class="muted">كل يوم يبدأ عرض جديد تلقائيًا، والفواتير السابقة محفوظة ويمكن الرجوع إليها بالتاريخ.</p><div class="stats"><div class="stat"><span>عدد فواتير اليوم</span><strong>${list.length}</strong></div><div class="stat"><span>مبيعات اليوم</span><strong>${money(total)}</strong></div></div><div class="row" style="margin:12px 0;flex-wrap:wrap"><label>من <input type="date" id="dailyInvoiceFrom" value="${d}"></label><label>إلى <input type="date" id="dailyInvoiceTo" value="${d}"></label><button class="btn secondary small" onclick="dailyInvoiceSearch()">بحث بالتاريخ</button><button class="btn secondary small" onclick="dailyInvoiceToday()">اليوم</button></div><div id="dailyInvoiceCount" class="muted">${list.length} فاتورة</div><div id="dailyInvoiceTable">${invoiceTable(list)}</div></div>`}
+ function dailyInvoices(){const d=today(),list=db.invoices.filter(i=>invoiceDate(i)===d),total=list.reduce((n,i)=>n+salonInvoiceNet(i),0);return `<div class="card"><h2>فواتير اليوم</h2><p class="muted">كل يوم يبدأ عرض جديد تلقائيًا، والفواتير السابقة محفوظة ويمكن الرجوع إليها بالتاريخ.</p><div class="stats"><div class="stat"><span>عدد فواتير اليوم</span><strong>${list.length}</strong></div><div class="stat"><span>مبيعات اليوم</span><strong>${money(total)}</strong></div></div><div class="row" style="margin:12px 0;flex-wrap:wrap"><label>من <input type="date" id="dailyInvoiceFrom" value="${d}"></label><label>إلى <input type="date" id="dailyInvoiceTo" value="${d}"></label><button class="btn secondary small" onclick="dailyInvoiceSearch()">بحث بالتاريخ</button><button class="btn secondary small" onclick="dailyInvoiceToday()">اليوم</button></div><div id="dailyInvoiceCount" class="muted">${list.length} فاتورة</div><div id="dailyInvoiceTable">${invoiceTable(list)}</div></div>`}
  window.dailyInvoiceSearch=()=>{const a=document.querySelector('#dailyInvoiceFrom')?.value||'',b=document.querySelector('#dailyInvoiceTo')?.value||'';if(a&&b&&a>b){toast('تاريخ البداية بعد النهاية');return}const list=db.invoices.filter(i=>(!a||invoiceDate(i)>=a)&&(!b||invoiceDate(i)<=b));document.querySelector('#dailyInvoiceTable').innerHTML=invoiceTable(list);document.querySelector('#dailyInvoiceCount').textContent=list.length+' فاتورة'};
  window.dailyInvoiceToday=()=>{document.querySelector('#dailyInvoiceFrom').value=today();document.querySelector('#dailyInvoiceTo').value=today();window.dailyInvoiceSearch()};
  renderOwner=function(tab=ownerActiveTab){
@@ -3437,6 +3757,7 @@ function packageForm(b){const editing=Boolean(b);const current=b||{nameAr:'',nam
  <div class="field"><label>اسم الباقة بالإنجليزي</label><input name="nameEn" maxlength="65" value="${esc(current.nameEn||'')}" required placeholder="Royal Care Package"></div>
  <div class="field full"><label>وصف الباقة (اختياري)</label><textarea name="description" maxlength="350">${esc(current.description||'')}</textarea></div>
  <div class="field"><label>سعر الباقة النهائي (ر.س)</label><input type="number" name="price" min="0" max="100000" step="0.01" required value="${esc(String(current.price??''))}"></div>
+ <div class="field"><label>نقاط شراء الباقة</label><input type="number" name="packagePoints" min="0" max="9999" step="1" required value="${salonPackageReward(db.settings,current.id)}"><small>تُطبّق على عمليات الشراء الجديدة بعد الحفظ.</small></div>
  <div class="field"><label>لون بطاقة الباقة</label><input type="color" name="color" value="${validHex(current.color)}" style="width:100%;height:44px;cursor:pointer"></div>
  <div class="field salon-credit-config"><label>عدد الزيارات / الخدمات في رصيد الباقة</label><input name="creditsTotal" type="number" min="1" max="999" step="1" value="${Math.max(1,Number(current.creditsTotal)||5)}" required><small class="muted">مثال: 5 زيارات، تختار العميلة في كل زيارة أي خدمة من الخدمات المحددة بالأسفل.</small></div>
  <div class="field salon-credit-config"><label>صلاحية رصيد الباقة</label><select name="validityMonths"><option value="1" ${Number(current.validityMonths??12)===1?'selected':''}>شهر</option><option value="3" ${Number(current.validityMonths??12)===3?'selected':''}>3 أشهر</option><option value="6" ${Number(current.validityMonths??12)===6?'selected':''}>6 أشهر</option><option value="12" ${Number(current.validityMonths??12)===12?'selected':''}>سنة</option><option value="24" ${Number(current.validityMonths??12)===24?'selected':''}>سنتان</option><option value="0" ${Number(current.validityMonths??12)===0?'selected':''}>بدون تاريخ انتهاء</option></select></div>
@@ -3450,9 +3771,9 @@ function packageForm(b){const editing=Boolean(b);const current=b||{nameAr:'',nam
  </form></section>`}
 function packageList(){const all=packages();return `<section class="card"><h2>باقات الصالون (${all.length})</h2><p class="muted">كل باقة مستقلة عن الخدمات العادية، ويمكن تعديل سعرها ولونها أو إخفاؤها أو حذفها. حذف الباقة لا يحذف الحجوزات والفواتير القديمة.</p>
  <div class="salon-package-list">${all.length?all.map(b=>{const x=calculated(b);return `<article class="salon-package-tile" style="--bundle-color:${validHex(b.color)}"><div class="salon-package-line"><strong>${esc(b.nameAr)}</strong><span>${b.kind==='credit'?'رصيد خدمات':'عرض استخدام واحد'} • ${b.active!==false?'نشطة':'مخفية'}</span></div><small>${esc(b.nameEn||'')}</small><p>${esc(b.description||'')}</p><p>${esc((b.kind==='credit'?x.rows.map(i=>i.name):x.rows.map(i=>`${i.name} × ${i.quantity}`)).join(' + ')||'الخدمات غير متوفرة')}</p><div class="salon-package-line"><b>${money(Number(b.price)||0)}</b><small>${b.kind==='credit'?`رصيد ${Number(b.creditsTotal)||5} استخدامات · ${Number(b.validityMonths??12)===0?'بدون انتهاء':'صلاحية '+(Number(b.validityMonths??12))+' شهر'}`:`${x.duration} دقيقة · مجموع الخدمات منفردة: ${money(x.retail)}`}</small></div>
- <div class="row"><button class="btn secondary small" type="button" onclick="salonEditPackage('${esc(b.id)}')">تعديل</button><button class="btn secondary small" type="button" onclick="salonTogglePackage('${esc(b.id)}')">${b.active!==false?'إخفاء':'إظهار'}</button><button class="btn danger small" type="button" onclick="salonDeletePackage('${esc(b.id)}')">حذف</button></div></article>`}).join(''):'<p class="muted">ما فيه باقات حاليًا. أضيفي أول باقة من النموذج.</p>'}</div></section>`}
+ <p>نقاط الشراء: ${salonPackageReward(db.settings,b.id)}</p><div class="row"><button class="btn secondary small" type="button" onclick="salonEditPackage('${esc(b.id)}')">تعديل</button><button class="btn secondary small" type="button" onclick="salonTogglePackage('${esc(b.id)}')">${b.active!==false?'إخفاء':'إظهار'}</button><button class="btn danger small" type="button" onclick="salonDeletePackage('${esc(b.id)}')">حذف</button></div></article>`}).join(''):'<p class="muted">ما فيه باقات حاليًا. أضيفي أول باقة من النموذج.</p>'}</div></section>`}
 let editingId=null;
-function renderPackages(){const host=document.querySelector('#app');if(!host)return;const item=packages().find(b=>b.id===editingId)||null;ownerActiveTab='packages';host.innerHTML=ownerLayout('packages',`<div class="section-head"><h2>إدارة الباقات</h2></div>${packageForm(item)}${packageList()}`);changeOwnerAccent(ownerThemeColor());bindPackageForm();showBrand();}
+function renderPackages(){const host=document.querySelector('#app');if(!host)return;const item=packages().find(b=>b.id===editingId)||null;ownerActiveTab='packages';host.innerHTML=ownerLayout('packages',`<div class="section-head"><h2>إدارة الباقات</h2><button type="button" class="btn secondary" onclick="ownerTab('qualityRewards')">إدارة نقاط جميع الباقات</button></div>${packageForm(item)}${packageList()}${salonOwnedPackagesPanel()}`);changeOwnerAccent(ownerThemeColor());bindPackageForm();salonBindOwnedPackages();showBrand();}
 function bindPackageForm(){const f=document.querySelector('#salonPackageForm');if(!f)return;
  const kind=f.querySelector('#salonPackageKind');
  const switchType=()=>{const credit=kind.value==='credit';f.querySelectorAll('.salon-credit-config').forEach(x=>x.classList.toggle('hidden',!credit));f.querySelector('input[name="creditsTotal"]').required=credit;f.querySelector('#salonPackageItemsHelp').textContent=credit?'حددي الخدمات التي يمكن للعميلة اختيارها من الرصيد (أي عدد أكبر من صفر يعني أن الخدمة متاحة). عدد الزيارات الإجمالي بالأعلى.':'للعرض المستخدم مرة واحدة: اختاري خدمة واحدة بكمية 1، أو عدة خدمات تُقدم كلها في الزيارة نفسها.';};
@@ -3464,10 +3785,28 @@ function bindPackageForm(){const f=document.querySelector('#salonPackageForm');i
  const items=[];for(const el of f.querySelectorAll('[data-salon-service]')){const q=Number(el.value);if(!Number.isInteger(q)||q<0||q>10){toast('العدد لكل خدمة يجب أن يكون بين 0 و10');return}if(q>0)items.push({serviceId:el.dataset.salonService,quantity:q})}
  if(!nameAr||!nameEn||nameAr.length>65||nameEn.length>65||!Number.isFinite(price)||price<0||price>100000||!items.length||(packageKind==='credit'&&(!Number.isInteger(creditsTotal)||creditsTotal<1||creditsTotal>999||!Number.isInteger(validityMonths)||validityMonths<0||validityMonths>120))){toast('راجعي اسم الباقة والسعر واختاري خدمة واحدة على الأقل');return}
  const button=f.querySelector('#salonPackageSave');button.disabled=true;
- const before=JSON.parse(JSON.stringify(packages()));const id=editingId||uid('pkg');const obj={id,nameAr,nameEn,description:String(form.get('description')||'').trim().slice(0,350),price,kind:packageKind,creditsTotal:packageKind==='credit'?creditsTotal:0,validityMonths:packageKind==='credit'?validityMonths:0,color:validHex(form.get('color')),active:form.has('active'),items,updatedAt:new Date().toISOString()};
- if(editingId){const i=db.packages.findIndex(x=>x.id===editingId);if(i<0){toast('الباقة غير موجودة');button.disabled=false;return}db.packages[i]={...db.packages[i],...obj}}else db.packages.push({...obj,createdAt:new Date().toISOString()});
- try{const ok=await persist();if(!ok)throw Error('تعذر حفظ بيانات الباقة في Firebase');editingId=null;renderPackages();const published=await publishPortalCatalog();toast(published?'تم حفظ الباقة ونشرها للعميلات':'تم حفظ الباقة ولكن تعذر نشرها للعميلات؛ استخدمي زر إعادة النشر');}
- catch(err){db.packages=before;renderPackages();toast('تعذر الحفظ: '+(err.message||err))}
+ const packagePoints=Number(form.get('packagePoints'));
+ if(!Number.isSafeInteger(packagePoints)||packagePoints<0||packagePoints>9999){toast('عدد نقاط الباقة غير صالح');button.disabled=false;return}
+ const id=editingId||uid('pkg');const original=packages().find(p=>p.id===id);const originalPoints=salonPackageReward(db.settings,id);const obj={id,nameAr,nameEn,description:String(form.get('description')||'').trim().slice(0,350),price,kind:packageKind,creditsTotal:packageKind==='credit'?creditsTotal:0,validityMonths:packageKind==='credit'?validityMonths:0,color:validHex(form.get('color')),active:form.has('active'),items,updatedAt:new Date().toISOString()};
+ try{
+  await saveQueue;
+  let updated;
+  await firestore.runTransaction(async tx=>{
+   const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('سجل الصالون غير متاح');
+   const remote=snap.data(),all=remote.packages||[],existing=all.find(p=>String(p.id)===String(id));
+   if(!salonInvoiceSame(existing,original)||salonPackageReward(remote.settings,id)!==originalPoints)throw Error('تغيّرت الباقة أو نقاطها. حدّثي الصفحة ثم أعيدي فتحها');
+   const item={...(existing||{createdAt:new Date().toISOString()}),...obj};
+   const packages=existing?all.map(p=>p===existing?item:p):[...all,item];
+   const rewardPointsByItem={...(remote.settings?.rewardPointsByItem||{}),['package:'+id]:packagePoints};
+   tx.update(salonDoc,{packages,'settings.rewardPointsByItem':rewardPointsByItem,updatedAt:new Date().toISOString()});
+   updated={packages,settings:{...remote.settings,rewardPointsByItem}};
+  });
+  db.packages=updated.packages;db.settings=updated.settings;
+  salonUpdateInvoiceBaseline(updated);
+  editingId=null;renderPackages();
+  const published=await publishPortalCatalog();toast(published?'تم حفظ الباقة ونشرها للعميلات':'تم حفظ الباقة؛ تعذر تحديث دليل العميلات');
+ }catch(err){toast('تعذر تحديث الباقة: '+String(err.message||err))}
+ finally{button.disabled=false}
  });}
 window.salonEditPackage=id=>{if(!isOwner())return;editingId=id;renderPackages();document.querySelector('.salon-package-editor')?.scrollIntoView({behavior:'smooth',block:'start'})};
 window.salonResetPackageEditor=()=>{editingId=null;renderPackages()};
@@ -4520,7 +4859,7 @@ publishPortalCatalog=async function(){
    if(!count&&!revenue)return;
    const dayInvoices=db.invoices.filter(i=>salonInvoiceLocalDate(i)===today());
    if(count)count.textContent=String(dayInvoices.length);
-   if(revenue)revenue.textContent=money(dayInvoices.reduce((sum,i)=>sum+Number(i.total||0),0));
+   if(revenue)revenue.textContent=money(dayInvoices.reduce((sum,i)=>sum+salonInvoiceNet(i),0));
    const date=document.querySelector('#invoiceDate');
    // Only roll forward a new invoice's untouched date, never change an edited invoice.
    if(date&&!cashierEditingInvoiceId&&date.value===previousDate)date.value=today();
@@ -4581,6 +4920,8 @@ bookingTable=function(list,compact=false){
   let out=row.replace('</tr>','</tr>');
   const badge=statusBadge(b.status);
   out=out.replace(badge+'</td>',badge+payment+'</td>');
+  const notice=salonCancellationLink(b);
+  if(notice)out=out.replace('</div></td></tr>',notice+'</div></td></tr>');
   if(!['cancelled','completed','noShow'].includes(b.status)&&!isLegacyPaid(b)){
    const buttons=`<button type="button" class="btn success small" onclick="salonMarkLegacyBookingPaid('${esc(b.id)}')">تأكيد استلام الدفع</button><button type="button" class="btn danger small" onclick="salonCancelUnpaidLegacyBooking('${esc(b.id)}')">إلغاء لعدم الدفع</button>`;
    out=out.replace('</div></td></tr>',buttons+'</div></td></tr>');
@@ -4640,7 +4981,7 @@ showPortalBookingsOwner=async function(){
   const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAt?.seconds||'').localeCompare(String(a.createdAt?.seconds||'')));
   host.innerHTML=rows.length?rows.map(b=>{
    const id=esc(b.id),closed=['cancelled','completed','noShow'].includes(b.status),paid=b.depositStatus==='paid';
-   return `<section class="card" style="margin:10px 0;border:1px solid #ead1de"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date||'')} ${esc(b.time||'')}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · ${esc(b.location==='home'?'خدمة منزلية':'في الصالون')} · <strong>${salonPortalPaymentBadge(b)}</strong></p><p class="muted tiny">رقم الحجز: ${id}${b.cancelReason==='unpaid'?' · السبب: إلغاء لعدم الدفع':''}</p><div class="row" style="margin-top:12px">${closed?'':`<button class="btn secondary small" type="button" onclick="ownerEditSavedBooking('${id}')">تعديل</button>${!paid?`<button class="btn success small" type="button" onclick="salonMarkPortalPaid('${id}')">تأكيد استلام الدفع</button><button class="btn danger small" type="button" onclick="salonCancelUnpaidPortal('${id}')">إلغاء لعدم الدفع</button>`:`<button class="btn success small" type="button" onclick="ownerConfirmSavedBooking('${id}')">تأكيد الحجز</button>`}<button class="btn danger small" type="button" onclick="ownerCancelSavedBooking('${id}')">إلغاء عادي</button>`}</div></section>`;
+   return `<section class="card" style="margin:10px 0;border:1px solid #ead1de"><div class="spread"><b>${esc(b.clientName||'عميلة')} — ${esc(b.date||'')} ${esc(b.time||'')}</b>${statusBadge(b.status||'pending')}</div><p>${esc(b.serviceName||'')} — ${money(b.price)} — ${esc(b.staffName||'')}</p><p>الجوال: ${esc(b.clientPhone||'—')} · ${esc(b.location==='home'?'خدمة منزلية':'في الصالون')} · <strong>${salonPortalPaymentBadge(b)}</strong></p><p class="muted tiny">رقم الحجز: ${id}${b.cancelReason==='unpaid'?' · السبب: إلغاء لعدم الدفع':''}</p><div class="row" style="margin-top:12px">${closed?'':`<button class="btn secondary small" type="button" onclick="ownerEditSavedBooking('${id}')">تعديل</button>${!paid?`<button class="btn success small" type="button" onclick="salonMarkPortalPaid('${id}')">تأكيد استلام الدفع</button><button class="btn danger small" type="button" onclick="salonCancelUnpaidPortal('${id}')">إلغاء لعدم الدفع</button>`:`<button class="btn success small" type="button" onclick="ownerConfirmSavedBooking('${id}')">تأكيد الحجز</button>`}<button class="btn danger small" type="button" onclick="ownerCancelSavedBooking('${id}')">إلغاء عادي</button>`}${salonCancellationLink(b)}</div></section>`;
   }).join(''):'<div class="empty">لا توجد حجوزات حاليًا.</div>';
  }catch(e){host.textContent='تعذر تحميل الحجوزات: '+String(e.message||e)}
 };
@@ -6395,10 +6736,13 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
  async function syncPackageView(client){
    if(!ownerCanPublish())throw Error('Owner permission required');
    const uid=String(client?.authUid||'');if(!uid)return false;
-   const profile=await firestore.collection('clientProfiles').doc(uid).get({source:'server'});
-   if(!profile.exists||salonNormalizePhone(profile.data()?.phone)!==salonNormalizePhone(client.phone))throw Error('الملف ورقم جوال العميلة غير متطابقين، لا يمكن ربط الباقات');
-   const balances=(db.clientPackages||[]).filter(x=>String(x.clientId)===String(client.id)).map(x=>({id:String(x.id),packageId:String(x.packageId||''),packageName:String(x.packageName||''),packageNameEn:String(x.packageNameEn||''),total:Number(x.total)||0,used:Number(x.used)||0,expiresOn:String(x.expiresOn||''),purchasedOn:String(x.purchasedOn||''),eligibleServiceIds:(x.eligibleServiceIds||[]).map(String),eligibleServiceNames:(x.eligibleNames||[]).map(String)}));
-   await packageViews.doc(uid).set({clientId:String(client.id),balances,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+   await firestore.runTransaction(async tx=>{
+    const main=await tx.get(salonDoc);
+    const current=(main.data()?.clients||[]).find(c=>String(c.id)===String(client.id));
+    if(!current||String(current.authUid||'')!==uid)throw Error('تغيّر ربط حساب العميلة');
+    const writes=await salonPreparePackageViews(tx,[current],main.data()?.clientPackages||[],[current.id],false);
+    for(const write of writes)write();
+   });
    return true;
  }
  window.salonOwnerLinkCustomerPackages=async function(id){
@@ -6446,7 +6790,7 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
    const result=await oldInvoiceSaver.apply(this,args);
    // Do not roll back a paid invoice if the optional customer view update is denied.
    const c=db.clients.find(x=>String(x.id)===String(result?.clientId));
-   if(c?.authUid){try{await syncPackageView(c)}catch(error){toast('حُفظت الفاتورة لكن تعذّر تحديث باقاتي: '+(error.message||error))}}
+   if(c?.authUid&&!salonInvoiceHasPackageMovements(result)&&!salonInvoiceHasPackageMovements(args[0]?.__source)){try{await syncPackageView(c)}catch(error){toast('حُفظت الفاتورة لكن تعذّر تحديث باقاتي: '+(error.message||error))}}
    return result;
  };
 })();
@@ -7056,14 +7400,15 @@ window.salonMakeClientInvoiceView=function(invoice,clientUid,clientId){
  const explicit=invoice.paidAmount!=null&&invoice.paidAmount!==''&&Number.isFinite(Number(invoice.paidAmount));
  const status=String(invoice.paymentStatus||invoice.status||'').toLowerCase();
  let paid=explicit?Math.max(0,Math.min(amount,Math.round(Number(invoice.paidAmount)*100)/100)):null;
- if(!explicit){
+ if(invoice.refund)paid=0;
+ else if(!explicit){
   if(['pending','unpaid','cancelled','canceled','void'].includes(status))paid=0;
   else if(invoice.payment==='points')paid=0;
   else if(['cash','card','transfer','mixed'].includes(invoice.payment))paid=amount;
   // Missing payment methods are not counted without a known paidAmount.
  }
  const items=(Array.isArray(invoice.items)?invoice.items:[]).slice(0,80).map(x=>({name:String(x.name||x.serviceName||'خدمة').slice(0,120),qty:Math.max(1,Math.min(99,Number(x.quantity)||1)),price:Math.max(0,Number(x.price)||0)}));
- return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,payment:String(invoice.payment||''),pointsAdded:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),voucherAmountUsed:Math.max(0,Number(invoice.voucherAmountUsed)||0),amountOtherMethods:Math.max(0,Number(invoice.amountOtherMethods??invoice.total)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+ return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,...(invoice.refund?{refundAmount:Number(invoice.refund.amount)||0,refundDate:String(invoice.refund.date||''),netTotal:salonInvoiceNet(invoice)}:{}),payment:String(invoice.payment||''),pointsAdded:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),voucherAmountUsed:Math.max(0,Number(invoice.voucherAmountUsed)||0),amountOtherMethods:Math.max(0,Number(invoice.amountOtherMethods??invoice.total)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
 };
 function invoiceViewId(id){return encodeURIComponent(String(id));}
 let activeUser='',invoiceStop=null,records=[],invoiceLoadStatus='not-loaded',invoiceLoadError='';
@@ -7090,7 +7435,7 @@ function drawInvoices(){
  const pending=invoiceLoadStatus==='loading';
  const cards=records.map(r=>{
   const items=(r.items||[]).map(i=>`<div>${escText(i.name||'خدمة')} × ${Math.max(1,Number(i.qty)||1)} — ${moneyVal(i.price)}</div>`).join('');
-  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div><div class="salon-invoice-items">${escText(r.serviceName||tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(payName(r.payment))}${Number(r.voucherAmountUsed)>0?' · '+tr('القسيمة','Gift voucher')+': '+moneyVal(r.voucherAmountUsed):''}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
+  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div>${r.refundDate?`<p>${tr('المسترجع','Refunded')}: ${moneyVal(r.refundAmount)} · ${escText(r.refundDate)} · ${tr('بعد الاسترجاع','After refund')}: ${moneyVal(r.netTotal)}</p>`: ''}<div class="salon-invoice-items">${escText(r.serviceName||tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(payName(r.payment))}${Number(r.voucherAmountUsed)>0?' · '+tr('القسيمة','Gift voucher')+': '+moneyVal(r.voucherAmountUsed):''}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
  }).join('');
  panel.innerHTML=`<div class="salon-mobile-subpage"><h2>🧾 ${tr('فواتيري','My invoices')}</h2><p>${tr('فواتير مشترياتك المرتبطة بحسابك بعد اعتماد الملكية من الصالون.','Invoices linked to your verified salon account.')}</p><div class="salon-invoice-summary"><div>${tr('إجمالي المدفوع المسجل','Recorded payments')}<strong>${invoiceLoadStatus==='error'||pending?'—':moneyVal(paid)}</strong></div><div>${tr('قيمة جميع الفواتير','Total invoice value')}<strong>${invoiceLoadStatus==='error'||pending?'—':moneyVal(issued)}</strong></div><div>${tr('عدد فواتيري','Invoices')}<strong>${invoiceLoadStatus==='error'||pending?'—':records.length}</strong></div><div>${tr('مبالغ غير محددة','Unverified payments')}<strong>${invoiceLoadStatus==='error'||pending?'—':unknown}</strong></div></div>${unknown?`<p class="notice">${tr('بعض الفواتير طريقة دفعها مختلطة أو غير محددة؛ لا تُضاف إلى إجمالي المدفوع حتى تتحدد القيمة.','Some mixed or unspecified payments are excluded from the paid total until verified.')}</p>`:''}</div><div class="salon-invoice-list">${invoiceLoadStatus==='error'?`<div class="salon-invoice-error">${escText(invoiceLoadError)}</div>`:pending?`<div class="card">${tr('جارٍ تحميل فواتيرك…','Loading your invoices…')}</div>`:cards||`<div class="salon-mobile-subpage"><p>${tr('لا توجد فواتير مرتبطة بحسابك بعد. اطلبِي من الصالون اعتماد ملكية حسابك ومزامنة فواتيرك السابقة.','No invoices have been linked yet. Ask the salon to verify your account and sync previous invoices.')}</p></div>`}</div>`;
 }
@@ -7993,17 +8338,21 @@ function ownerOrdersPage(type){const root=panel(type==='package'?'🎀 طلبا�
 // 5: Owner points: single service edit + select all, plus package and gift points.
 function ownerRewardPage(){const services=db.services||[],packages=db.packages||[],map=db.settings?.rewardPointsByItem||{};
  const row=(kind,item,id,label,value)=>`<label class="quality-reward"><input type="checkbox" data-reward-select data-kind="${kind}" data-id="${safe(id)}"><span>${safe(label)}</span><input type="number" min="0" step="1" max="9999" value="${Math.max(0,Number(value)||0)}" data-reward-value data-kind="${kind}" data-id="${safe(id)}" aria-label="نقاط ${safe(label)}"></label>`;
- const html=`<p class="muted">حددي نقاط كل خدمة أو باقة أو نوع هدية. اختاري الكل ثم اكتبي عدد النقاط واضغطي حفظ.</p><div class="quality-admin-controls"><label><input id="qualitySelectAll" type="checkbox"> تحديد الكل</label><label>النقاط للخدمات المحددة<input id="qualityBulkValue" type="number" value="10" min="0" max="9999" step="1"></label><button id="qualityApplyAll" type="button" class="btn secondary">تطبيق على المحدد</button><button id="qualitySaveRewards" type="button" class="btn">حفظ جميع النقاط</button></div><h3>الخدمات</h3><div>${services.map(s=>row('service',s,s.id,s.name,s.loyaltyPoints)).join('')}</div><h3>الباقات</h3><div>${packages.map(p=>row('package',p,p.id,p.nameAr||p.name,map['package:'+p.id])).join('')}</div><h3>الهدايا</h3><div>${[['voucher','قسيمة هدية'],['service','هدية خدمة'],['package','هدية باقة']].map(([id,label])=>row('gift',null,id,label,map['gift:'+id])).join('')}</div>`;
+ const html=`<p class="muted">حددي نقاط كل خدمة أو باقة أو نوع هدية. اختاري الكل ثم اكتبي عدد النقاط واضغطي حفظ.</p><div class="quality-admin-controls"><label><input id="qualitySelectAll" type="checkbox"> تحديد الكل</label><label><input id="qualitySelectPackages" type="checkbox"> تحديد كل الباقات</label><label>النقاط للعناصر المحددة<input id="qualityBulkValue" type="number" value="10" min="0" max="9999" step="1"></label><button id="qualityApplyAll" type="button" class="btn secondary">تطبيق على المحدد</button><button id="qualitySaveRewards" type="button" class="btn">حفظ جميع النقاط</button></div><h3>الخدمات</h3><div>${services.map(s=>row('service',s,s.id,s.name,s.loyaltyPoints)).join('')}</div><h3>الباقات</h3><div>${packages.map(p=>row('package',p,p.id,p.nameAr||p.name,map['package:'+p.id])).join('')}</div><h3>الهدايا</h3><div>${[['voucher','قسيمة هدية'],['service','هدية خدمة'],['package','هدية باقة']].map(([id,label])=>row('gift',null,id,label,map['gift:'+id])).join('')}</div>`;
  const root=panel('⭐ إدارة نقاط الخدمات والباقات والهدايا',html);
  root.querySelector('#qualitySelectAll').onchange=e=>root.querySelectorAll('input[data-reward-select]').forEach(c=>{c.checked=e.target.checked});
+ root.querySelector('#qualitySelectPackages').onchange=e=>root.querySelectorAll('[data-reward-select][data-kind=package]').forEach(c=>{c.checked=e.target.checked});
  root.querySelector('#qualityApplyAll').onclick=()=>{const value=Number(root.querySelector('#qualityBulkValue').value);if(!Number.isSafeInteger(value)||value<0||value>9999){toast('اكتبي عدد نقاط صحيحًا من 0 إلى 9999');return}root.querySelectorAll('input[data-reward-select]:checked').forEach(c=>{const input=root.querySelector(`input[data-reward-value][data-kind="${c.dataset.kind}"][data-id="${CSS.escape(c.dataset.id)}"]`);if(input)input.value=String(value)})};
  root.querySelector('#qualitySaveRewards').onclick=async()=>{requiresOwner();const btn=root.querySelector('#qualitySaveRewards');btn.disabled=true;
- try{const entries=[...root.querySelectorAll('input[data-reward-value]')].map(input=>({kind:input.dataset.kind,id:input.dataset.id,val:Number(input.value)}));if(entries.some(x=>!Number.isSafeInteger(x.val)||x.val<0||x.val>9999))throw Error('قيمة نقاط غير صحيحة');
+ try{const entries=[...root.querySelectorAll('input[data-reward-value]')].filter(input=>input.value!==input.defaultValue).map(input=>({kind:input.dataset.kind,id:input.dataset.id,val:Number(input.value)}));if(entries.some(x=>!Number.isSafeInteger(x.val)||x.val<0||x.val>9999))throw Error('قيمة نقاط غير صحيحة');
+  if(!entries.length){toast('لا توجد تغييرات في النقاط');return}
+  await saveQueue;
   const nextMap=Object.fromEntries(entries.filter(x=>x.kind!=='service').map(x=>[x.kind+':'+x.id,x.val]));
-  await firestore.runTransaction(async tx=>{const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('بيانات الصالون غير موجودة');const remote=snap.data()||{};const services=(remote.services||[]).map(s=>{const x=entries.find(y=>y.kind==='service'&&y.id===String(s.id));return x?{...s,loyaltyPoints:x.val}:s});tx.update(salonDoc,{services, 'settings.rewardPointsByItem':nextMap,updatedAt:new Date().toISOString()})});
-  const snap=await salonDoc.get({source:'server'});db.services=snap.data().services;db.settings=snap.data().settings||db.settings;
+  await firestore.runTransaction(async tx=>{const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('بيانات الصالون غير موجودة');const remote=snap.data()||{};const services=(remote.services||[]).map(s=>{const x=entries.find(y=>y.kind==='service'&&y.id===String(s.id));return x?{...s,loyaltyPoints:x.val}:s});tx.update(salonDoc,{services, 'settings.rewardPointsByItem':{...remote.settings?.rewardPointsByItem,...nextMap},updatedAt:new Date().toISOString()})});
+  const snap=await salonDoc.get({source:'server'});db.services=snap.data().services;db.settings=snap.data().settings||db.settings;salonUpdateInvoiceBaseline({services:db.services,settings:db.settings});
   try{if(typeof publishPortalCatalog==='function')await publishPortalCatalog()}catch(e){toast('حُفظت النقاط؛ تعذر نشر الخدمات للعميلات: '+(e.message||e))}
-  toast('تم حفظ نقاط جميع العناصر المحددة');
+  for(const input of root.querySelectorAll('input[data-reward-value]'))input.defaultValue=input.value;
+  toast('تم حفظ النقاط المعدلة');
  }catch(e){notifyError('تعذر حفظ النقاط',e)}finally{if(btn.isConnected)btn.disabled=false}
  };
 }
@@ -8028,7 +8377,7 @@ showPortalBookingsOwner=async function(){
  const host=document.getElementById('portalBookingsOwner');if(!host||!owner())return;
  try{const snap=await firestore.collection('portalBookings').get({source:'server'});
   const data=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>String(b.date||'')>=today()).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time)));
-  host.innerHTML=data.length?data.map(b=>`<article class="quality-order"><strong>${safe(b.clientName)} — ${safe(b.date)} ${safe(b.time)}</strong><p>${safe(b.serviceName)} — ${safe(b.staffName)} — ${safe(b.status)}</p><div class="row"><button class="btn success small" data-confirm="${safe(b.id)}" ${b.status!=='pending'?'disabled':''}>تأكيد</button><button class="btn danger small" data-cancel="${safe(b.id)}" ${b.status==='cancelled'?'disabled':''}>إلغاء</button></div></article>`).join(''):'لا توجد حجوزات حالية.';
+  host.innerHTML=data.length?data.map(b=>`<article class="quality-order"><strong>${safe(b.clientName)} — ${safe(b.date)} ${safe(b.time)}</strong><p>${safe(b.serviceName)} — ${safe(b.staffName)} — ${safe(b.status)}</p><div class="row"><button class="btn success small" data-confirm="${safe(b.id)}" ${b.status!=='pending'?'disabled':''}>تأكيد</button><button class="btn danger small" data-cancel="${safe(b.id)}" ${b.status==='cancelled'?'disabled':''}>إلغاء</button>${salonCancellationLink(b)}</div></article>`).join(''):'لا توجد حجوزات حالية.';
   host.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await confirmPortalBooking(b.dataset.confirm)}catch(e){notifyError('تعذر تأكيد الحجز',e)}});
   host.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await cancelPortalBooking(b.dataset.cancel)}catch(e){notifyError('تعذر إلغاء الحجز',e)}});
  }catch(e){host.textContent='تعذر جلب الحجوزات: '+String(e.message||e)}
@@ -8071,8 +8420,8 @@ submitInvoice=async function(ev){const selected=document.querySelector('#invoice
  if(selected==='pdf'&&lastInvoiceSaved){showShareDialog(lastInvoiceSaved)}
 };
 function shareChoice(){const choice=document.getElementById('invoiceWhatsAppChoice');if(!choice||choice.dataset.pdfOptions)return;
- choice.dataset.pdfOptions='1';choice.innerHTML='<option value="no">عدم إرسال — حفظ الفاتورة فقط</option><option value="pdf">إرسال الفاتورة للعميلة PDF بعد الحفظ</option>';
- const label=choice.closest('div.field');if(label)label.querySelector('small')?.replaceChildren(document.createTextNode('حفظ الفاتورة مستقل عن الإرسال. اختيار PDF يفتح المشاركة بعد نجاح الحفظ فقط.'));
+ choice.dataset.pdfOptions='1';choice.innerHTML='<option value="no">عدم إرسال — حفظ الفاتورة فقط</option><option value="yes">فتح واتساب برسالة الفاتورة بعد الحفظ</option><option value="pdf">مشاركة الفاتورة PDF بعد الحفظ</option>';
+ const label=choice.closest('div.field');if(label)label.querySelector('small')?.replaceChildren(document.createTextNode('واتساب يفتح رسالة جاهزة على رقم العميلة؛ اضغطي «إرسال» داخل واتساب. الإرسال التلقائي الكامل يتطلب WhatsApp Business API.'));
 }
 function printableInvoice(invoice){const lines=(typeof invoiceLineRows==='function'?invoiceLineRows(invoice):invoice.items)||[];
  return `<div style="font:16px Arial,sans-serif;color:#372332;background:white;width:720px;padding:38px;direction:rtl;box-sizing:border-box"><header style="text-align:center;border-bottom:2px solid #aa6481;padding-bottom:18px"><h1 style="color:#854461;margin:0">صالون جودة الأظافر</h1><p style="margin:6px">NAIL QUALITY SALON</p></header><div style="display:flex;justify-content:space-between;gap:15px;margin:20px 0"><div>فاتورة رقم: <b>${safe(invoice.number)}</b><br>العميلة: <b>${safe(invoice.customerName||'بدون اسم')}</b></div><div>التاريخ: ${safe(invoice.date||'')}<br>الجوال: ${safe(invoice.customerPhone||'')}</div></div><table style="border-collapse:collapse;width:100%;text-align:right"><thead><tr style="background:#f4e8ed"><th style="padding:12px">الخدمة</th><th>العدد</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>${lines.map(l=>`<tr style="border-bottom:1px solid #eadce1"><td style="padding:12px">${safe(l.name)}</td><td>${Math.max(1,Number(l.quantity)||1)}</td><td>${amount(l.price)}</td><td>${amount((Number(l.price)||0)*(Number(l.quantity)||1))}</td></tr>`).join('')}</tbody></table><div style="margin-top:25px;text-align:left;line-height:2.1"><div>المجموع: ${amount(invoice.subtotal||0)}</div><div>الخصم: ${amount(invoice.discount||0)}</div><div>ضريبة القيمة المضافة: ${amount(invoice.tax||0)}</div>${Number(invoice.voucherAmountUsed)>0?`<div>مدفوع بقسيمة الهدية: ${amount(invoice.voucherAmountUsed)}</div><div>المدفوع بوسائل أخرى: ${amount(invoice.amountOtherMethods)}</div>`:''}<h2 style="color:#854461">إجمالي الفاتورة: ${amount(invoice.total||0)}</h2></div><p style="text-align:center;color:#805e6a;margin-top:35px;border-top:1px solid #eadce1;padding-top:18px">شكرًا لزيارتكِ صالون جودة الأظافر ♡</p></div>`;
