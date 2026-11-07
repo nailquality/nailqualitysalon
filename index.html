@@ -7578,5 +7578,457 @@ document.addEventListener('click',e=>{const el=e.target.closest?.('#app.qa-premi
 </script>
 
 
+<style id="salon-comprehensive-responsive-20261107">
+/* Unified visual identity + responsive owner / employee / cashier + order modules */
+:root{--quality-ivory:#fbf6f1;--quality-petal:#ecd4dd;--quality-wine:#754460;--quality-gold:#b49162;--quality-line:#eadfda}
+#app .quality-booking-search{margin:6px 0 15px;display:grid;gap:7px;width:100%}
+.quality-booking-search input{min-height:50px!important;outline-offset:2px;border:1px solid var(--quality-petal)!important;border-radius:13px!important;background:#fff!important;padding:12px 15px!important;font-size:16px!important}
+.quality-booking-hint{font-size:12px;color:#8d7380}
+#portalBooking .service-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(245px,100%),1fr));gap:12px;max-height:485px;overflow:auto;padding:3px 1px}
+#portalBooking label.service[hidden],.quality-gift [hidden]{display:none!important}
+#portalBooking label.service{display:block;padding:13px 15px!important;border:1px solid #eadbe2;border-radius:14px;min-width:0}
+#portalBooking label.service input[type=number]{width:100px!important;font-size:16px}
+.quality-administration{border:1px solid var(--quality-line);border-radius:22px;background:linear-gradient(148deg,#fff,#fdf7fa);padding:22px;margin:16px 0 25px;box-shadow:0 10px 26px #8b49601c}
+.quality-administration h2{color:var(--quality-wine);margin:0 0 14px}
+.quality-admin-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:15px 0}
+.quality-admin-controls>label{display:grid;gap:5px;min-width:220px;flex:1}
+.quality-admin-controls input[type=search],.quality-admin-controls input[type=tel],.quality-admin-controls input[type=number],.quality-admin-controls>input{width:100%;max-width:450px;min-height:46px;border-radius:11px;padding:9px 12px;border:1px solid #e5cbd5;background:#fff}
+.quality-order{border:1px solid #ead9e2;border-radius:17px;background:white;padding:15px 17px;margin:12px 0;overflow-wrap:anywhere}
+.quality-order header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.quality-order p{color:#715967;line-height:1.8}
+.quality-order button{min-height:43px}
+.quality-reward{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(90px,120px);gap:12px;align-items:center;background:white;border:1px solid #ecdee4;border-radius:11px;padding:10px;margin-bottom:8px}
+.quality-reward input[type=number]{width:100%;min-width:0;min-height:40px;padding:7px;border:1px solid #e4ced9;border-radius:9px}
+.quality-option{display:flex;align-items:center;gap:10px;margin:12px 0;padding:10px;border:1px solid #ead9e2;border-radius:10px}
+.quality-gift{border:1px solid #ead9e2;background:linear-gradient(142deg,#fff9fc,#fff);border-radius:24px;padding:22px;color:#633e54;max-width:1100px;margin:10px auto 28px}
+.quality-gift-intro{display:flex;align-items:center;gap:16px;margin-bottom:19px}.quality-gift-intro>span{font-size:45px}.quality-gift-intro h2{margin:0;font-size:clamp(23px,3vw,34px)}.quality-gift-intro p{margin:8px 0}
+.quality-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.quality-form-grid>label{display:grid;gap:7px;font-size:14px;font-weight:700}.quality-form-grid .wide{grid-column:1/-1}
+.quality-form-grid input,.quality-form-grid select,.quality-form-grid textarea{width:100%;min-width:0;border-radius:12px;border:1px solid #ead5df;padding:12px 14px;background:white;font-size:16px;color:#482c3e}
+.quality-form-grid textarea{min-height:140px}.quality-form-grid fieldset{border:1px solid #ead5df;border-radius:13px;padding:13px}
+.quality-vouchers{display:flex;flex-wrap:wrap;gap:9px}.quality-vouchers label{display:flex;gap:5px;align-items:center;padding:8px 10px;border:1px solid #e7d6df;border-radius:99px;background:white}.quality-vouchers input{width:auto}
+.quality-note{padding:12px 14px;border-radius:11px;background:#fff8eb;color:#795d4d;font-size:13px;line-height:1.8}
+.quality-booking-archive input{font-size:16px}
+.quality-pdf-overlay{position:fixed;z-index:999999;inset:0;display:grid;place-items:center;background:#1e0f19aa;padding:16px}
+.quality-pdf-box{width:min(560px,100%);border-radius:22px;background:#fffafa;padding:25px;box-shadow:0 20px 50px #0004;line-height:1.8;color:#59394d}
+.quality-pdf-box h2{margin-top:0}.quality-pdf-box .row{display:flex;flex-wrap:wrap;gap:10px}.quality-pdf-box .row button{min-height:48px;flex:1}
+#qualityPDFStatus{font-size:13px;margin-top:13px}
+/* Laptop and large tablets: full usable width rather than centered narrow dashboard. */
+@media(min-width:1050px){
+  html,body{max-width:none!important;width:100%!important}
+  body #app:has(.owner-shell),body #app:has(#employeeBookingBoard){width:100%!important;max-width:unset!important;padding:0!important;margin:0!important}
+  #app .owner-shell{width:100%!important;max-width:none!important;grid-template-columns:268px minmax(0,1fr)!important;min-height:100vh}
+  #app .owner-sidebar{width:268px!important;min-width:268px!important}
+  #app .owner-main{width:100%!important;min-width:0!important;max-width:unset!important;overflow:visible}
+  #app .owner-content{max-width:none!important;width:100%!important;box-sizing:border-box;padding:26px clamp(25px,3vw,60px)!important}
+  #app .cashier-layout{grid-template-columns:minmax(0,1.25fr) minmax(345px,.75fr)!important;align-items:start;gap:20px}
+  #app .owner-content .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #app .owner-content .card{min-width:0}
+  #app #employeeBookingBoard{max-width:1300px;margin:auto;padding:20px}
+}
+@media(min-width:670px) and (max-width:1049px){
+  #app .owner-shell{display:grid!important;grid-template-columns:220px minmax(0,1fr)!important;width:100%!important;max-width:100%!important}
+  #app .owner-sidebar{width:220px!important;min-width:220px!important;position:sticky!important;top:0!important;height:100vh!important}
+  #app .owner-main{min-width:0!important}.owner-content{padding:20px!important}
+  #app .cashier-layout{grid-template-columns:minmax(0,1fr)!important}
+}
+@media(max-width:669px){
+  body #app:has(.owner-shell){width:100%!important;max-width:100%!important;padding:0!important;margin:0!important}
+  #app .owner-shell{display:block!important;width:100%!important;max-width:100%!important}
+  #app .owner-sidebar{position:relative!important;width:100%!important;height:auto!important;max-height:60vh;overflow:auto!important}
+  #app .owner-main{width:100%!important;padding:0!important;min-width:0}
+  #app .owner-content{width:100%!important;max-width:100%!important;padding:14px!important}
+  #app .owner-top{padding:10px 12px!important;height:auto!important;min-height:55px}
+  #app .owner-kpis,#app .owner-dashboard-grid{grid-template-columns:minmax(0,1fr)!important}
+  #app .cashier-layout{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px}
+  #app .cashier-layout .card{width:100%;min-width:0}
+  #app .cashier-layout .form-grid{grid-template-columns:minmax(0,1fr)!important}
+  #app .cashier-layout .cart-row{grid-template-columns:minmax(0,1fr)!important}
+  #app .owner-content .service-grid{grid-template-columns:minmax(0,1fr)!important}
+  .quality-administration{padding:15px;border-radius:16px}.quality-admin-controls{display:grid;gap:10px}
+  .quality-admin-controls>label{min-width:0}.quality-form-grid{grid-template-columns:minmax(0,1fr)!important}
+  .quality-gift{padding:15px}.quality-gift-intro{align-items:flex-start}.quality-order .row{display:grid}
+  .quality-reward{grid-template-columns:24px minmax(0,1fr) 75px;gap:8px}
+  #app .table-wrap{max-width:100%;overflow-x:auto}
+}
+/* Harmonized owner and employee components */
+#app .owner-shell .owner-panel,#app .owner-content .card,#app #employeeBookingBoard .card,#app .employee-booking-card{border-radius:17px!important;box-shadow:0 10px 24px #8b486014!important;border-color:#eadfe2!important}
+#app .owner-main,#app #employeeBookingBoard{background:var(--quality-ivory)!important}
+#app .owner-sidebar{background:linear-gradient(165deg,#5b394e,#33263d)!important}
+#app .owner-sidebar .owner-menu button.selected{background:#aa6986!important}
+#app .owner-content input,#app .owner-content select,#app #employeeBookingBoard input{font-size:clamp(14px,1.5vw,16px)}
+
+</style>
+<script id="salon-comprehensive-fixes-20261107">
+/* Quality Nail Salon | integrated owner/customer fixes | 2026-11-07
+   Customer requests never activate financial entitlements. Only owner can approve.
+*/
+(function(){
+'use strict';
+const OWNER='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+const F=firebase.firestore.FieldValue;
+const ar=()=>lang!=='en', tr=(a,b)=>ar()?a:b;
+const clean=v=>String(v??'').trim();
+const safe=v=>typeof esc==='function'?esc(String(v??'')):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const phone=v=>{let n=String(v||'').replace(/\D/g,'');if(n.startsWith('00966'))n=n.slice(5);else if(n.startsWith('966'))n=n.slice(3);return n.startsWith('0')?n.slice(1):n};
+const owner=()=>db.session?.type==='owner'&&firebaseReady&&auth.currentUser?.uid===OWNER;
+const client=()=>portalRole==='client'&&!!portalUser&&!!auth.currentUser;
+const amount=n=>new Intl.NumberFormat(ar()?'ar-SA':'en-SA',{style:'currency',currency:'SAR',maximumFractionDigits:2}).format(Number(n)||0);
+const timestamp=()=>F.serverTimestamp();
+const pref=()=>db.settings||{};
+const packageOrders=firestore.collection('salonPackageOrders');
+const giftOrders=firestore.collection('salonGiftOrders');
+const packageViews=firestore.collection('clientPackageViews');
+const wallet=firestore.collection('loyaltyAccounts');
+const profile=uid=>firestore.collection('clientProfiles').doc(uid);
+const pActive=()=>Array.isArray(portalCatalog?.packages)?portalCatalog.packages.filter(x=>x&&x.active!==false):[];
+const sActive=()=>Array.isArray(portalCatalog?.services)?portalCatalog.services.filter(x=>x&&x.active!==false):[];
+const stableLabel=p=>clean(ar()?(p.nameAr||p.name):(p.nameEn||p.nameAr||p.name))||tr('بدون اسم','Unnamed');
+function notifyError(prefix,e){const msg=String(e?.message||e||'');toast(prefix+' — '+msg);console.warn(prefix,e)}
+function findOwnerLinked(uid,data){const entries=(data.clients||[]).filter(x=>String(x.authUid||'')===String(uid));if(entries.length!==1)throw Error('لا يوجد سجل عميلة وحيد مرتبط بهذا الحساب. اربطي الحساب وتحققي من ملكية الجوال من إدارة العميلات أولًا.');return entries[0]}
+function pointsFor(kind,key,main){const map=main.settings?.rewardPointsByItem||{};const val=Number(map[kind+':'+key]);return Number.isSafeInteger(val)&&val>=0?val:0}
+function validName(s){return clean(s).length>0&&clean(s).length<=90}
+function receiptSharePhone(invoice){let v=phone(invoice.customerPhone);return /^5\d{8}$/.test(v)?'966'+v:''}
+
+// 1: Search-first booking. Only matched or already selected services are visible.
+function searchServices(){
+ const form=document.getElementById('portalBooking');if(!client()||!form)return;
+ const grid=form.querySelector('.service-grid');if(!grid||grid.dataset.qSearchInstalled)return;
+ grid.dataset.qSearchInstalled='1';
+ const box=document.createElement('div');box.className='quality-booking-search';
+ const search=document.createElement('input');search.id='qualityBookingSearch';search.type='search';search.autocomplete='off';search.placeholder=tr('🔎 اكتبي اسم الخدمة للبحث…','🔎 Search for a service…');
+ search.setAttribute('aria-label',tr('البحث عن خدمة','Find a service'));
+ const hint=document.createElement('div');hint.className='quality-booking-hint';hint.setAttribute('aria-live','polite');
+ box.append(search,hint);grid.before(box);
+ const cards=Array.from(grid.querySelectorAll('label.service'));
+ function update(){const q=clean(search.value).toLocaleLowerCase();let shown=0;
+  for(const card of cards){const name=card.querySelector('strong')?.textContent||'';const qty=Number(card.querySelector('input[name^="serviceQty_"]')?.value)||0;
+   const yes=(!!q&&name.toLocaleLowerCase().includes(q))||qty>0;
+   card.hidden=!yes;card.style.display=yes?'':'none';if(yes)shown++;
+   const strings=Array.from(card.querySelectorAll('span')).flatMap(n=>Array.from(n.childNodes).filter(x=>x.nodeType===Node.TEXT_NODE));
+   for(const node of strings){if(ar())continue;node.nodeValue=node.nodeValue.replace(/\s+دقيقة/g,' minutes').replace(/\s+ريال/g,' SAR').replace(/\bالعدد\b/g,'Quantity')}
+  }
+  hint.textContent=!q?tr('ابحثي عن الخدمة، وستظهر النتائج هنا. الخدمات المختارة تبقى ظاهرة.','Type to find services. Selected services remain visible.'):(shown?tr(`نتائج البحث: ${shown}`,`${shown} matching service(s)`):tr('لا توجد خدمة مطابقة. جرّبي كلمة أخرى.','No matching service. Try another word.'));
+ }
+ search.addEventListener('input',update);grid.addEventListener('input',update);grid.addEventListener('change',update);update();
+}
+
+// 2: Package requests are recorded, without auto-activating or awarding points.
+let buying=false;
+document.addEventListener('click',async event=>{
+ const b=event.target.closest?.('[data-package-buy]');if(!b||!client()||!b.closest('#salonCustomerPackagesShop'))return;
+ event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
+ if(buying)return;buying=true;b.disabled=true;
+ try{
+  const record=pActive().find(p=>String(p.id)===String(b.dataset.packageBuy));if(!record)throw Error('الباقة لم تعد منشورة');
+  const uid=auth.currentUser.uid;
+  await packageOrders.add({clientUid:uid,clientName:clean(portalUser.nameAr||portalUser.name||''),clientPhone:clean(portalUser.phone||''),packageId:String(record.id),status:'pending',createdAt:timestamp()});
+  toast(tr('وصل طلب الباقة لصاحبة الصالون. لن تتفعّل إلا بعد تأكيد الدفع.','Package request received. Activation requires salon payment confirmation.'));
+ }catch(e){notifyError('تعذر تسجيل طلب الباقة',e)}finally{buying=false;if(b.isConnected)b.disabled=false}
+},true);
+
+// 3: Gift request form with accurate service/package selection, voucher choices, and editable sender.
+function giftsForm(){
+ const services=sActive(),packages=pActive();
+ const serviceOpts=services.map(s=>`<option value="${safe(s.id)}" data-price="${Number(s.price)||0}">${safe(stableLabel(s))} — ${amount(s.price)}</option>`).join('');
+ const packageOpts=packages.map(p=>`<option value="${safe(p.id)}">${safe(stableLabel(p))} — ${amount(p.price)}</option>`).join('');
+ return `<section class="quality-gift"><div class="quality-gift-intro"><span>🎁</span><div><h2>${tr('أهدي لحظات جمال','Gift beautiful moments')}</h2><p>${tr('اختاري الهدية ورسالتك، ونؤكدها بعد الدفع.','Choose a gift and add your message. Payment is confirmed by the salon.')}</p></div></div>
+ <form id="qualityGiftRequest" class="quality-form-grid">
+ <label>${tr('المناسبة','Occasion')}<select name="occasion"><option value="birthday">${tr('عيد ميلاد','Birthday')}</option><option value="graduation">${tr('تخرج','Graduation')}</option><option value="thanks">${tr('شكر وتقدير','Thank you')}</option><option value="other">${tr('مناسبة أخرى','Other occasion')}</option></select></label>
+ <label>${tr('نوع الهدية','Gift type')}<select name="kind" id="qualityGiftKind"><option value="service">${tr('إهداء خدمة','Service gift')}</option><option value="package">${tr('إهداء باقة','Package gift')}</option><option value="voucher">${tr('قسيمة مالية','Gift voucher')}</option></select></label>
+ <label id="qualityGiftServiceRow" class="wide">${tr('ابحثي عن خدمة ثم اختاريها','Search and select a service')}<input type="search" id="qualityGiftServiceSearch" placeholder="${tr('اكتبي اسم الخدمة…','Search service…')}" autocomplete="off"><select name="serviceId" id="qualityGiftService"><option value="">${tr('اختاري خدمة من النتائج','Select a service')}</option>${serviceOpts}</select></label>
+ <label id="qualityGiftPackageRow" class="wide" hidden>${tr('اختاري باقة','Select a package')}<select name="packageId"><option value="">${tr('اختاري باقة منشورة','Select published package')}</option>${packageOpts}</select></label>
+ <fieldset id="qualityGiftVoucherRow" class="wide" hidden><legend>${tr('قيمة القسيمة','Gift voucher amount')}</legend><div class="quality-vouchers">${[100,200,300,500].map(v=>`<label><input type="radio" name="voucherChoice" value="${v}" ${v===200?'checked':''}> ${v} ${tr('ريال','SAR')}</label>`).join('')}<label><input type="radio" name="voucherChoice" value="custom">${tr('مبلغ آخر','Other amount')}</label></div><label id="qualityGiftCustomRow" hidden>${tr('المبلغ بالريال','Amount (SAR)')}<input type="number" min="1" max="10000" step="1" name="customAmount" placeholder="250"></label></fieldset>
+ <label>${tr('اسم المستلمة','Recipient name')}<input name="recipientName" required maxlength="90" placeholder="${tr('اسم صديقتك','Friend’s name')}" autocomplete="off"></label>
+ <label>${tr('رقم جوال المستلمة','Recipient phone')}<input name="recipientPhone" type="tel" inputmode="tel" maxlength="20" required placeholder="05xxxxxxxx" dir="ltr"></label>
+ <label class="wide">${tr('اسم مرسلة الهدية','Sender name')}<input name="senderName" maxlength="90" required placeholder="${tr('اكتبي اسمك','Your name')}" autocomplete="off"></label>
+ <label class="wide">${tr('رسالة الإهداء','Gift message')}<textarea name="message" required maxlength="700" placeholder="${tr('كل عام وأنتِ أجمل صديقة…','Wishing you a wonderful day…')}"></textarea></label>
+ <div class="quality-note wide">${tr('لن تصل الهدية للمستلمة قبل تأكيد الدفع وربط حسابها بشكل صحيح.','The gift is not activated until payment and recipient ownership are verified.')}</div>
+ <button class="btn full wide" type="submit">${tr('إرسال طلب الهدية للصالون','Send gift request')}</button></form></section>`;
+}
+function installGifts(){const target=document.getElementById('salonClientPagePanel');if(!client()||salonClientPage!=='gifts'||!target)return;
+ target.innerHTML=giftsForm();const form=target.querySelector('#qualityGiftRequest'),kind=form.querySelector('[name="kind"]');
+ const owned=document.createElement('section');owned.className='quality-received-gifts';owned.innerHTML='<h3>'+tr('هدايا وصلت لكِ','Gifts received')+'</h3><div class="quality-received-body">'+tr('جارٍ التحقق من هداياك…','Checking your gifts…')+'</div>';target.append(owned);
+ try{const uid=auth.currentUser.uid;firestore.collection('clientGiftViews').doc(uid).collection('gifts').get({source:'server'}).then(snap=>{
+  if(!owned.isConnected||auth.currentUser?.uid!==uid)return;const data=snap.docs.map(d=>d.data());
+  owned.querySelector('.quality-received-body').innerHTML=data.length?data.map(g=>`<div class="quality-order"><b>${safe(g.senderName)} 🎁</b><p>${safe(g.message)}</p><small>${safe(g.kind)} · ${safe(g.amount)} ${tr('ريال','SAR')} — ${tr('مؤكدة، راجعي الصالون لاستبدالها','Approved; contact the salon to redeem')}</small></div>`).join(''):tr('ما عندك هدايا مربوطة بحسابك بعد.','No gifts are linked to your account yet.');
+ }).catch(e=>{owned.querySelector('.quality-received-body').textContent=tr('تعذر عرض الهدايا؛ راجعي صلاحيات Firebase.','Unable to load gifts; check Firebase permissions.')})}catch(e){console.warn('Gift view',e)}
+ function update(){const v=kind.value;form.querySelector('#qualityGiftServiceRow').hidden=v!=='service';form.querySelector('#qualityGiftPackageRow').hidden=v!=='package';form.querySelector('#qualityGiftVoucherRow').hidden=v!=='voucher';const selected=form.querySelector('[name="voucherChoice"]:checked')?.value;form.querySelector('#qualityGiftCustomRow').hidden=selected!=='custom'}
+ form.addEventListener('change',update);update();
+ const svcInput=form.querySelector('#qualityGiftServiceSearch'),svcSelect=form.querySelector('#qualityGiftService');
+ svcInput.addEventListener('input',()=>{const needle=clean(svcInput.value).toLocaleLowerCase();for(const o of Array.from(svcSelect.options).slice(1))o.hidden=!!needle&&!o.textContent.toLocaleLowerCase().includes(needle);const option=Array.from(svcSelect.options).slice(1).find(o=>!o.hidden);svcSelect.value=option?.value||''});
+ form.addEventListener('submit',async e=>{e.preventDefault();const button=form.querySelector('button[type="submit"]');button.disabled=true;
+ try{
+  const d=new FormData(form),rPhone=phone(d.get('recipientPhone'));
+  if(!/^5\d{8}$/.test(rPhone))throw Error('رقم جوال المستلمة غير صحيح؛ اكتبيه 05xxxxxxxx');
+  if(!validName(d.get('recipientName'))||!validName(d.get('senderName')))throw Error('اكتبي اسم المرسلة والمستلمة');
+  const message=clean(d.get('message'));if(!message||message.length>700)throw Error('اكتبي كلام الإهداء');
+  const giftKind=clean(d.get('kind'));let itemId='',price=0,title='';
+  if(giftKind==='service'){const p=sActive().find(x=>String(x.id)===clean(d.get('serviceId')));if(!p)throw Error('اختاري خدمة متاحة من نتائج البحث');itemId=String(p.id);price=Math.max(0,Number(p.price)||0);title=stableLabel(p)}
+  else if(giftKind==='package'){const p=pActive().find(x=>String(x.id)===clean(d.get('packageId')));if(!p)throw Error('اختاري باقة متاحة');itemId=String(p.id);price=Math.max(0,Number(p.price)||0);title=stableLabel(p)}
+  else if(giftKind==='voucher'){const chosen=clean(d.get('voucherChoice'));price=Number(chosen==='custom'?d.get('customAmount'):chosen);if(!Number.isSafeInteger(price)||price<1||price>10000)throw Error('حددي مبلغ القسيمة من 1 إلى 10,000 ريال');title='قسيمة مالية';itemId='voucher'}
+  else throw Error('نوع الهدية غير صحيح');
+  const created=await giftOrders.add({clientUid:auth.currentUser.uid,recipientName:clean(d.get('recipientName')),recipientPhone:'0'+rPhone,senderName:clean(d.get('senderName')),senderPhone:clean(portalUser?.phone||''),occasion:clean(d.get('occasion')),kind:giftKind,itemId,message,requestedAmount:price,status:'pending',createdAt:timestamp()});
+  const note=['🎁 طلب هدية — صالون جودة الأظافر','رقم الطلب: '+created.id,'المرسلة: '+clean(d.get('senderName')),'رقم المستلمة: 0'+rPhone,'اسم المستلمة: '+clean(d.get('recipientName')),'المناسبة: '+clean(d.get('occasion')),'الهدية: '+title,'القيمة المتوقعة: '+price+' ريال','رسالة الإهداء: '+message,'الطلب بانتظار تأكيد الدفع من الصالون'].join('\n');
+  const salonNumber=String(portalCatalog?.settings?.whatsapp||WA_NUMBER).replace(/\D/g,'').replace(/^0(?=5)/,'966');
+  if(/^9665\d{8}$/.test(salonNumber)){
+   const w=document.createElement('a');w.href='https://wa.me/'+salonNumber+'?text='+encodeURIComponent(note);w.target='_blank';w.rel='noopener noreferrer';w.className='btn secondary';w.textContent=tr('فتح واتساب الصالون بالطلب','Open request in salon WhatsApp');form.after(w);
+  }
+  toast(tr('وصل طلب الهدية للمالكة. أكّدي الدفع أولًا؛ يظهر زر واتساب لتنسيقها.','Gift request saved. Salon approval is required.'));
+  form.reset();update();
+ }catch(e){notifyError('تعذر حفظ طلب الهدية',e)}finally{if(button.isConnected)button.disabled=false}
+ });
+}
+
+// 4: Owner: purchase and gift queues, safe once-only approval of points and credit packages.
+const ownerTabs=[['qualityPackageOrders','طلبات الباقات','🎀'],['qualityGiftOrders','طلبات الهدايا','🎁'],['qualityRewards','إدارة نقاط الخدمات والباقات والهدايا','⭐'],['qualityEmployeeAccess','صلاحيات الموظفات','🔐']];
+for(const row of ownerTabs){if(typeof OWNER_MENU!=='undefined'&&!OWNER_MENU.some(x=>x[0]===row[0]))OWNER_MENU.push(row)}
+function searchBox(label){return `<div class="quality-admin-controls"><label>${label}<input type="search" id="qualityOrderPhone" inputmode="tel" placeholder="05xxxxxxxx" autocomplete="off"></label><button type="button" class="btn secondary" id="qualityReloadOrders">بحث / تحديث</button></div><div id="qualityAdminResults" aria-live="polite">${tr('اكتبي رقم الجوال للبحث عن الطلبات.','Enter a phone number to find orders.')}</div>`}
+function panel(title,body){const host=document.querySelector('#app .owner-content')||document.querySelector('#app .owner-main')||document.querySelector('#app');let area=host?.querySelector('.quality-administration');if(!area){area=document.createElement('section');area.className='quality-administration';host.prepend(area)}area.innerHTML=`<h2>${title}</h2>${body}`;return area}
+function requiresOwner(){if(!owner())throw Error('انتهت صلاحية حساب المالكة، سجلي الدخول مجددًا')}
+async function loadOwnerOrders(type,root){
+ requiresOwner();const id='qualityOrderPhone',raw=clean(root.querySelector('#'+id)?.value),q=phone(raw);const out=root.querySelector('#qualityAdminResults');
+ if(!/^5\d{8}$/.test(q)){out.textContent='اكتبي رقم جوال سعودي صحيحًا للبحث';return}
+ out.textContent='جارٍ البحث…';const coll=type==='package'?packageOrders:giftOrders;
+ try{
+  const variants=[...new Set(['0'+q,q,'966'+q,'+966'+q])];
+  const fields=type==='package'?['clientPhone']:['senderPhone','recipientPhone'];
+  const snapshots=await Promise.all(fields.flatMap(field=>variants.map(v=>coll.where(field,'==',v).get({source:'server'}))));
+  const found=new Map();for(const snap of snapshots)for(const d of snap.docs)found.set(d.id,{id:d.id,...d.data()});
+  const list=[...found.values()].filter(d=>(type==='package'?[d.clientPhone]:[d.senderPhone,d.recipientPhone]).some(p=>phone(p)===q));
+  list.sort((a,b)=>Number(b.createdAt?.seconds||0)-Number(a.createdAt?.seconds||0));
+  if(!list.length){out.innerHTML='<p class="muted">لا توجد طلبات مسجلة بهذا الرقم.</p>';return}
+  out.innerHTML=list.map(d=>`<div class="quality-order" data-order-id="${safe(d.id)}"><header><strong>${safe(type==='package'?'طلب باقة':'طلب هدية')} #${safe(d.id.slice(0,8))}</strong><span class="badge">${safe(d.status==='approved'?'مؤكد الدفع':d.status==='cancelled'?'ملغي':'بانتظار الدفع')}</span></header><p>${type==='package'?`العميلة: ${safe(d.clientName)} · الجوال: ${safe(d.clientPhone)} · رقم الباقة: ${safe(d.packageId)}`:`المرسلة: ${safe(d.senderName)} · المستلمة: ${safe(d.recipientName)} · جوالها: ${safe(d.recipientPhone)} · النوع: ${safe(d.kind)} · ${safe(d.itemId)} · المبلغ المطلوب: ${safe(d.requestedAmount)} ر.س`}</p>${d.message?`<p>${safe(d.message)}</p>`:''}<div class="row"><button type="button" data-approve="${safe(d.id)}" class="btn success small" ${d.status!=='pending'?'disabled':''}>تأكيد الدفع</button><button type="button" data-reject="${safe(d.id)}" class="btn danger small" ${d.status!=='pending'?'disabled':''}>إلغاء الطلب</button>${type==='gift'&&d.status==='approved'&&d.recipientVerified!==true?`<button type="button" data-deliver="${safe(d.id)}" class="btn secondary small">ربط الهدية بالمستلمة بعد التحقق</button>`:''}</div></div>`).join('');
+  out.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تأكدتِ من وصول المبلغ فعليًا ومن هوية العميلة؟ لن يتكرر التفعيل لنفس الطلب.'))return;b.disabled=true;try{await approveOrder(type,b.dataset.approve);toast('تم تأكيد الدفع وحفظ الطلب');await loadOwnerOrders(type,root)}catch(e){notifyError('تعذر اعتماد الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
+  out.querySelectorAll('[data-reject]').forEach(b=>b.onclick=async()=>{if(!confirm('تأكيد إلغاء الطلب؟ لن تُضاف باقة أو نقاط.'))return;b.disabled=true;try{await rejectOrder(type,b.dataset.reject);toast('أُلغي الطلب');await loadOwnerOrders(type,root)}catch(e){notifyError('تعذر إلغاء الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
+  out.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تحققتِ من ملكية حساب المستلمة للمشتريات ورقم جوالها؟'))return;b.disabled=true;try{await deliverGiftToVerifiedRecipient(b.dataset.deliver);toast('تم ربط الهدية بحساب المستلمة المؤكد');await loadOwnerOrders(type,root)}catch(e){notifyError('تعذر ربط الهدية',e)}finally{if(b.isConnected)b.disabled=false}});
+
+ }catch(e){out.textContent='تعذر تحميل الطلبات: '+String(e.message||e)}
+}
+async function rejectOrder(type,id){requiresOwner();const ref=(type==='package'?packageOrders:giftOrders).doc(id);await firestore.runTransaction(async tx=>{const s=await tx.get(ref);if(!s.exists||s.data().status!=='pending')throw Error('الطلب غير موجود أو عولج سابقًا');tx.update(ref,{status:'cancelled',resolvedAt:timestamp(),resolvedBy:OWNER})})}
+async function deliverGiftToVerifiedRecipient(id){requiresOwner();const ref=giftOrders.doc(id);
+ await firestore.runTransaction(async tx=>{
+  const snap=await tx.get(ref);if(!snap.exists||snap.data()?.status!=='approved')throw Error('الهدية غير معتمدة أو غير موجودة');
+  if(snap.data().recipientVerified===true)throw Error('تم ربط الهدية مسبقًا');
+  const gift=snap.data(),main=await tx.get(salonDoc);if(!main.exists)throw Error('سجل الصالون غير موجود');
+  const matching=(main.data().clients||[]).filter(x=>phone(x.phone)===phone(gift.recipientPhone)&&x.authUid);
+  if(matching.length!==1)throw Error('لا يوجد حساب واحد مؤكد للمستلمة. اربطي حسابها من إدارة العميلات بعد التحقق من هويتها أولًا.');
+  const uid=String(matching[0].authUid),p=await tx.get(profile(uid));
+  if(!p.exists||phone(p.data()?.phone)!==phone(gift.recipientPhone))throw Error('لا يتطابق رقم جوال المستلمة مع حسابها المسجل');
+  const view=firestore.collection('clientGiftViews').doc(uid).collection('gifts').doc(id);
+  tx.set(view,{orderId:id,recipientUid:uid,kind:String(gift.kind),itemId:String(gift.itemId),occasion:String(gift.occasion),senderName:String(gift.senderName),message:String(gift.message),amount:Number(gift.requestedAmount)||0,status:'active',createdAt:timestamp()});
+  tx.update(ref,{recipientVerified:true,recipientUid:uid,deliveredAt:timestamp()});
+ });
+}
+function verifiedCRM(remote,uid,p){const c=findOwnerLinked(uid,remote);if(phone(c.phone)!==phone(p.phone)||phone(c.phone).length!==9)throw Error('لا تتطابق بيانات ملكية الجوال. أعيدي التحقق من العميلة');return c}
+function packageProjection(main,crm){return (main.clientPackages||[]).filter(x=>String(x.clientId)===String(crm.id)).map(x=>({id:String(x.id),packageId:String(x.packageId||''),packageName:String(x.packageName||''),packageNameEn:String(x.packageNameEn||''),total:Number(x.total)||0,used:Number(x.used)||0,expiresOn:String(x.expiresOn||''),purchasedOn:String(x.purchasedOn||''),eligibleServiceIds:Array.isArray(x.eligibleServiceIds)?x.eligibleServiceIds:[],kind:String(x.kind||'credit')}))}
+async function approveOrder(type,id){requiresOwner();const ref=(type==='package'?packageOrders:giftOrders).doc(id),mainRef=salonDoc;
+ await firestore.runTransaction(async tx=>{
+  // Every read precedes the first write in a Firestore transaction.
+  const orderSnap=await tx.get(ref);if(!orderSnap.exists||orderSnap.data().status!=='pending')throw Error('الطلب معتمد أو ملغي سابقًا');
+  const o=orderSnap.data(),m=await tx.get(mainRef);if(!m.exists)throw Error('سجل الصالون غير متاح');
+  const data=m.data()||{},p=await tx.get(profile(o.clientUid));if(!p.exists)throw Error('ملف العميلة غير موجود');
+  const crm=verifiedCRM(data,o.clientUid,p.data());
+  let certifiedGiftAmount=0;
+  if(type==='gift'){
+   if(o.kind==='voucher'){
+    if(String(o.itemId)!=='voucher'||!Number.isSafeInteger(Number(o.requestedAmount))||Number(o.requestedAmount)<1||Number(o.requestedAmount)>10000)throw Error('قسيمة الهدية بمبلغ غير صالح');
+    certifiedGiftAmount=Number(o.requestedAmount);
+   }else{
+    const source=o.kind==='service'?(data.services||[]):o.kind==='package'?(data.packages||[]):[];
+    const item=source.find(x=>String(x.id)===String(o.itemId)&&x.active!==false);
+    if(!item)throw Error('الخدمة أو الباقة غير متاحة وقت الدفع؛ راجعي الطلب');
+    certifiedGiftAmount=Number(item.price)||0;
+    if(!Number.isFinite(certifiedGiftAmount)||certifiedGiftAmount<0||Math.abs(Number(o.requestedAmount)-certifiedGiftAmount)>.01)throw Error('تغيّر سعر الخدمة أو الباقة. ألغِي الطلب القديم وأنشئي طلبًا بالسعر الصحيح.');
+   }
+  }
+  const giftPointKey=o.kind==='voucher'?'voucher':o.kind;
+  const reward=type==='package'?pointsFor('package',String(o.packageId),data):
+     (pointsFor('gift',giftPointKey,data)||pointsFor('gift',String(o.itemId),data));
+  const wRef=wallet.doc(String(o.clientUid)),w=await tx.get(wRef);
+  const approvedWallet=!!w.exists&&w.data()?.approved===true&&String(w.data()?.clientId||'')===String(crm.id);
+  // Keep earned points in the CRM even before the customer claims her wallet.
+  // When approved, the existing CRM->wallet linking workflow can reconcile them.
+  let viewRef,viewDoc,grant,kind='';
+  let recipientUid='',recipientGiftRef=null;
+  if(type==='gift'){
+   const candidates=(data.clients||[]).filter(c=>phone(c.phone)===phone(o.recipientPhone)&&c.authUid);
+   if(candidates.length===1){
+    const candidate=candidates[0];const recipientProfile=await tx.get(profile(candidate.authUid));
+    if(recipientProfile.exists&&phone(recipientProfile.data()?.phone)===phone(o.recipientPhone)){
+      recipientUid=String(candidate.authUid);
+      recipientGiftRef=firestore.collection('clientGiftViews').doc(recipientUid).collection('gifts').doc(id);
+    }
+   }
+  }
+  if(type==='package'){
+   const template=(data.packages||[]).find(x=>String(x.id)===String(o.packageId)&&x.active!==false);if(!template)throw Error('الباقة محذوفة أو غير نشطة');
+   kind=template.kind==='credit'?'credit':'instant';const included=(template.items||[]).filter(x=>Number(x.quantity)>0);
+   if(!included.length)throw Error('الباقة لا تحتوي خدمات؛ يجب تصحيحها أولًا');
+   const total=kind==='credit'?Math.floor(Number(template.creditsTotal)||0):1;
+   if(!Number.isInteger(total)||total<1||total>999)throw Error('عدد استخدامات الباقة غير صحيح');
+   const months=Math.floor(Number(template.validityMonths??12));if(!Number.isInteger(months)||months<0||months>120)throw Error('صلاحية الباقة غير صحيحة');
+   const now=typeof salonSaudiDate==='function'?salonSaudiDate():new Date().toISOString().slice(0,10);
+   grant={id:'order-'+id,clientId:crm.id,phone:crm.phone,packageId:String(template.id),packageName:clean(template.nameAr||template.name||'باقة'),packageNameEn:clean(template.nameEn||''),kind,total,used:0,uses:[],eligibleServiceIds:kind==='credit'?[...new Set(included.map(x=>String(x.serviceId)))]:[],eligibleNames:kind==='credit'?included.map(x=>clean((data.services||[]).find(s=>String(s.id)===String(x.serviceId))?.name||'')):[],purchasedOn:now,expiresOn:months===0?'':typeof salonCreditExpiry==='function'?salonCreditExpiry(now,months):'',purchaseOrderId:id,createdAt:new Date().toISOString()};
+   if((data.clientPackages||[]).some(x=>String(x.id)===grant.id))throw Error('سبق تفعيل هذه الباقة');
+   viewRef=packageViews.doc(String(o.clientUid));viewDoc=await tx.get(viewRef);
+  }
+  // Gift approval only activates the order in the owner ledger. Recipient may only
+  // claim after independent ownership verification; no unsafe auto-grant by phone.
+  const updatedClients=(data.clients||[]).map(c=>String(c.id)===String(crm.id)?{...c,points:Number(c.points||0)+reward,updatedAt:new Date().toISOString()}:c);
+  const patch={clients:updatedClients,updatedAt:new Date().toISOString()};
+  if(type==='package')patch.clientPackages=[...(data.clientPackages||[]),grant];
+  tx.update(mainRef,patch);
+  if(type==='package'){
+   const view={uid:String(o.clientUid),clientId:String(crm.id),balances:packageProjection({...data,clientPackages:patch.clientPackages},crm),updatedAt:timestamp()};
+   tx.set(viewRef,view,{merge:true});
+  }
+  if(reward>0&&approvedWallet)tx.update(wRef,{points:Number(w.data().points||0)+reward,updatedAt:timestamp()});
+  if(recipientGiftRef){tx.set(recipientGiftRef,{orderId:id,recipientUid,kind:String(o.kind),itemId:String(o.itemId),occasion:String(o.occasion),senderName:String(o.senderName),message:String(o.message),amount:certifiedGiftAmount,status:'active',createdAt:timestamp()})}
+  tx.update(ref,{status:'approved',paidAt:timestamp(),resolvedBy:OWNER,awardedPoints:reward,...(type==='package'?{grantId:grant.id,amountPaid:Math.max(0,Number((data.packages||[]).find(x=>String(x.id)===String(o.packageId))?.price)||0)}:{amountPaid:certifiedGiftAmount,recipientVerified:!!recipientUid,recipientUid:recipientUid||''})});
+ });
+ // Update local cache only after the server commit, without re-writing CRM arrays.
+ try{const r=await salonDoc.get({source:'server'});if(r.exists){db.clients=r.data().clients||db.clients;db.clientPackages=r.data().clientPackages||db.clientPackages}}catch(e){console.warn('Post-approval refresh',e)}
+}
+function ownerOrdersPage(type){const root=panel(type==='package'?'🎀 طلبات الباقات وتأكيد الدفع':'🎁 طلبات الهدايا وتأكيد الدفع',`<p class="muted">ابحثي برقم الجوال؛ لا يتم التفعيل ولا احتساب نقاط الشراء قبل وصول الدفع وتأكيده.</p>${searchBox('رقم جوال '+(type==='package'?'العميلة':'المرسلة أو المستلمة'))}`);
+ root.querySelector('#qualityReloadOrders').onclick=()=>loadOwnerOrders(type,root);
+ root.querySelector('#qualityOrderPhone').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();loadOwnerOrders(type,root)}};
+}
+
+// 5: Owner points: single service edit + select all, plus package and gift points.
+function ownerRewardPage(){const services=db.services||[],packages=db.packages||[],map=db.settings?.rewardPointsByItem||{};
+ const row=(kind,item,id,label,value)=>`<label class="quality-reward"><input type="checkbox" data-reward-select data-kind="${kind}" data-id="${safe(id)}"><span>${safe(label)}</span><input type="number" min="0" step="1" max="9999" value="${Math.max(0,Number(value)||0)}" data-reward-value data-kind="${kind}" data-id="${safe(id)}" aria-label="نقاط ${safe(label)}"></label>`;
+ const html=`<p class="muted">حددي نقاط كل خدمة أو باقة أو نوع هدية. اختاري الكل ثم اكتبي عدد النقاط واضغطي حفظ.</p><div class="quality-admin-controls"><label><input id="qualitySelectAll" type="checkbox"> تحديد الكل</label><label>النقاط للخدمات المحددة<input id="qualityBulkValue" type="number" value="10" min="0" max="9999" step="1"></label><button id="qualityApplyAll" type="button" class="btn secondary">تطبيق على المحدد</button><button id="qualitySaveRewards" type="button" class="btn">حفظ جميع النقاط</button></div><h3>الخدمات</h3><div>${services.map(s=>row('service',s,s.id,s.name,s.loyaltyPoints)).join('')}</div><h3>الباقات</h3><div>${packages.map(p=>row('package',p,p.id,p.nameAr||p.name,map['package:'+p.id])).join('')}</div><h3>الهدايا</h3><div>${[['voucher','قسيمة هدية'],['service','هدية خدمة'],['package','هدية باقة']].map(([id,label])=>row('gift',null,id,label,map['gift:'+id])).join('')}</div>`;
+ const root=panel('⭐ إدارة نقاط الخدمات والباقات والهدايا',html);
+ root.querySelector('#qualitySelectAll').onchange=e=>root.querySelectorAll('input[data-reward-select]').forEach(c=>{c.checked=e.target.checked});
+ root.querySelector('#qualityApplyAll').onclick=()=>{const value=Number(root.querySelector('#qualityBulkValue').value);if(!Number.isSafeInteger(value)||value<0||value>9999){toast('اكتبي عدد نقاط صحيحًا من 0 إلى 9999');return}root.querySelectorAll('input[data-reward-select]:checked').forEach(c=>{const input=root.querySelector(`input[data-reward-value][data-kind="${c.dataset.kind}"][data-id="${CSS.escape(c.dataset.id)}"]`);if(input)input.value=String(value)})};
+ root.querySelector('#qualitySaveRewards').onclick=async()=>{requiresOwner();const btn=root.querySelector('#qualitySaveRewards');btn.disabled=true;
+ try{const entries=[...root.querySelectorAll('input[data-reward-value]')].map(input=>({kind:input.dataset.kind,id:input.dataset.id,val:Number(input.value)}));if(entries.some(x=>!Number.isSafeInteger(x.val)||x.val<0||x.val>9999))throw Error('قيمة نقاط غير صحيحة');
+  const nextMap=Object.fromEntries(entries.filter(x=>x.kind!=='service').map(x=>[x.kind+':'+x.id,x.val]));
+  await firestore.runTransaction(async tx=>{const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('بيانات الصالون غير موجودة');const remote=snap.data()||{};const services=(remote.services||[]).map(s=>{const x=entries.find(y=>y.kind==='service'&&y.id===String(s.id));return x?{...s,loyaltyPoints:x.val}:s});tx.update(salonDoc,{services, 'settings.rewardPointsByItem':nextMap,updatedAt:new Date().toISOString()})});
+  const snap=await salonDoc.get({source:'server'});db.services=snap.data().services;db.settings=snap.data().settings||db.settings;
+  try{if(typeof publishPortalCatalog==='function')await publishPortalCatalog()}catch(e){toast('حُفظت النقاط؛ تعذر نشر الخدمات للعميلات: '+(e.message||e))}
+  toast('تم حفظ نقاط جميع العناصر المحددة');
+ }catch(e){notifyError('تعذر حفظ النقاط',e)}finally{if(btn.isConnected)btn.disabled=false}
+ };
+}
+
+// 6: Archive previous bookings but never delete them. Past results are opt-in search only.
+function injectBookingArchive(){if(!owner()||ownerActiveTab!=='appointments')return;
+ const root=document.querySelector('.owner-content')||document.querySelector('.owner-main');if(!root||root.querySelector('#qualityHistorySearch'))return;
+ const card=document.createElement('section');card.className='card quality-booking-archive';card.innerHTML='<h3>📚 أرشيف الحجوزات السابقة</h3><p class="muted">القديمة محفوظة، ولا تظهر إلا بعد البحث برقم الجوال.</p><div class="quality-admin-controls"><input id="qualityHistorySearch" type="tel" placeholder="رقم جوال العميلة 05xxxxxxxx"><button id="qualityHistoryFind" class="btn secondary" type="button">بحث</button></div><div id="qualityHistoryResults"></div>';
+ root.append(card);
+ const table=root.querySelector('#bookingsTable');if(table){const upcoming=(db.bookings||[]).filter(b=>String(b.date||'')>=today());table.innerHTML=typeof bookingTable==='function'?bookingTable(upcoming):'';}
+ root.querySelector('#qualityHistoryFind').onclick=async()=>{const query=phone(card.querySelector('#qualityHistorySearch').value),dest=card.querySelector('#qualityHistoryResults');if(!/^5\d{8}$/.test(query)){dest.textContent='اكتبي رقم جوال كامل للبحث';return}dest.textContent='جارٍ البحث…';
+  const old=(db.bookings||[]).filter(b=>String(b.date||'')<today()&&phone(b.customerPhone||b.clientPhone||db.clients.find(c=>String(c.id)===String(b.clientId))?.phone)===query);
+  try{const remote=await firestore.collection('portalBookings').get({source:'server'});remote.forEach(d=>{const b=d.data();if(String(b.date||'')<today()&&phone(b.clientPhone)===query)old.push(b)})}catch(e){console.warn('Portal archive unavailable',e)}
+  dest.innerHTML=old.length?old.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).map(b=>`<div class="quality-order"><b>${safe(b.date||'')} ${safe(b.time||'')}</b> — ${safe(b.serviceName||'')}<div>${safe(b.customerName||b.clientName||'')} · ${safe(b.staffName||'')} · ${safe(b.status||'')}</div></div>`).join(''):'لا توجد حجوزات سابقة لهذا الرقم';
+ };
+ const portalArea=root.querySelector('#portalBookingsOwner');if(portalArea){portalArea.innerHTML='<p>اضغطي «تحديث» لعرض الحجوزات الحالية.</p>'}
+}
+
+
+// Default owner portal booking list also excludes old dates; never delete history.
+showPortalBookingsOwner=async function(){
+ const host=document.getElementById('portalBookingsOwner');if(!host||!owner())return;
+ try{const snap=await firestore.collection('portalBookings').get({source:'server'});
+  const data=snap.docs.map(d=>({id:d.id,...d.data()})).filter(b=>String(b.date||'')>=today()).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time)));
+  host.innerHTML=data.length?data.map(b=>`<article class="quality-order"><strong>${safe(b.clientName)} — ${safe(b.date)} ${safe(b.time)}</strong><p>${safe(b.serviceName)} — ${safe(b.staffName)} — ${safe(b.status)}</p><div class="row"><button class="btn success small" data-confirm="${safe(b.id)}" ${b.status!=='pending'?'disabled':''}>تأكيد</button><button class="btn danger small" data-cancel="${safe(b.id)}" ${b.status==='cancelled'?'disabled':''}>إلغاء</button></div></article>`).join(''):'لا توجد حجوزات حالية.';
+  host.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await confirmPortalBooking(b.dataset.confirm)}catch(e){notifyError('تعذر تأكيد الحجز',e)}});
+  host.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await cancelPortalBooking(b.dataset.cancel)}catch(e){notifyError('تعذر إلغاء الحجز',e)}});
+ }catch(e){host.textContent='تعذر جلب الحجوزات: '+String(e.message||e)}
+};
+
+// 7: Employee pages show today/upcoming by default; old bookings only when explicitly searched.
+let employeeHistoryTerm='';
+function injectEmployeeHistory(){if(portalRole!=='employee'||!auth.currentUser)return;
+ const area=document.querySelector('#app');if(!area||area.querySelector('#qualityStaffHistory'))return;
+ if(portalUser?.uiVisibility?.pastBookings===false)return;
+ const card=document.createElement('section');card.className='card';card.id='qualityStaffHistory';card.innerHTML=`<h3>${tr('بحث في حجز سابق','Past booking search')}</h3><div class="quality-admin-controls"><input id="qualityStaffSearchPhone" placeholder="05xxxxxxxx" type="tel"><button id="qualityStaffSearch" class="btn secondary">${tr('بحث','Search')}</button></div><div id="qualityStaffMatches"></div>`;area.append(card);
+ card.querySelector('#qualityStaffSearch').onclick=()=>{const query=phone(card.querySelector('input').value),dest=card.querySelector('#qualityStaffMatches');if(!/^5\d{8}$/.test(query)){dest.textContent='اكتبي رقم الجوال كاملًا';return}
+  const data=(portalBookings||[]).filter(b=>String(b.date||'')<today()&&phone(b.clientPhone)===query&&((portalUser.permissions||{}).allBookings===true||String(b.staffUid)===String(auth.currentUser.uid)));
+  dest.innerHTML=data.length?data.map(b=>`<div class="quality-order"><b>${safe(b.date)} ${safe(b.time)}</b><div>${safe(b.clientName)} — ${safe(b.serviceName)}</div></div>`).join(''):'لا يوجد حجز سابق ضمن صلاحياتك بهذا الرقم';
+ };
+}
+
+// 8: Employee menu visibility: owner controls UI only; actual document access is governed by Rules.
+function ownerEmployeeAccess(){const staff=(db.staff||[]).filter(s=>s.active!==false);
+ const html=`<p class="quality-note">يمكنك إخفاء أقسام واجهة الموظفة وتفعيل البحث؛ لا تُمنح صلاحية الوصول للماليات والفواتير من هذه الصفحة وحدها. هذه الأقسام تحتاج قواعد بيانات مفصولة وصلاحيات Firebase مستقلة حتى تكون آمنة.</p><label>الموظفة<select id="qualityStaffPick">${staff.map(s=>`<option value="${safe(s.id)}">${safe(s.name)}</option>`).join('')}</select></label><div id="qualityEmployeeControls"></div><button type="button" id="qualitySaveEmployeeControls" class="btn">حفظ الواجهة والصلاحيات المتاحة</button>`;
+ const root=panel('🔐 تخصيص واجهة الموظفات',html);
+ function draw(){const staffId=root.querySelector('#qualityStaffPick').value,s=staff.find(x=>String(x.id)===staffId);const stored=s?.uiVisibility||{};
+  root.querySelector('#qualityEmployeeControls').innerHTML=['myBookings','pastBookings','mySalary','leaveRequests','shiftRequests'].map(k=>`<label class="quality-option"><input type="checkbox" data-permission="${k}" ${stored[k]!==false?'checked':''}> ${({'myBookings':'حجوزاتي','pastBookings':'البحث في الحجوزات السابقة','mySalary':'الراتب','leaveRequests':'الإجازات','shiftRequests':'الورديات'})[k]}</label>`).join('');
+ }
+ root.querySelector('#qualityStaffPick').onchange=draw;draw();
+ root.querySelector('#qualitySaveEmployeeControls').onclick=async()=>{const selected=root.querySelector('#qualityStaffPick').value,states=Object.fromEntries([...root.querySelectorAll('[data-permission]')].map(e=>[e.dataset.permission,e.checked]));
+ try{await firestore.runTransaction(async tx=>{const snap=await tx.get(salonDoc);if(!snap.exists)throw Error('قاعدة الصالون غير موجودة');const record=(snap.data().staff||[]).find(s=>String(s.id)===selected);if(!record)throw Error('الموظفة لم تعد موجودة');const uid=clean(record.authUid);const prefRef=uid?firestore.collection('employeeProfiles').doc(uid):null;const prefSnap=prefRef?await tx.get(prefRef):null;tx.update(salonDoc,{staff:(snap.data().staff||[]).map(s=>String(s.id)===selected?{...s,uiVisibility:states}:s)});if(prefRef&&prefSnap?.exists){const rights=prefSnap.data()?.permissions||{};tx.update(prefRef,{uiVisibility:states,permissions:{...rights,ownSalary:states.mySalary,leaveRequest:states.leaveRequests||states.shiftRequests}})}});db.staff=db.staff.map(s=>String(s.id)===selected?{...s,uiVisibility:states}:s);toast('حُفظ تخصيص واجهة الموظفة وربط الإعدادات بحسابها عند توفر UID. لا تمنح هذه الإعدادات صلاحيات مالية جديدة.')}
+ catch(e){notifyError('تعذر حفظ إعدادات الموظفة',e)}
+ };
+}
+
+// 9: PDF invoice choice. Save FIRST; then explicit share vs no-send. No auto-message.
+let lastInvoiceSaved=null;
+const previousInvoiceSaver=salonSaveIndependentInvoice;
+salonSaveIndependentInvoice=async function(...args){const saved=await previousInvoiceSaver.apply(this,args);lastInvoiceSaved=saved;return saved};
+const previousSubmit=submitInvoice;
+submitInvoice=async function(ev){const selected=document.querySelector('#invoiceWhatsAppChoice')?.value||'no';lastInvoiceSaved=null;
+ if(selected==='pdf'){document.querySelector('#invoiceWhatsAppChoice').value='no'}
+ await previousSubmit.apply(this,arguments);
+ if(selected==='pdf'&&lastInvoiceSaved){showShareDialog(lastInvoiceSaved)}
+};
+function shareChoice(){const choice=document.getElementById('invoiceWhatsAppChoice');if(!choice||choice.dataset.pdfOptions)return;
+ choice.dataset.pdfOptions='1';choice.innerHTML='<option value="no">عدم إرسال — حفظ الفاتورة فقط</option><option value="pdf">إرسال الفاتورة للعميلة PDF بعد الحفظ</option>';
+ const label=choice.closest('div.field');if(label)label.querySelector('small')?.replaceChildren(document.createTextNode('حفظ الفاتورة مستقل عن الإرسال. اختيار PDF يفتح المشاركة بعد نجاح الحفظ فقط.'));
+}
+function printableInvoice(invoice){const lines=(typeof invoiceLineRows==='function'?invoiceLineRows(invoice):invoice.items)||[];
+ return `<div style="font:16px Arial,sans-serif;color:#372332;background:white;width:720px;padding:38px;direction:rtl;box-sizing:border-box"><header style="text-align:center;border-bottom:2px solid #aa6481;padding-bottom:18px"><h1 style="color:#854461;margin:0">صالون جودة الأظافر</h1><p style="margin:6px">NAIL QUALITY SALON</p></header><div style="display:flex;justify-content:space-between;gap:15px;margin:20px 0"><div>فاتورة رقم: <b>${safe(invoice.number)}</b><br>العميلة: <b>${safe(invoice.customerName||'بدون اسم')}</b></div><div>التاريخ: ${safe(invoice.date||'')}<br>الجوال: ${safe(invoice.customerPhone||'')}</div></div><table style="border-collapse:collapse;width:100%;text-align:right"><thead><tr style="background:#f4e8ed"><th style="padding:12px">الخدمة</th><th>العدد</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>${lines.map(l=>`<tr style="border-bottom:1px solid #eadce1"><td style="padding:12px">${safe(l.name)}</td><td>${Math.max(1,Number(l.quantity)||1)}</td><td>${amount(l.price)}</td><td>${amount((Number(l.price)||0)*(Number(l.quantity)||1))}</td></tr>`).join('')}</tbody></table><div style="margin-top:25px;text-align:left;line-height:2.1"><div>المجموع: ${amount(invoice.subtotal||0)}</div><div>الخصم: ${amount(invoice.discount||0)}</div><div>ضريبة القيمة المضافة: ${amount(invoice.tax||0)}</div><h2 style="color:#854461">الإجمالي المدفوع: ${amount(invoice.total||0)}</h2></div><p style="text-align:center;color:#805e6a;margin-top:35px;border-top:1px solid #eadce1;padding-top:18px">شكرًا لزيارتكِ صالون جودة الأظافر ♡</p></div>`;
+}
+function showShareDialog(invoice){document.querySelector('#qualityPDFDialog')?.remove();const dialog=document.createElement('div');dialog.id='qualityPDFDialog';dialog.className='quality-pdf-overlay';dialog.innerHTML=`<div class="quality-pdf-box" role="dialog" aria-modal="true"><h2>تم حفظ الفاتورة #${safe(invoice.number)}</h2><p>اختاري الآن إرسال ملف PDF للعميلة أو عدم الإرسال. ما راح يُرسل شيء من تلقاء نفسه.</p><div class="row"><button type="button" id="qualitySharePDF" class="btn">📄 إرسال PDF للعميلة</button><button type="button" id="qualitySkipPDF" class="btn secondary">عدم الإرسال</button></div><div id="qualityPDFStatus" aria-live="polite"></div></div>`;document.body.append(dialog);
+ dialog.querySelector('#qualitySkipPDF').onclick=()=>dialog.remove();
+ dialog.querySelector('#qualitySharePDF').onclick=()=>generateAndSharePDF(invoice,dialog);
+}
+function injectScript(url){return new Promise((resolve,reject)=>{const old=[...document.scripts].find(s=>s.src===url);if(old){if(window.html2pdf)resolve();else old.addEventListener('load',resolve,{once:true});return}const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('تعذر تحميل أداة إنشاء PDF؛ تأكدي من الاتصال'));document.head.appendChild(s)})}
+async function generateAndSharePDF(invoice,dialog){const btn=dialog.querySelector('#qualitySharePDF'),status=dialog.querySelector('#qualityPDFStatus');btn.disabled=true;status.textContent='جارٍ تجهيز PDF…';let holder;
+ try{
+  if(!window.html2pdf)await injectScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+  if(!window.html2pdf)throw Error('أداة PDF غير متاحة');
+  holder=document.createElement('div');holder.style.cssText='position:fixed;left:-10000px;top:0;z-index:-1;width:720px';holder.innerHTML=printableInvoice(invoice);document.body.append(holder);
+  const pdf=await window.html2pdf().set({margin:8,filename:`فاتورة-${invoice.number}.pdf`,image:{type:'jpeg',quality:.94},html2canvas:{scale:2,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(holder.firstElementChild).outputPdf('blob');
+  const file=new File([pdf],`فاتورة-${invoice.number}.pdf`,{type:'application/pdf'});
+  if(navigator.canShare?.({files:[file]})&&navigator.share){try{await navigator.share({files:[file],title:'فاتورة صالون جودة الأظافر'});status.textContent='تم فتح المشاركة. اختاري واتساب ثم تأكدي من الإرسال بنفسك.';return}catch(e){if(e?.name==='AbortError'){status.textContent='تم إلغاء المشاركة. الفاتورة محفوظة.';return}}}
+  const href=URL.createObjectURL(pdf),a=document.createElement('a');a.href=href;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(href),90000);
+  status.innerHTML='تم تنزيل ملف PDF. أرفقيه في محادثة العميلة على واتساب بنفسك. '+(receiptSharePhone(invoice)?`<a target="_blank" rel="noopener noreferrer" href="https://wa.me/${receiptSharePhone(invoice)}">فتح محادثة العميلة</a>`:'رقم العميلة غير موجود أو غير صحيح.');
+ }catch(e){status.textContent='تعذر إنشاء PDF من المتصفح: '+String(e.message||e)+'؛ يمكنك استخدام طباعة الفاتورة ثم اختيار حفظ بصيغة PDF.';console.warn(e)}finally{if(holder)holder.remove();btn.disabled=false}
+}
+
+// 10: Tie upgrades into existing renderer, without replacing authenticated UI.
+const originalClient=renderPortalClient;
+renderPortalClient=function(...args){const result=originalClient.apply(this,args);if(client()){searchServices();installGifts();translateClientBits()}return result};
+const originalOwner=renderOwner;
+renderOwner=function(tab=ownerActiveTab){const result=originalOwner.apply(this,arguments);if(!owner())return result;
+ if(tab==='qualityPackageOrders')ownerOrdersPage('package');
+ if(tab==='qualityGiftOrders')ownerOrdersPage('gift');
+ if(tab==='qualityRewards')ownerRewardPage();
+ if(tab==='qualityEmployeeAccess')ownerEmployeeAccess();
+ if(tab==='appointments')injectBookingArchive();
+ if(tab==='cashier')shareChoice();
+ return result;
+};
+const originalEmployee=renderPortalEmployee;
+renderPortalEmployee=function(...args){const all=portalBookings||[],upcoming=all.filter(b=>String(b.date||'')>=today());
+ try{portalBookings=upcoming;const result=originalEmployee.apply(this,args);portalBookings=all;injectEmployeeHistory();return result}
+ finally{portalBookings=all}
+};
+function translateClientBits(){if(ar()||!client())return;
+ const root=document.getElementById('app');if(!root)return;
+ const expr=[[/\bدقيقة\b/g,'minutes'],[/\bنقطة\b/g,'points'],[/\bنقاط\b/g,'points'],[/\bريال\b/g,'SAR'],[/\bالعدد\b/g,'Quantity']];
+ const walk=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;let count=0;
+ while((node=walk.nextNode())&&count<1300){count++;if(node.parentElement?.closest('script,style,textarea,option,[contenteditable]'))continue;
+  if(!/دقيقة|نقطة|نقاط|ريال/.test(node.nodeValue))continue;
+  let value=node.nodeValue;for(const [rx,replacement] of expr)value=value.replace(rx,replacement);node.nodeValue=value;
+ }
+}
+// Owner navigation is rebuilt every time; menu entries come from OWNER_MENU.
+})();
+
+</script>
 </body>
 </html>
