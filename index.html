@@ -433,12 +433,12 @@ function ownerLayout(tab,content){
   ['الوصول السريع',['dashboard','cashier','appointments','clients']],
   ['الحجوزات والعميلات',['newbooking','schedule','waitlist','loyaltyExt','marketing']],
   ['الماليات والفواتير',['invoices','reports','financeExt','expenses','deposits']],
-  ['الخدمات والعروض',['services','packages','offers','inventory']],
+  ['الخدمات والعروض',['services','packages','offers','qualityPackageOrders','qualityGiftOrders','qualityRewards','inventory']],
   ['الموظفات والإدارة',['staff','staffRequests','leases','audit']],
   ['الذكاء الاصطناعي والإعدادات',['cloudAI','assistant','settingsHub','backup']]
  ];
  const ownerUsedMenuIds=new Set();
- const ownerNavButton=([id,label,icon])=>`<button type="button" class="${tab===id?'selected':''}" aria-current="${tab===id?'page':'false'}" onclick="ownerTab('${id}')"><span class="owner-menu-icon" aria-hidden="true">${icon}</span><span class="owner-nav-label">${label}</span></button>`;
+ const ownerNavButton=([id,label,icon])=>`<button type="button" class="${tab===id?'selected':''}" aria-current="${tab===id?'page':'false'}" onclick="ownerTab('${id}')">${icon?`<span class="owner-menu-icon" aria-hidden="true">${icon}</span>`: ''}<span class="owner-nav-label">${label}</span></button>`;
  const menu=ownerNavGroups.map(([heading,ids],index)=>{
   const entries=ids.map(id=>OWNER_MENU.find(row=>row[0]===id)).filter(Boolean);
   entries.forEach(item=>ownerUsedMenuIds.add(item[0]));
@@ -7982,6 +7982,8 @@ document.addEventListener('click',e=>{const el=e.target.closest?.('#app.qa-premi
 .quality-administration{border:1px solid var(--quality-line);border-radius:22px;background:linear-gradient(148deg,#fff,#fdf7fa);padding:22px;margin:16px 0 25px;box-shadow:0 10px 26px #8b49601c}
 .quality-administration h2{color:var(--quality-wine);margin:0 0 14px}
 .quality-admin-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:15px 0}
+#qualityOrderPages[hidden]{display:none!important}
+#qualityOrderStatus{min-height:46px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:white}
 .quality-admin-controls>label{display:grid;gap:5px;min-width:220px;flex:1}
 .quality-admin-controls input[type=search],.quality-admin-controls input[type=tel],.quality-admin-controls input[type=number],.quality-admin-controls>input{width:100%;max-width:450px;min-height:46px;border-radius:11px;padding:9px 12px;border:1px solid #e5cbd5;background:#fff}
 .quality-order{border:1px solid #ead9e2;border-radius:17px;background:white;padding:15px 17px;margin:12px 0;overflow-wrap:anywhere}
@@ -8215,30 +8217,50 @@ function installGifts(){const target=document.getElementById('salonClientPagePan
 }
 
 // 4: Owner: purchase and gift queues, safe once-only approval of points and credit packages.
-const ownerTabs=[['qualityPackageOrders','طلبات الباقات','🎀'],['qualityGiftOrders','طلبات الهدايا','🎁'],['qualityRewards','إدارة نقاط الخدمات والباقات والهدايا','⭐'],['qualityEmployeeAccess','صلاحيات الموظفات','🔐']];
+const ownerTabs=[['qualityPackageOrders','طلبات الباقات',''],['qualityGiftOrders','طلبات الهدايا',''],['qualityRewards','إدارة النقاط',''],['qualityEmployeeAccess','صلاحيات الموظفات','🔐']];
 for(const row of ownerTabs){if(typeof OWNER_MENU!=='undefined'&&!OWNER_MENU.some(x=>x[0]===row[0]))OWNER_MENU.push(row)}
-function searchBox(label){return `<div class="quality-admin-controls"><label>${label}<input type="search" id="qualityOrderPhone" inputmode="tel" placeholder="05xxxxxxxx" autocomplete="off"></label><button type="button" class="btn secondary" id="qualityReloadOrders">بحث / تحديث</button></div><div id="qualityAdminResults" aria-live="polite">${tr('اكتبي رقم الجوال للبحث عن الطلبات.','Enter a phone number to find orders.')}</div>`}
 function panel(title,body){const host=document.querySelector('#app .owner-content')||document.querySelector('#app .owner-main')||document.querySelector('#app');let area=host?.querySelector('.quality-administration');if(!area){area=document.createElement('section');area.className='quality-administration';host.prepend(area)}area.innerHTML=`<h2>${title}</h2>${body}`;return area}
 function requiresOwner(){if(!owner())throw Error('انتهت صلاحية حساب المالكة، سجلي الدخول مجددًا')}
-async function loadOwnerOrders(type,root){
- requiresOwner();const id='qualityOrderPhone',raw=clean(root.querySelector('#'+id)?.value),q=phone(raw);const out=root.querySelector('#qualityAdminResults');
- if(!/^5\d{8}$/.test(q)){out.textContent='اكتبي رقم جوال سعودي صحيحًا للبحث';return}
- out.textContent='جارٍ البحث…';const coll=type==='package'?packageOrders:giftOrders;
- try{
-  const variants=[...new Set(['0'+q,q,'966'+q,'+966'+q])];
-  const fields=type==='package'?['clientPhone']:['senderPhone','recipientPhone'];
-  const snapshots=await Promise.all(fields.flatMap(field=>variants.map(v=>coll.where(field,'==',v).get({source:'server'}))));
-  const found=new Map();for(const snap of snapshots)for(const d of snap.docs)found.set(d.id,{id:d.id,...d.data()});
-  const list=[...found.values()].filter(d=>(type==='package'?[d.clientPhone]:[d.senderPhone,d.recipientPhone]).some(p=>phone(p)===q));
-  list.sort((a,b)=>Number(b.createdAt?.seconds||0)-Number(a.createdAt?.seconds||0));
-  if(!list.length){out.innerHTML='<p class="muted">لا توجد طلبات مسجلة بهذا الرقم.</p>';return}
-  out.innerHTML=list.map(d=>`<div class="quality-order" data-order-id="${safe(d.id)}"><header><strong>${safe(type==='package'?'طلب باقة':'طلب هدية')} #${safe(d.id.slice(0,8))}</strong><span class="badge">${safe(d.status==='approved'?'مؤكد الدفع':d.status==='cancelled'?'ملغي':'بانتظار الدفع')}</span></header><p>${type==='package'?`العميلة: ${safe(d.clientName)} · الجوال: ${safe(d.clientPhone)} · رقم الباقة: ${safe(d.packageId)}`:`المرسلة: ${safe(d.senderName)} · المستلمة: ${safe(d.recipientName)} · جوالها: ${safe(d.recipientPhone)} · النوع: ${safe(d.kind)} · ${safe(d.itemId)} · المبلغ المطلوب: ${safe(d.requestedAmount)} ر.س`}</p>${type==='gift'&&d.kind==='voucher'&&d.status==='approved'?`<p class="quality-note"><b>رمز القسيمة للاستخدام في الكاشير:</b> <code dir="ltr">GV-${safe(d.id)}</code></p>`:''}${d.message?`<p>${safe(d.message)}</p>`:''}<div class="row"><button type="button" data-approve="${safe(d.id)}" class="btn success small" ${d.status!=='pending'?'disabled':''}>تأكيد الدفع</button><button type="button" data-reject="${safe(d.id)}" class="btn danger small" ${d.status!=='pending'?'disabled':''}>إلغاء الطلب</button>${type==='gift'&&d.status==='approved'&&d.recipientVerified!==true?`<button type="button" data-deliver="${safe(d.id)}" class="btn secondary small">ربط الهدية بالمستلمة بعد التحقق</button>`:''}</div></div>`).join('');
-  out.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تأكدتِ من وصول المبلغ فعليًا ومن هوية العميلة؟ لن يتكرر التفعيل لنفس الطلب.'))return;b.disabled=true;try{await approveOrder(type,b.dataset.approve);toast('تم تأكيد الدفع وحفظ الطلب');await loadOwnerOrders(type,root)}catch(e){notifyError('تعذر اعتماد الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
-  out.querySelectorAll('[data-reject]').forEach(b=>b.onclick=async()=>{if(!confirm('تأكيد إلغاء الطلب؟ لن تُضاف باقة أو نقاط.'))return;b.disabled=true;try{await rejectOrder(type,b.dataset.reject);toast('أُلغي الطلب');await loadOwnerOrders(type,root)}catch(e){notifyError('تعذر إلغاء الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
-  out.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تحققتِ من ملكية حساب المستلمة للمشتريات ورقم جوالها؟'))return;b.disabled=true;try{await deliverGiftToVerifiedRecipient(b.dataset.deliver);toast('تم ربط الهدية بحساب المستلمة المؤكد');await loadOwnerOrders(type,root)}catch(e){notifyError('تعذر ربط الهدية',e)}finally{if(b.isConnected)b.disabled=false}});
-
- }catch(e){out.textContent='تعذر تحميل الطلبات: '+String(e.message||e)}
+function orderItemName(order,type){
+ if(type==='gift'&&order.kind==='voucher')return 'قسيمة هدية';
+ if(type==='package'||order.kind==='package'){
+  const id=order.packageId||order.itemId;
+  const item=(db.packages||[]).find(p=>String(p.id)===String(id));
+  return item?.nameAr||item?.name||id||'باقة';
+ }
+ return (db.services||[]).find(s=>String(s.id)===String(order.itemId))?.name||order.itemId||'خدمة';
 }
+function orderCreatedAt(order){
+ const value=order.createdAt;
+ if(typeof value?.toMillis==='function')return value.toMillis();
+ return Number(value?.seconds)*1000||Date.parse(value)||0;
+}
+function orderDate(order){
+ const at=orderCreatedAt(order);
+ return at?salonSaudiDate(new Date(at)):'';
+}
+function orderSearchText(value){
+ return String(value??'').toLowerCase()
+  .replace(/[\u0660-\u0669\u06F0-\u06F9]/g,d=>String(d.charCodeAt(0)&15))
+  .replace(/[\u064B-\u065F\u0670\u0640]/g,'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').trim();
+}
+function filterOwnerOrders(orders,type,query,status){
+ const needle=orderSearchText(query).replace(/^#/,'');
+ const digits=/^[+\d\s().-]+$/.test(needle)?needle.replace(/\D/g,''):'';
+ const mobile=digits.replace(/^00966|^966|^0/,'');
+ return orders.filter(order=>{
+  if(status&&order.status!==status)return false;
+  if(!needle)return true;
+  const numbers=type==='package'?[order.clientPhone]:[order.senderPhone,order.recipientPhone];
+  if(digits&&numbers.some(value=>{
+   const stored=orderSearchText(value).replace(/\D/g,'');
+   return stored.includes(digits)||Boolean(mobile&&stored.replace(/^00966|^966|^0/,'').includes(mobile));
+  }))return true;
+  const names=type==='package'?[order.clientName,order.packageId]:[order.senderName,order.recipientName,order.itemId,order.kind==='voucher'?'GV-'+order.id:''];
+  return [...names,order.id,orderItemName(order,type)].some(value=>orderSearchText(value).includes(needle));
+ });
+}
+
 async function rejectOrder(type,id){requiresOwner();const ref=(type==='package'?packageOrders:giftOrders).doc(id);await firestore.runTransaction(async tx=>{const s=await tx.get(ref);if(!s.exists||s.data().status!=='pending')throw Error('الطلب غير موجود أو عولج سابقًا');tx.update(ref,{status:'cancelled',resolvedAt:timestamp(),resolvedBy:OWNER})})}
 async function deliverGiftToVerifiedRecipient(id){requiresOwner();const ref=giftOrders.doc(id);
  await firestore.runTransaction(async tx=>{
@@ -8330,16 +8352,81 @@ async function approveOrder(type,id){requiresOwner();const ref=(type==='package'
  // Update local cache only after the server commit, without re-writing CRM arrays.
  try{const r=await salonDoc.get({source:'server'});if(r.exists){db.clients=r.data().clients||db.clients;db.clientPackages=r.data().clientPackages||db.clientPackages}}catch(e){console.warn('Post-approval refresh',e)}
 }
-function ownerOrdersPage(type){const root=panel(type==='package'?'🎀 طلبات الباقات وتأكيد الدفع':'🎁 طلبات الهدايا وتأكيد الدفع',`<p class="muted">ابحثي برقم الجوال؛ لا يتم التفعيل ولا احتساب نقاط الشراء قبل وصول الدفع وتأكيده.</p>${searchBox('رقم جوال '+(type==='package'?'العميلة':'المرسلة أو المستلمة'))}`);
- root.querySelector('#qualityReloadOrders').onclick=()=>loadOwnerOrders(type,root);
- root.querySelector('#qualityOrderPhone').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();loadOwnerOrders(type,root)}};
+function ownerOrdersPage(type){
+ const isPackage=type==='package';
+ const root=panel(isPackage?'طلبات الباقات':'طلبات الهدايا',`
+  <p class="muted">الطلبات مرتبة من الأحدث إلى الأقدم. تحققي من وصول المبلغ قبل تأكيد الدفع.</p>
+  <div class="quality-admin-controls">
+   <label>البحث<input type="search" id="qualityOrderSearch" placeholder="${isPackage?'الاسم أو الجوال أو رقم الطلب':'اسم المرسلة أو المستلمة أو الجوال أو رقم الطلب'}" autocomplete="off"></label>
+   <label>حالة الطلب<select id="qualityOrderStatus"><option value="">كل الحالات</option><option value="pending">بانتظار الدفع</option><option value="approved">مؤكد الدفع</option><option value="cancelled">ملغي</option></select></label>
+   <button type="button" class="btn secondary" id="qualityAllOrders">عرض كل الطلبات</button>
+   <button type="button" class="btn secondary" id="qualityReloadOrders">تحديث</button>
+  </div>
+  <p id="qualityOrderSummary" class="muted" role="status"></p>
+  <div id="qualityAdminResults"></div>
+  <div class="row" id="qualityOrderPages" hidden>
+   <button type="button" class="btn secondary small" id="qualityPreviousOrders">السابق</button>
+   <button type="button" class="btn secondary small" id="qualityNextOrders">التالي</button>
+  </div>`);
+ const query=root.querySelector('#qualityOrderSearch'),status=root.querySelector('#qualityOrderStatus');
+ const out=root.querySelector('#qualityAdminResults'),summary=root.querySelector('#qualityOrderSummary');
+ const pager=root.querySelector('#qualityOrderPages'),previous=root.querySelector('#qualityPreviousOrders'),next=root.querySelector('#qualityNextOrders');
+ const reload=root.querySelector('#qualityReloadOrders');
+ const collection=isPackage?packageOrders:giftOrders;
+ const pageSize=15;
+ let orders=[],page=0,loading=false,loaded=false;
+ function render(){
+  if(loading||!loaded||!root.isConnected)return;
+  const list=filterOwnerOrders(orders,type,query.value,status.value);
+  const pageCount=Math.max(1,Math.ceil(list.length/pageSize));
+  page=Math.max(0,Math.min(page,pageCount-1));
+  const start=page*pageSize,pageRows=list.slice(start,start+pageSize);
+  pager.hidden=pageCount<2;
+  previous.disabled=page===0;
+  next.disabled=page+1>=pageCount;
+  summary.textContent=list.length?`عرض ${start+1} إلى ${start+pageRows.length} من ${list.length} طلبًا`:'';
+  if(!pageRows.length){
+   out.innerHTML=query.value.trim()||status.value?'<p class="muted">لا توجد طلبات مطابقة للبحث.</p>':'<p class="muted">لا توجد طلبات مسجلة.</p>';
+   return;
+  }
+    out.innerHTML=pageRows.map(d=>`<div class="quality-order" data-order-id="${safe(d.id)}"><header><strong>${safe(type==='package'?'طلب باقة':'طلب هدية')} #${safe(d.id.slice(0,8))}</strong><span class="badge">${safe(d.status==='approved'?'مؤكد الدفع':d.status==='cancelled'?'ملغي':'بانتظار الدفع')}</span></header><p>${type==='package'?`العميلة: ${safe(d.clientName)} · الجوال: ${safe(d.clientPhone)} · الباقة: ${safe(orderItemName(d,type))}`:`المرسلة: ${safe(d.senderName)} · المستلمة: ${safe(d.recipientName)} · جوال المرسلة: ${safe(d.senderPhone)} · جوال المستلمة: ${safe(d.recipientPhone)} · الهدية: ${safe(orderItemName(d,type))} · المبلغ المطلوب: ${safe(d.requestedAmount)} ر.س`}</p>${type==='gift'&&d.kind==='voucher'&&d.status==='approved'?`<p class="quality-note"><b>رمز القسيمة للاستخدام في الكاشير:</b> <code dir="ltr">GV-${safe(d.id)}</code></p>`:''}${orderDate(d)?`<p class="muted tiny">تاريخ الطلب: ${safe(orderDate(d))}</p>`:''}${d.message?`<p>${safe(d.message)}</p>`:''}<div class="row"><button type="button" data-approve="${safe(d.id)}" class="btn success small" ${d.status!=='pending'?'disabled':''}>تأكيد الدفع</button><button type="button" data-reject="${safe(d.id)}" class="btn danger small" ${d.status!=='pending'?'disabled':''}>إلغاء الطلب</button>${type==='gift'&&d.status==='approved'&&d.recipientVerified!==true?`<button type="button" data-deliver="${safe(d.id)}" class="btn secondary small">ربط الهدية بالمستلمة بعد التحقق</button>`:''}</div></div>`).join('');
+  out.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تأكدتِ من وصول المبلغ فعليًا ومن هوية العميلة؟ لن يتكرر التفعيل لنفس الطلب.'))return;b.disabled=true;try{await approveOrder(type,b.dataset.approve);toast('تم تأكيد الدفع وحفظ الطلب');await refresh()}catch(e){notifyError('تعذر اعتماد الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
+  out.querySelectorAll('[data-reject]').forEach(b=>b.onclick=async()=>{if(!confirm('تأكيد إلغاء الطلب؟ لن تُضاف باقة أو نقاط.'))return;b.disabled=true;try{await rejectOrder(type,b.dataset.reject);toast('أُلغي الطلب');await refresh()}catch(e){notifyError('تعذر إلغاء الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
+  out.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تحققتِ من ملكية حساب المستلمة للمشتريات ورقم جوالها؟'))return;b.disabled=true;try{await deliverGiftToVerifiedRecipient(b.dataset.deliver);toast('تم ربط الهدية بحساب المستلمة المؤكد');await refresh()}catch(e){notifyError('تعذر ربط الهدية',e)}finally{if(b.isConnected)b.disabled=false}});
+
+ }
+ async function refresh(){
+  if(loading||!root.isConnected)return;
+  loading=true;reload.disabled=true;pager.hidden=true;summary.textContent='جارٍ تحميل الطلبات…';out.replaceChildren();
+  try{
+   requiresOwner();
+   const snapshot=await collection.get({source:'server'});
+   if(!root.isConnected)return;
+   orders=snapshot.docs.map(doc=>({...doc.data(),id:doc.id}));
+   orders.sort((a,b)=>orderCreatedAt(b)-orderCreatedAt(a)||a.id.localeCompare(b.id));
+   loaded=true;
+  }catch(error){
+   loaded=false;
+   summary.textContent='تعذر تحميل الطلبات: '+String(error.message||error);
+  }finally{
+   loading=false;reload.disabled=false;render();
+  }
+ }
+ const resetPage=()=>{page=0;render()};
+ query.oninput=resetPage;
+ status.onchange=resetPage;
+ root.querySelector('#qualityAllOrders').onclick=()=>{query.value='';status.value='';resetPage();if(!loaded)void refresh()};
+ reload.onclick=refresh;
+ previous.onclick=()=>{page--;render();summary.scrollIntoView({block:'nearest'})};
+ next.onclick=()=>{page++;render();summary.scrollIntoView({block:'nearest'})};
+ void refresh();
 }
 
 // 5: Owner points: single service edit + select all, plus package and gift points.
 function ownerRewardPage(){const services=db.services||[],packages=db.packages||[],map=db.settings?.rewardPointsByItem||{};
  const row=(kind,item,id,label,value)=>`<label class="quality-reward"><input type="checkbox" data-reward-select data-kind="${kind}" data-id="${safe(id)}"><span>${safe(label)}</span><input type="number" min="0" step="1" max="9999" value="${Math.max(0,Number(value)||0)}" data-reward-value data-kind="${kind}" data-id="${safe(id)}" aria-label="نقاط ${safe(label)}"></label>`;
  const html=`<p class="muted">حددي نقاط كل خدمة أو باقة أو نوع هدية. اختاري الكل ثم اكتبي عدد النقاط واضغطي حفظ.</p><div class="quality-admin-controls"><label><input id="qualitySelectAll" type="checkbox"> تحديد الكل</label><label><input id="qualitySelectPackages" type="checkbox"> تحديد كل الباقات</label><label>النقاط للعناصر المحددة<input id="qualityBulkValue" type="number" value="10" min="0" max="9999" step="1"></label><button id="qualityApplyAll" type="button" class="btn secondary">تطبيق على المحدد</button><button id="qualitySaveRewards" type="button" class="btn">حفظ جميع النقاط</button></div><h3>الخدمات</h3><div>${services.map(s=>row('service',s,s.id,s.name,s.loyaltyPoints)).join('')}</div><h3>الباقات</h3><div>${packages.map(p=>row('package',p,p.id,p.nameAr||p.name,map['package:'+p.id])).join('')}</div><h3>الهدايا</h3><div>${[['voucher','قسيمة هدية'],['service','هدية خدمة'],['package','هدية باقة']].map(([id,label])=>row('gift',null,id,label,map['gift:'+id])).join('')}</div>`;
- const root=panel('⭐ إدارة نقاط الخدمات والباقات والهدايا',html);
+ const root=panel('إدارة نقاط الخدمات والباقات والهدايا',html);
  root.querySelector('#qualitySelectAll').onchange=e=>root.querySelectorAll('input[data-reward-select]').forEach(c=>{c.checked=e.target.checked});
  root.querySelector('#qualitySelectPackages').onchange=e=>root.querySelectorAll('[data-reward-select][data-kind=package]').forEach(c=>{c.checked=e.target.checked});
  root.querySelector('#qualityApplyAll').onclick=()=>{const value=Number(root.querySelector('#qualityBulkValue').value);if(!Number.isSafeInteger(value)||value<0||value>9999){toast('اكتبي عدد نقاط صحيحًا من 0 إلى 9999');return}root.querySelectorAll('input[data-reward-select]:checked').forEach(c=>{const input=root.querySelector(`input[data-reward-value][data-kind="${c.dataset.kind}"][data-id="${CSS.escape(c.dataset.id)}"]`);if(input)input.value=String(value)})};
