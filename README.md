@@ -1,1 +1,1 @@
-# nailqualitysalon
+# nailqualitysalo
