@@ -144,6 +144,14 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
 .salon-visible-deal-card{background:#fff;border:1px solid #eed9df;border-radius:14px;padding:14px;text-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:7px;color:#543446;min-width:0;box-shadow:0 5px 20px #9a59720f}
 .salon-visible-deal-card strong{font-size:17px}.salon-visible-deal-card s{color:#94818b}.salon-visible-deal-card b{color:#b22b60;font-size:18px}.salon-visible-deal-card small{color:#855570}.salon-visible-deal-card:hover,.salon-visible-deal-card:focus-visible{border-color:#a76285;outline:2px solid #d2a8bb;outline-offset:1px}
 </style>
+<style id="salon-my-appointments">
+.salon-appointment-tabs{gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.salon-appointment-list{display:grid;gap:12px}
+.salon-appointment-card header{gap:10px;flex-wrap:wrap}
+.salon-appointment-reschedule{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.salon-appointment-reschedule summary{cursor:pointer;font-weight:700}
+.salon-appointment-reschedule input{display:block;width:100%;margin-top:5px}
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -790,6 +798,46 @@ function salonCancellationLink(booking){
  const url=salonCancellationWhatsApp(booking);
  return url?'<a class="btn secondary small" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">إبلاغ العميلة بالإلغاء عبر واتساب</a>':'';
 }
+function salonDefaultGiftExpiry(){
+ return salonSaudiDate(new Date(Date.now()+90*24*60*60*1000));
+}
+function salonGiftVoucherExpired(voucher,day=salonSaudiDate()){
+ const expiry=voucher?.expiresOn;
+ if(expiry==null||expiry==='')return false;
+ if(typeof expiry!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(expiry))return true;
+ const time=Date.parse(expiry+'T00:00:00Z');
+ return !Number.isFinite(time)||new Date(time).toISOString().slice(0,10)!==expiry||expiry<day;
+}
+function salonGiftOrderId(value){
+ const input=String(value||'').trim();
+ if(!input)return '';
+ if(!/^GV-[A-Za-z0-9_-]{6,130}$/i.test(input))throw Error('اكتبي رمز هدية صحيحًا يبدأ بـ GV-');
+ return input.slice(3);
+}
+function salonGiftViewRef(uid,id){
+ return firestore.collection('clientGiftViews').doc(String(uid)).collection('gifts').doc(String(id));
+}
+async function salonReadClientGift(tx,uid,id,day=salonSaudiDate()){
+ const ref=salonGiftViewRef(uid,id);
+ const snap=tx?await tx.get(ref):await ref.get({source:'server'});
+ const view=snap.data();
+ const voucherId=view?.voucherId||(view?.kind==='voucher'?'GV-'+id:'');
+ if(!snap.exists||view.recipientUid!==uid||view.orderId!==id||
+    voucherId!=='GV-'+id||view.status!=='active'||
+    !(Number(view.remainingAmount??view.amount)>0)||salonGiftVoucherExpired(view,day))
+  throw Error('الهدية غير متاحة في حسابك أو انتهى رصيدها أو صلاحيتها');
+ return {ref,view};
+}
+function salonVoucherSpend(voucher,requestedAmount,day=salonSaudiDate()){
+ const balance=Math.round(Number(voucher?.remainingAmount)*100),spent=Math.round(Number(voucher?.spentAmount)*100);
+ const due=Math.round(Number(requestedAmount)*100);
+ if(!voucher||voucher.status!=='active'||salonGiftVoucherExpired(voucher,day)||
+    ![balance,spent,due].every(Number.isSafeInteger)||balance<=0||spent<0||due<=0)
+  throw Error('رصيد الهدية غير متاح أو انتهت صلاحيته');
+ const used=Math.min(balance,due),remaining=(balance-used)/100;
+ return {amountUsed:used/100,externalAmount:(due-used)/100,remainingAmount:remaining,spentAmount:(spent+used)/100,status:remaining?'active':'redeemed'};
+}
+
 function salonWhatsAppUrl(number,lines){
  const digits=salonNormalizePhone(String(number||'').replace(/[\u0660-\u0669\u06F0-\u06F9]/g,d=>String(d.charCodeAt(0)&15)));
  return /^5\d{8}$/.test(digits)?'https://wa.me/966'+digits+'?text='+encodeURIComponent(lines.filter(Boolean).join('\n')):'';
@@ -818,12 +866,12 @@ function salonBookingConfirmationLink(booking){
  if(!Number.isSafeInteger(number)||number<1||booking.queueDate!==booking.date||!['confirmed','arrived','inProgress','completed'].includes(booking.status))return '';
  const url=salonWhatsAppUrl(booking.clientPhone,[
   'صالون جودة الأظافر — تأكيد الموعد',
-  'أهلًا '+(booking.clientName||'بكِ')+'، تم تأكيد حجزكِ.',
+  'أهلًا '+(booking.clientName||'بكِ')+(booking.rescheduleRequest?.status==='approved'?'، تم تأجيل حجزكِ إلى الموعد التالي.':'، تم تأكيد حجزكِ.'),
   'رقم دوركِ: '+number,'اليوم والتاريخ: '+salonBookingDayLabel(booking.date),
   'الوقت: '+booking.time,'الخدمة: '+(booking.serviceName||''),
   booking.pointsToRedeem>0?'طلب استخدام '+booking.pointsToRedeem+' نقطة مسجّل ويُطبّق عند مراجعة الفاتورة.':''
  ]);
- return url?`<a class="btn secondary small" href="${esc(url)}" target="_blank" rel="noopener noreferrer">إرسال التأكيد ورقم الدور عبر واتساب</a>`:'<small class="muted">رقم جوال العميلة يحتاج إلى تصحيح لإرسال التأكيد.</small>';
+ return url?`<a class="btn secondary small" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${booking.rescheduleRequest?.status==='approved'?'إرسال الموعد الجديد ورقم الدور عبر واتساب':'إرسال التأكيد ورقم الدور عبر واتساب'}</a>`:'<small class="muted">رقم جوال العميلة يحتاج إلى تصحيح لإرسال التأكيد.</small>';
 }
 function salonBookingDayLabel(date){
  const day=new Date(date+'T12:00:00+03:00');
@@ -834,10 +882,154 @@ function salonBookingQueueStatus(booking){
  if(booking.status==='confirmed')return 'مؤكد';
  return t(booking.status||'pending');
 }
+ // Booking reschedule helpers.
+function salonBookingTime(date,time){
+ if(typeof date!=='string'||typeof time!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))return NaN;
+ const stamp=Date.parse(date+'T'+time+':00+03:00');
+ return Number.isFinite(stamp)&&salonSaudiDate(new Date(stamp))===date?stamp:NaN;
+}
+function salonBookingIsPast(booking,now=new Date()){
+ if(['completed','cancelled','canceled','noShow','no-show','rejected','expired'].includes(booking.status))return true;
+ if(['arrived','inProgress'].includes(booking.status))return false;
+ const start=salonBookingTime(booking.date,booking.time);
+ return Number.isFinite(start)?start<Number(now):String(booking.date||'')<salonSaudiDate(now);
+}
+function salonHasPendingReschedule(booking){
+ return ['pending','confirmed'].includes(booking.status)&&booking.rescheduleRequest?.status==='pending';
+}
+function salonValidateBookingReschedule(booking,date,time,now=new Date()){
+ const newTime=salonBookingTime(date,time),oldTime=salonBookingTime(booking.date,booking.time);
+ if(!Number.isFinite(newTime)||newTime<=Number(now))throw Error('اختاري تاريخًا ووقتًا مستقبليين صحيحين');
+ if(!Number.isFinite(oldTime)||newTime<=oldTime)throw Error('اختاري موعدًا بعد وقت الحجز الحالي');
+ const duration=Math.max(1,Number(booking.duration)||30);
+ if(timeToMin(time)+duration>1440)throw Error('وقت الخدمة يتجاوز نهاية اليوم');
+}
+async function salonResolveBookingReschedule(tx,ref,expected,approve){
+ const current=await tx.get(ref);
+ if(!current.exists)throw Error('الحجز غير موجود');
+ const booking=current.data(),request=booking.rescheduleRequest;
+ if(!salonHasPendingReschedule(booking)||!salonInvoiceSame(booking,expected)||request.originalDate!==booking.date||request.originalTime!==booking.time)
+  throw Error('تغيّر الحجز أو حُسم طلب التأجيل. حدّثي القائمة');
+ const resolvedAt=firebase.firestore.FieldValue.serverTimestamp();
+ const resolution={...request,status:approve?'approved':'declined',resolvedAt};
+ if(!approve){
+  tx.update(ref,{rescheduleRequest:resolution,updatedAt:resolvedAt});
+  return null;
+ }
+ const {date,time}=request;
+ salonValidateBookingReschedule(booking,date,time);
+ const catalogSnap=await tx.get(firestore.collection('portal').doc('catalog'));
+ if(!catalogSnap.exists)throw Error('تعذر التحقق من الأوقات المغلقة');
+ const catalog=catalogSnap.data();
+ const staff=(catalog.staff||[]).find(s=>String(s.authUid||s.id)===String(booking.staffUid));
+ const staffKeys=new Set([String(booking.staffUid),String(staff?.id||'')]);
+ const start=timeToMin(time),end=start+Math.max(1,Number(booking.duration)||30);
+ if((catalog.bookingControl?.blocks||[]).some(block=>block.date===date&&
+   (String(block.staffId||'all')==='all'||staffKeys.has(String(block.staffId)))&&
+   (block.fullDay||start<timeToMin(block.endTime||'24:00')&&end>timeToMin(block.startTime||'00:00'))))
+  throw Error('الموعد المقترح ضمن وقت مغلق. ارفضي الطلب واطلبي اختيار موعد آخر');
+ if(booking.packageUseRequested){
+  const owned=await tx.get(firestore.collection('clientPackageViews').doc(String(booking.clientUid)));
+  const balance=(owned.data()?.balances||[]).find(b=>String(b.id)===String(booking.packageBalanceId));
+  if(!balance||balance.expiresOn&&balance.expiresOn<date||!(Number(balance.total)>Number(balance.used))||
+     !(booking.serviceIds||[]).every(id=>(balance.eligibleServiceIds||[]).map(String).includes(String(id))))
+   throw Error('رصيد الباقة غير متاح في الموعد المقترح');
+ }
+ if(booking.giftOrderId)await salonReadClientGift(tx,String(booking.clientUid),salonGiftOrderId('GV-'+booking.giftOrderId),date);
+ const confirmed=booking.status==='confirmed';
+ const hasNumber=Number.isSafeInteger(booking.queueNumber)&&booking.queueNumber>0&&booking.queueDate===date;
+ const queue=confirmed&&!hasNumber?await salonPrepareBookingQueue(tx,{...booking,date}):null;
+ const patch={date,time,rescheduleRequest:resolution,updatedAt:resolvedAt};
+ if(queue){patch.queueNumber=queue.number;patch.queueDate=date;queue.write()}
+ tx.update(ref,patch);
+ return {date,time,confirmed};
+}
+ // End booking reschedule helpers.
+async function salonRequestBookingReschedule(expected,date,time){
+ const uid=auth.currentUser?.uid;
+ if(portalRole!=='client'||!uid||expected.clientUid!==uid)throw Error('سجّلي دخولك إلى حساب العميلة');
+ const ref=firestore.collection('portalBookings').doc(String(expected.id));
+ await firestore.runTransaction(async tx=>{
+  const current=await tx.get(ref),booking=current.data();
+  if(!current.exists||booking.clientUid!==uid||!['pending','confirmed'].includes(booking.status)||salonBookingIsPast(booking)||
+     booking.status!==expected.status||booking.date!==expected.date||booking.time!==expected.time)
+   throw Error('تغيّر الموعد. حدّثي صفحة مواعيدي');
+  if(salonHasPendingReschedule(booking))throw Error('فيه طلب تأجيل لهذا الموعد بانتظار الرد');
+  salonValidateBookingReschedule(booking,date,time);
+  tx.update(ref,{rescheduleRequest:{status:'pending',date,time,originalDate:booking.date,originalTime:booking.time,requestedAt:firebase.firestore.FieldValue.serverTimestamp()}});
+ });
+}
+
+let salonBookingView='upcoming';
+function salonRenderMyAppointments(panel,bookings){
+ const now=new Date();
+ const byTime=(a,b)=>String((a.date||'')+' '+(a.time||'')).localeCompare(String((b.date||'')+' '+(b.time||'')));
+ const upcoming=[],previous=[];
+ for(const booking of bookings)(salonBookingIsPast(booking,now)?previous:upcoming).push(booking);
+ upcoming.sort(byTime);previous.sort((a,b)=>byTime(b,a));
+ const selected=salonBookingView==='previous'?previous:upcoming;
+ const labels={upcoming:'المواعيد القادمة',previous:'المواعيد السابقة'};
+ const cards=selected.map(booking=>{
+  const request=booking.rescheduleRequest;
+  const waiting=salonHasPendingReschedule(booking);
+  const available=salonBookingView==='upcoming'&&['pending','confirmed'].includes(booking.status)&&!waiting;
+  const deposit=booking.packageUseRequested?'موعد من رصيد الباقة':booking.depositStatus==='paid'?'العربون مدفوع':'العربون لم يُدفع';
+  const note=waiting?`طلب التأجيل إلى ${salonBookingDayLabel(request.date)} الساعة ${request.time} بانتظار موافقة الصالون. الموعد الحالي قائم.`:
+   request?.status==='approved'?'وافق الصالون على التأجيل. الموعد الجديد ظاهر أعلاه.':
+   request?.status==='declined'?'تعذر تأجيل الموعد. بقي الموعد الأصلي كما هو.':'';
+  return `<article class="card salon-appointment-card">
+   <header class="spread"><strong>${esc(booking.serviceName||'خدمة')}</strong><span class="badge">${esc(salonBookingQueueStatus(booking))}</span></header>
+   <p>${esc(salonBookingDayLabel(booking.date))} · الساعة ${esc(booking.time||'—')} · ${esc(booking.staffName||'')}</p>
+   <p class="muted">${booking.location==='home'?'خدمة منزلية':'داخل الصالون'} · ${deposit}${booking.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p>
+   ${booking.pointsToRedeem>0?`<p>خصم النقاط المطلوب: ${esc(booking.pointsToRedeem)} نقطة = ${money(booking.loyaltyDiscountRequested)} · بعد الخصم المتوقع: ${money(Math.max(0,Number(booking.price||0)-Number(booking.loyaltyDiscountRequested||0)))}</p>`:''}
+   ${booking.queueNumber&&booking.queueDate===booking.date&&!['cancelled','canceled'].includes(booking.status)?`<p><strong>رقم دوركِ: ${esc(booking.queueNumber)}</strong></p>`:''}
+   ${booking.giftOrderId?`<p>هدية مرتبطة بالموعد: <code dir="ltr">GV-${esc(booking.giftOrderId)}</code></p>`:''}
+   ${note?`<p class="quality-note">${esc(note)}</p>`:''}
+   <small class="muted">رقم الطلب: ${esc(booking.requestNumber||booking.id||'—')}</small>
+   ${available?`<details class="salon-appointment-reschedule"><summary>طلب تأجيل الموعد</summary>
+    <p class="muted">اختاري وقتًا بعد الموعد الحالي. يبقى الموعد الحالي قائمًا حتى يوافق الصالون.</p>
+    <form class="form-grid" data-client-reschedule="${esc(booking.id)}">
+     <div class="field"><label>التاريخ المقترح<input type="date" name="date" min="${esc(booking.date)}" value="${esc(booking.date)}" required></label></div>
+     <div class="field"><label>الوقت المقترح<input type="time" name="time" required></label></div>
+     <button class="btn secondary" type="submit">إرسال طلب التأجيل</button><p class="muted" role="status"></p>
+    </form></details>`:''}</article>`;
+ }).join('');
+ panel.innerHTML=`<div class="section-head"><h3>${esc(t('myBookings'))}</h3></div>
+  <div class="row salon-appointment-tabs" role="group" aria-label="عرض المواعيد">
+   ${Object.keys(labels).map(key=>`<button type="button" class="btn ${key===salonBookingView?'':'secondary'}" aria-pressed="${key===salonBookingView}" data-appointment-view="${key}">${labels[key]} (${key==='upcoming'?upcoming.length:previous.length})</button>`).join('')}
+  </div>
+  <div class="salon-appointment-list">${cards||`<p class="card empty">${salonBookingView==='upcoming'?'ما عندك مواعيد قادمة.':'ما عندك مواعيد سابقة.'}</p>`}</div>`;
+ panel.querySelectorAll('[data-appointment-view]').forEach(button=>button.onclick=()=>{
+  if(salonBookingView===button.dataset.appointmentView)return;
+  salonBookingView=button.dataset.appointmentView;
+  const notice=panel.querySelector('#salonBookingRequestNotice');
+  salonRenderMyAppointments(panel,bookings);
+  if(notice)panel.prepend(notice);
+  panel.querySelector('[aria-pressed="true"]')?.focus();
+ });
+ panel.querySelectorAll('[data-client-reschedule]').forEach(form=>form.onsubmit=async event=>{
+  event.preventDefault();
+  const button=form.querySelector('button[type="submit"]'),status=form.querySelector('[role="status"]');
+  if(button.disabled)return;
+  const booking=selected.find(row=>String(row.id)===form.dataset.clientReschedule);
+  const data=new FormData(form);
+  button.disabled=true;status.textContent='جارٍ تسجيل الطلب…';
+  try{
+   await salonRequestBookingReschedule(booking,String(data.get('date')),String(data.get('time')));
+   if(status.isConnected)status.textContent='تم تسجيل طلب التأجيل. بانتظار رد الصالون.';
+   toast('تم إرسال طلب التأجيل. موعدكِ الحالي قائم إلى أن يوافق الصالون.');
+  }catch(err){
+   status.textContent=err.code==='permission-denied'?'تعذر إرسال الطلب. قد يكون هناك طلب تأجيل سابق أو أن صلاحية التأجيل غير منشورة.':String(err.message||err);
+   button.disabled=false;
+  }
+ });
+}
+
 async function salonConfirmBookingWithQueue(tx,ref,expected,staff){
  const latest=await tx.get(ref);
  if(!latest.exists||!['pending','confirmed'].includes(latest.data().status))throw Error('تغيّرت حالة الحجز. حدّثي القائمة');
  const booking=latest.data();
+ if(salonHasPendingReschedule(booking))throw Error('راجعي طلب تأجيل الموعد أولًا');
  if(!salonInvoiceSame(booking,expected))throw Error('تغيّرت بيانات الحجز. أعيدي التأكيد');
  const profile=await tx.get(firestore.collection('employeeProfiles').doc(String(staff.authUid)));
  if(!profile.exists||profile.data().active!==true||profile.data().archived===true)throw Error('حساب الموظفة غير نشط');
@@ -854,6 +1046,7 @@ async function salonConfirmBookingWithQueue(tx,ref,expected,staff){
   if(!wallet?.approved||!wallet.clientId||!Number.isSafeInteger(Number(wallet.points))||Number(wallet.points)<Number(booking.pointsToRedeem))
    throw Error('رصيد النقاط المعتمد لا يكفي لهذا الطلب');
  }
+ if(booking.giftOrderId)await salonReadClientGift(tx,String(booking.clientUid),salonGiftOrderId('GV-'+booking.giftOrderId),booking.date);
  const queue=await salonPrepareBookingQueue(tx,booking);
  queue.write();
  tx.update(ref,{status:'confirmed',depositStatus:booking.packageUseRequested?'not_required':'paid',
@@ -1379,16 +1572,25 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
    if(duplicate)throw Error('رقم جوال العميلة موجود في Firebase. اختاري عميلة مسجلة لتجنّب تكرار الحساب.');
    target={...client,code:'CL-'+Number(remote.counter||1001),points:0};clients.push(target);
   }
+  let appliedVoucherViewRef=null;
   if(appliedVoucherRef){
    if(!appliedVoucherSnap?.exists)throw Error('رقم قسيمة الهدية غير موجود أو لم يُعتمد دفعها');
    const v=appliedVoucherSnap.data()||{};
-   const pn=x=>{let z=String(x||'').replace(/\D/g,'');if(z.startsWith('00966'))z=z.slice(5);else if(z.startsWith('966'))z=z.slice(3);return z.startsWith('0')?z.slice(1):z};
    if(v.status!=='active')throw Error('القسيمة غير مفعلة أو انتهى رصيدها');
-   if(!/^5\d{8}$/.test(pn(v.recipientPhone))||pn(v.recipientPhone)!==pn(target.phone))throw Error('القسيمة مخصصة لرقم جوال مستلمة أخرى؛ تحققي من ملكية المستلمة');
+   if(salonGiftVoucherExpired(v))throw Error('انتهت صلاحية قسيمة الهدية أو أن تاريخها يحتاج إلى مراجعة');
+   const recipient=salonNormalizePhone(v.recipientPhone);
+   if(!/^5\d{8}$/.test(recipient)||recipient!==salonNormalizePhone(target.phone))throw Error('القسيمة مخصصة لرقم جوال مستلمة أخرى؛ تحققي من ملكية المستلمة');
+   if(v.recipientUid&&target.authUid&&String(v.recipientUid)!==String(target.authUid))throw Error('القسيمة مرتبطة بحساب مستلمة آخر');
    if(!proposed.voucherOwnershipConfirmed)throw Error('يلزم تأكيد التحقق من هوية المستلمة قبل صرف القسيمة');
-   const due=Math.round(Number(proposed.total||0)*100),spend=Math.round(appliedVoucherAmount*100),balance=Math.round(Number(v.remainingAmount||0)*100);
-   if(spend<=0||spend>due)throw Error('مبلغ استخدام القسيمة أكبر من قيمة الفاتورة');
-   if(spend>balance)throw Error('رصيد القسيمة غير كافٍ في Firebase');
+   const due=Math.round(Number(proposed.total||0)*100),spend=Math.round(appliedVoucherAmount*100),balance=Math.round(Number(v.remainingAmount)*100);
+   const alreadySpent=Math.round(Number(v.spentAmount??0)*100);
+   if(!Number.isSafeInteger(due)||spend<=0||spend>due)throw Error('مبلغ استخدام القسيمة أكبر من قيمة الفاتورة');
+   if(!Number.isSafeInteger(balance)||!Number.isSafeInteger(alreadySpent)||alreadySpent<0||!Number.isSafeInteger(alreadySpent+spend)||spend>balance)
+    throw Error('رصيد القسيمة غير كافٍ أو يحتاج إلى مراجعة');
+   if(v.recipientUid&&v.orderId){
+    const viewRef=firestore.collection('clientGiftViews').doc(String(v.recipientUid)).collection('gifts').doc(String(v.orderId));
+    if((await transaction.get(viewRef)).exists)appliedVoucherViewRef=viewRef;
+   }
   }
   if(existingVoucher&&(String(before.clientId)!==String(target.id)||appliedVoucherAmount>Number(proposed.total||0)))
    throw Error('احتفظي بعميلة القسيمة وتأكدي أن الإجمالي يغطي مبلغها');
@@ -1431,16 +1633,18 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
   // Preserve voucher tender details on the receipt and in the same commit.
   saved.voucherId=appliedVoucherId;
   saved.voucherAmountUsed=appliedVoucherAmount;
+  if(appliedVoucherId){
+   saved.voucherRecipientPhone=existingVoucher
+    ?salonNormalizePhone(before.voucherRecipientPhone||before.customerPhone)
+    :salonNormalizePhone(appliedVoucherSnap.data().recipientPhone);
+  }
   saved.amountOtherMethods=Math.max(0,Math.round((Number(saved.total||0)-appliedVoucherAmount)*100)/100);
   delete saved.voucherOwnershipConfirmed;
   if(appliedVoucherRef){
    const v=appliedVoucherSnap.data(),balance=Math.round(Number(v.remainingAmount)*100),spend=Math.round(appliedVoucherAmount*100);
    const left=(balance-spend)/100;
    transaction.update(appliedVoucherRef,{remainingAmount:left,spentAmount:Math.round((Number(v.spentAmount||0)+appliedVoucherAmount)*100)/100,status:left===0?'redeemed':'active',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),lastInvoiceId:String(proposed.id)});
-   if(v.recipientUid){
-    const viewRef=firestore.collection('clientGiftViews').doc(String(v.recipientUid)).collection('gifts').doc(String(v.orderId));
-    transaction.set(viewRef,{remainingAmount:left,status:left===0?'redeemed':'active'},{merge:true});
-   }
+   if(appliedVoucherViewRef)transaction.update(appliedVoucherViewRef,{remainingAmount:left,status:left===0?'redeemed':'active'});
   }
   // Save the source invoice, canonical points and inventory ATOMICALLY.
   // Nonessential client-facing projections are synchronized separately after commit;
@@ -1534,7 +1738,7 @@ async function submitInvoice(e){
   subtotal:totals.subtotal,discount:totals.discount,taxRate:Number($('#invoiceTaxRate').value)||0,tax:totals.tax,total:totals.total,payment,
   pointsUsed:pointsUse,loyaltyDiscount:totals.loyaltyDiscount,pointsAdded:pointsAdd+earned,pointsEarned:earned,
   notes:$('#invoiceNotes').value.trim(),date:$('#invoiceDate').value,createdAt:existing?.createdAt||now,
-  updatedAt:now,whatsappRequested:$('#invoiceWhatsAppChoice')?.value==='yes',bookingId:existing?.bookingId||'',
+  updatedAt:now,whatsappRequested:$('#invoiceWhatsAppChoice')?.value==='yes',bookingId:existing?.bookingId||e.currentTarget.dataset.linkedBooking||'',
   voucherId:voucherId||'',voucherAmountUsed:voucherId?voucherAmountUsed:0,voucherOwnershipConfirmed};
  if(!/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)){cashierFormIssue('حددي تاريخ الفاتورة الصحيح','#invoiceDate');return}
  const button=e.currentTarget?.querySelector('button[type="submit"]');if(button)button.disabled=true;
@@ -1763,9 +1967,12 @@ async function salonReverseInvoice(id,refund){
     const voucherRef=firestore.collection('salonGiftVouchers').doc(String(invoice.voucherId));
     const voucher=await tx.get(voucherRef),v=voucher.data();
     const left=Math.round(Number(v?.remainingAmount)*100),spent=Math.round(Number(v?.spentAmount)*100),returned=Math.round(voucherAmount*100);
+    const recipient=salonNormalizePhone(v?.recipientPhone),restored=left+returned;
     if(!voucher.exists||!['active','redeemed'].includes(v.status)||!Number.isSafeInteger(left)||left<0||!Number.isSafeInteger(spent)||spent<returned||
-       salonNormalizePhone(v.recipientPhone)!==salonNormalizePhone(invoice.customerPhone))throw Error('تعذر مطابقة المبلغ مع رصيد القسيمة');
-    const patch={remainingAmount:(left+returned)/100,spentAmount:(spent-returned)/100,status:'active'};
+       !Number.isSafeInteger(restored)||!/^5\d{8}$/.test(recipient)||recipient!==salonNormalizePhone(invoice.voucherRecipientPhone||invoice.customerPhone))
+     throw Error('تعذر مطابقة المبلغ مع رصيد القسيمة');
+    // Restoring a historical spend leaves the voucher's original expiry intact.
+    const patch={remainingAmount:restored/100,spentAmount:(spent-returned)/100,status:'active'};
     writes.push(()=>tx.update(voucherRef,{...patch,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}));
     if(v.recipientUid&&v.orderId){
      const giftRef=firestore.collection('clientGiftViews').doc(String(v.recipientUid)).collection('gifts').doc(String(v.orderId));
@@ -2782,7 +2989,7 @@ renderPortalClient=function(){
  salonClientOriginalRender();
  const app=document.querySelector('#app');if(!app||portalRole!=='client'||!portalUser)return;
  const nav=document.createElement('nav');nav.className='nav no-print';nav.style.margin='12px 0';
- const items=[['home','🏠 '+(lang==='ar'?'الرئيسية والحجز':'Home & booking')],['bookings','📅 '+t('myBookings')],['points','🎁 '+(lang==='ar'?'نقاطي':'My points')]];
+ const items=[['home','🏠 '+(lang==='ar'?'الرئيسية والحجز':'Home & booking')],['bookings',t('myBookings')],['points','🎁 '+(lang==='ar'?'نقاطي':'My points')]];
  items.forEach(([id,label])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.className=id===salonClientPage?'active':'';b.onclick=()=>{salonClientPage=id;renderPortalClient()};nav.append(b)});
  const hero=app.querySelector('.hero');if(hero)hero.after(nav);else app.prepend(nav);
  const sections=Array.from(app.children);const bookingForm=app.querySelector('#portalBooking');
@@ -2800,8 +3007,7 @@ renderPortalClient=function(){
  let panel=app.querySelector('#salonClientPagePanel');if(panel)panel.remove();panel=document.createElement('section');panel.id='salonClientPagePanel';
  const settings=portalCatalog.settings||{};const pts=Math.max(0,Number(portalUser.points)||0);const threshold=Math.max(1,Number(settings.redeemPoints)||50);const riyals=Math.max(0,Number(settings.redeemRiyals)||10);
  if(salonClientPage==='bookings'){
-  const rows=portalBookings.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  panel.innerHTML='<div class="section-head"><h3>'+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(b.serviceName||'خدمة')}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(b.staffName||'')}</p><p>${esc(b.location==='home'?'خدمة منزلية':'داخل الصالون')} • ${esc(salonBookingQueueStatus(b))} • ${b.packageUseRequested?'موعد من رصيد الباقة':(b.depositStatus==='paid'?'العربون مدفوع':'العربون لم يُدفع')}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p>${Number(b.pointsToRedeem)>0?'<p><strong>خصم النقاط المطلوب: '+esc(b.pointsToRedeem)+' نقطة = '+money(b.loyaltyDiscountRequested)+'</strong> · بعد الخصم المتوقع: '+money(Math.max(0,Number(b.price||0)-Number(b.loyaltyDiscountRequested||0)))+'</p>':''}${b.queueNumber&&b.queueDate===b.date&&b.status!=='cancelled'?`<p><strong>رقم دوركِ: ${esc(b.queueNumber)}</strong></p>`:''}<small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد طلبات حجز مسجلة حاليًا.</div>');
+  salonRenderMyAppointments(panel,portalBookings);
  }else if(salonClientPage==='points'){
   panel.innerHTML=`<div class="section-head"><h3>🎁 ${lang==='ar'?'نقاطي ومكافآتي':'My points & rewards'}</h3></div><div class="stats"><div class="stat"><span>رصيد النقاط</span><strong>${pts}</strong></div><div class="stat"><span>خصم متاح عند الاستبدال</span><strong>${money(Math.floor(pts/threshold)*riyals)}</strong></div></div><div class="card" style="margin-top:14px"><h3>كيف أستخدم نقاطي؟</h3><p>كل ${threshold} نقطة = خصم ${money(riyals)} حسب سياسة الصالون.</p><p>يمكنك اختيار «نعم، أريد استخدام نقاطي» أثناء طلب الحجز. يراجع الصالون الرصيد ويؤكد قيمة الخصم قبل إصدار الفاتورة.</p><p class="notice">لا تُخصم أي نقاط بمجرد إرسال طلب واتساب. يُعتمد الخصم عند تأكيد الصالون والدفع.</p><button type="button" class="btn" onclick="salonClientPage='home';renderPortalClient()">احجزي واستخدمي نقاطك</button></div>`;
  }
@@ -2813,7 +3019,9 @@ renderPortalClient=function(){
    send.textContent=lang==='ar'?'تسجيل الطلب وفتح واتساب لدفع العربون':'Save request and open WhatsApp to pay the deposit';
    const deposit=document.createElement('p');deposit.className='notice full';
    deposit.textContent=lang==='ar'?'لتأكيد الحجز يجب الذهاب إلى واتساب لدفع العربون. يبقى طلبك في قائمة الانتظار حتى موافقة الصالون.':'To confirm your booking, go to WhatsApp to pay the deposit. Your request remains on the waiting list until the salon approves it.';
-   send.before(deposit);
+   const gift=document.createElement('div');gift.className='field full';
+   gift.innerHTML='<label>رمز هدية لاستخدامها مع الموعد (اختياري)<input name="giftVoucherCode" type="text" placeholder="GV-…" maxlength="133" dir="ltr" autocomplete="off"></label><small>يُضاف الرمز إلى طلب الحجز. يخصم الصالون المبلغ من الرصيد عند إصدار الفاتورة.</small>';
+   send.before(gift,deposit);
   }
   const note=bookingForm.querySelector('.notice');if(note)note.textContent='يُرسل طلب الحجز إلى إدارة الصالون ويظل بانتظار التأكيد أو الإلغاء. لا تُخصم النقاط إلا بعد موافقة الإدارة.';
   const check=bookingForm.querySelector('[name="redeem"]');if(check){const label=check.closest('label');if(label)label.innerHTML='<input type="checkbox" name="redeem"> نعم، أريد استخدام نقاطي في هذا الحجز';}
@@ -2997,6 +3205,7 @@ function bookingWhatsApp(b,id){
   b.notes?'الملاحظات: '+b.notes:'','السعر المبدئي: '+b.price+' ريال',
   ...(b.pointsToRedeem>0?['طلب استخدام النقاط: '+b.pointsToRedeem+' نقطة','الخصم المتوقع: '+b.loyaltyDiscountRequested+' ريال',
     'الإجمالي بعد الخصم المتوقع: '+Math.max(0,b.price-b.loyaltyDiscountRequested)+' ريال']:[]),
+  b.giftOrderId?'استخدام هدية مع الفاتورة: GV-'+b.giftOrderId:'',
   'الحالة: قائمة الانتظار حتى دفع العربون وموافقة الصالون. يرجى تزويدي بطريقة دفع العربون.']);
 }
 submitPortalBooking=async function(event){
@@ -3026,7 +3235,8 @@ submitPortalBooking=async function(event){
  if(wantsPoints&&(!Number.isSafeInteger(pointsToRedeem)||pointsToRedeem<=0||pointsToRedeem%threshold!==0||!Number.isFinite(loyaltyDiscountRequested)||reward<=0||loyaltyDiscountRequested>price)){
   toast(lang==='en'?'Choose a valid number of points within the booking total.':'اختاري عدد نقاط صحيحًا بمضاعفات '+threshold+'، وخصمًا لا يتجاوز قيمة الخدمات.');return;
  }
- const record={clientUid:auth.currentUser.uid,clientName:safeStr(portalUser.nameAr||portalUser.name).slice(0,100),clientNameEn:safeStr(portalUser.nameEn||'').slice(0,70),clientPhone:safeStr(portalUser.phone).slice(0,20),staffUid:safeStr(staff.authUid||staff.id),staffName:safeStr(staff.name),serviceIds:services.map(x=>safeStr(x.id)),serviceName:services.map(x=>safeStr(x.name)).join('، ').slice(0,500),price,duration,date,time,location,address,notes,redeemRequested:wantsPoints,pointsToRedeem,loyaltyDiscountRequested,status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
+ let giftOrderId;try{giftOrderId=salonGiftOrderId(data.get('giftVoucherCode'))}catch(err){toast(err.message);return}
+ const record={...(giftOrderId?{giftOrderId}:{}),clientUid:auth.currentUser.uid,clientName:safeStr(portalUser.nameAr||portalUser.name).slice(0,100),clientNameEn:safeStr(portalUser.nameEn||'').slice(0,70),clientPhone:safeStr(portalUser.phone).slice(0,20),staffUid:safeStr(staff.authUid||staff.id),staffName:safeStr(staff.name),serviceIds:services.map(x=>safeStr(x.id)),serviceName:services.map(x=>safeStr(x.name)).join('، ').slice(0,500),price,duration,date,time,location,address,notes,redeemRequested:wantsPoints,pointsToRedeem,loyaltyDiscountRequested,status:'pending',depositStatus:'unpaid',createdAt:firebase.firestore.FieldValue.serverTimestamp()};
  if(button)button.disabled=true;
  const popup=salonOpenRequestWindow();
  let saved=false;
@@ -3056,6 +3266,7 @@ submitPortalBooking=async function(event){
         throw Error(lang==='en'?'Your approved loyalty balance is insufficient. Refresh My points.':'رصيد نقاطك المعتمد غير كافٍ؛ حدّثي صفحة نقاطي أو راجعي ربط النقاط.');
       }
     }
+    if(giftOrderId)await salonReadClientGift(tx,record.clientUid,giftOrderId,date);
     tx.set(ref,record);
   });
   saved=true;
@@ -3730,6 +3941,7 @@ window.ownerEditSavedBooking=async function(id){
   await firestore.runTransaction(async tx=>{
    const current=await tx.get(ref);
    if(!current.exists||!salonInvoiceSame(current.data(),b))throw Error('تغيّر الحجز. حدّثي القائمة قبل التعديل');
+   if(salonHasPendingReschedule(b)&&(b.date!==date||b.time!==time))throw Error('راجعي طلب التأجيل المعلّق قبل تعديل الموعد يدويًا');
    const patch={serviceName:service.trim().slice(0,500),staffName:matching[0].name,staffUid:matching[0].authUid,date,time,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
    if(b.queueNumber&&date!==b.date){
     if(b.status!=='confirmed')throw Error('تغيير يوم الحجز المرقّم متاح قبل وصول العميلة فقط');
@@ -6434,7 +6646,7 @@ function renderShop(){
   const creditLine=kind?'رصيد '+p.creditsTotal+' استخدامات · '+(Number(p.validityMonths)===0?'بدون تاريخ انتهاء':'صلاحية '+(Number(p.validityMonths)||12)+' شهر'):'عرض يُنفذ في زيارة واحدة';
   return '<article class="salon-pkg-card" data-shop-kind="'+(kind?'credit':'instant')+'"><span class="salon-pkg-label '+(kind?'credit':'')+'">'+(kind?'باقة رصيد استخدامات':'عرض استخدام واحد')+'</span><h3>'+name+'</h3><p>'+desc+'</p><p>'+esc(creditLine)+'</p><b class="price">'+money(p.price)+'</b><button type="button" class="btn" data-package-buy="'+esc(p.id)+'">طلب الشراء عبر واتساب</button></article>';
  };
- section.innerHTML='<h2>العروض والباقات</h2><p class="salon-pkg-shop-intro">لتأكيد شراء الباقة، أرسلي الرسالة الجاهزة عبر واتساب الصالون لتنسيق الدفع. يتفعّل الرصيد بعد تأكيد الصالون.</p>'+
+ section.innerHTML='<h2>العروض والباقات</h2><p class="salon-pkg-shop-intro">لتأكيد شراء الباقة، أرسلي الرسالة الجاهزة عبر واتساب الصالون لتنسيق الدفع. يتفعّل الرصيد بعد تأكيد الصالون.</p><div class="field"><label>رمز هدية لاستخدامها في شراء باقة (اختياري)<input type="text" data-package-gift placeholder="GV-…" dir="ltr" maxlength="133" autocomplete="off"></label><small>يخصم الصالون قيمة الباقة من رصيد الهدية عند اعتماد الطلب. تقدرين تدفعين الفرق إذا ما غطّى الرصيد السعر.</small></div>'+
   '<div class="salon-pkg-tabs" role="group" aria-label="تصفية الباقات"><button type="button" class="active" data-pkg-filter="all">كل الباقات ('+all.length+')</button><button type="button" data-pkg-filter="instant">استخدام واحد ('+instant.length+')</button><button type="button" data-pkg-filter="credit">رصيد استخدامات ('+credits.length+')</button></div>'+
   '<div class="salon-pkg-grid">'+(all.length?all.map(renderCard).join(''):'<p class="salon-pkg-note">لا توجد باقات منشورة الآن. تستطيع المالكة إضافتها من صفحة الباقات ثم إعادة نشرها للعميلات.</p>')+'</div>'+
    '';
@@ -8188,6 +8400,31 @@ html.salon-client-active #app.salon-editorial-client .service-grid.booking-servi
 @media(max-width:600px){#app #portalBooking #salonCartResults{grid-template-columns:1fr}}
 </style>
 
+<style id="salon-gift-card-designs">
+.quality-gift-covers{margin:0;min-inline-size:0}
+.quality-gift-cover-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.quality-gift-cover-option{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:7px;padding:8px;border:1px solid var(--line,#e8dce3);border-radius:10px;cursor:pointer;font-size:.9rem}
+.quality-gift-cover-option:has(:checked){border-color:var(--accent,#a66a7d);box-shadow:0 0 0 1px var(--accent,#a66a7d)}
+.quality-gift-cover-option input[type="radio"]{width:auto;padding:0;margin:0;grid-row:2}
+.quality-gift-cover-sample{grid-column:1/-1;grid-row:1}
+.quality-gift-cover-art{position:relative;display:block;aspect-ratio:132 / 82;min-width:0;background:var(--gift-paper);color:var(--gift-ink);border-radius:7px;overflow:hidden}
+.quality-gift-cover-art svg{position:absolute;inset:0;width:100%;height:100%}
+.quality-gift-cover-art>span{position:absolute;inset-inline:29% 12%;top:45%;font-size:clamp(.65rem,2vw,1rem);line-height:1.1;font-weight:700;text-align:center}
+.quality-received-gift{display:grid;grid-template-columns:minmax(115px,175px) minmax(0,1fr);gap:14px;align-items:start;margin-top:12px}
+.quality-received-gift .quality-gift-dedication{white-space:pre-wrap;overflow-wrap:anywhere}
+.quality-gift-code{align-items:center;gap:8px}
+.quality-gift-code code,.quality-order .quality-note code{overflow-wrap:anywhere;user-select:all}
+.quality-gift-share{margin-block:8px 12px}
+@media(max-width:560px){
+ .quality-gift-cover-grid{gap:6px}
+ .quality-gift-cover-option{gap:4px;padding:5px;font-size:.72rem}
+ .quality-received-gift{grid-template-columns:1fr}
+ .quality-received-gift-cover{max-width:180px}
+}
+.quality-gift-expiry{display:grid;gap:5px;width:fit-content;margin-block:10px}
+.quality-gift-expiry input{font:inherit;min-height:38px;padding:4px 8px;border:1px solid var(--line,#e8dce3);border-radius:8px}
+.quality-sent-gifts{margin-block:16px}
+</style>
 <script id="salon-comprehensive-fixes-20261107">
 /* Quality Nail Salon | integrated owner/customer fixes | 2026-11-07
    Customer requests never activate financial entitlements. Only owner can approve.
@@ -8279,12 +8516,19 @@ document.addEventListener('click',async event=>{
  try{
   const record=pActive().find(p=>String(p.id)===String(b.dataset.packageBuy));if(!record)throw Error('الباقة لم تعد منشورة');
   const uid=auth.currentUser.uid;
+  const giftOrderId=salonGiftOrderId(b.closest('.salon-pkg-shop')?.querySelector('[data-package-gift]')?.value);
   popup=salonOpenRequestWindow();
-  const created=await packageOrders.add({clientUid:uid,clientName:clean(portalUser.nameAr||portalUser.name||''),clientPhone:clean(portalUser.phone||''),packageId:String(record.id),status:'pending',createdAt:timestamp()});
+  const orderRef=packageOrders.doc();
+  await firestore.runTransaction(async tx=>{
+   if(giftOrderId)await salonReadClientGift(tx,uid,giftOrderId);
+   tx.set(orderRef,{clientUid:uid,clientName:clean(portalUser.nameAr||portalUser.name||''),clientPhone:clean(portalUser.phone||''),
+    packageId:String(record.id),status:'pending',createdAt:timestamp(),...(giftOrderId?{giftOrderId}:{})});
+  });
+  const created=orderRef;
   saved=true;
   const url=salonRequestWhatsApp(['طلب شراء باقة — صالون جودة الأظافر','رقم الطلب: '+created.id,
    'العميلة: '+clean(portalUser.nameAr||portalUser.name),'الجوال: '+clean(portalUser.phone),
-   'الباقة: '+stableLabel(record),'السعر المعروض: '+amount(record.price),'يرجى تزويدي بطريقة الدفع لتأكيد شراء الباقة.']);
+   'الباقة: '+stableLabel(record),'السعر المعروض: '+amount(record.price),giftOrderId?'أرغب باستخدام هديتي: GV-'+giftOrderId:'','يرجى تزويدي بالمبلغ المطلوب وطريقة دفعه لتأكيد شراء الباقة.']);
   salonFinishRequestWhatsApp(url,popup,b.closest('.salon-pkg-shop'));
   if(url)toast('تم تسجيل طلب الباقة. أرسلي الرسالة في واتساب لتنسيق الدفع.');
  }catch(e){if(!saved)popup?.close();notifyError(saved?'تم حفظ الطلب وتعذر فتح واتساب':'تعذر تسجيل طلب الباقة',e)}
@@ -8292,12 +8536,195 @@ document.addEventListener('click',async event=>{
 },true);
 
 // 3: Gift request form with accurate service/package selection, voucher choices, and editable sender.
+const qualityGiftCovers=Object.freeze({
+ rose:{ar:'وردي كلاسيكي',en:'Classic rose',paper:'#f4e7e6',ink:'#593342',trim:'#a66a7d',border:'#caa0aa'},
+ pearl:{ar:'عاجي ذهبي',en:'Ivory and gold',paper:'#f5eddd',ink:'#513d30',trim:'#a07641',border:'#c7a77e'},
+ sage:{ar:'أخضر هادئ',en:'Soft sage',paper:'#e5ece4',ink:'#29483d',trim:'#5b8371',border:'#8ea99a'}
+});
+function qualityGiftCoverId(value){
+ return Object.hasOwn(qualityGiftCovers,String(value))?String(value):'rose';
+}
+function qualityGiftCover(value){
+ return qualityGiftCovers[qualityGiftCoverId(value)];
+}
+function qualityGiftCoverLabel(cover){
+ return tr(cover.ar,cover.en);
+}
+function qualityGiftCoverOptions(){
+ return `<fieldset class="quality-gift-covers wide"><legend>${tr('اختاري صورة بطاقة الهدية','Choose a gift card cover')}</legend>
+ <div class="quality-gift-cover-grid">${Object.entries(qualityGiftCovers).map(([id,cover],index)=>`<label class="quality-gift-cover-option">
+ <input type="radio" name="coverId" value="${id}" ${index===0?'checked':''} required>
+ <span class="quality-gift-cover-sample">${qualityGiftCoverMarkup(id)}</span>
+ <span>${qualityGiftCoverLabel(cover)}</span></label>`).join('')}</div></fieldset>`;
+}
+function qualityGiftCoverMarkup(id){
+ const cover=qualityGiftCover(id);
+ return `<span class="quality-gift-cover-art" style="--gift-paper:${cover.paper};--gift-ink:${cover.ink};--gift-trim:${cover.trim};--gift-border:${cover.border}">
+ <svg viewBox="0 0 132 82" aria-hidden="true" focusable="false">
+  <path d="M10 11h112v60H10zM16 16h100v50H16z" fill="none" stroke="var(--gift-border)" stroke-width=".65"/>
+  <path d="M27 20v43M19 32h19M25 32c-16-4-10-14-4-9 2 2 4 5 5 9m1 0c16-4 10-14 4-9-2 2-4 5-5 9m0 0-8 10m8-10 8 10" fill="none" stroke="var(--gift-trim)" stroke-linecap="round" stroke-width="1.15"/>
+  <path d="M97 22v11m-5.5-5.5h11M109 45v6m-3-3h6" fill="none" stroke="var(--gift-trim)" stroke-linecap="round" stroke-width=".85"/>
+ </svg><span>${tr('بطاقة إهداء','Gift card')}</span></span>`;
+}
+function qualityGiftCode(record){
+ return clean(record.voucherId||((record.kind==='voucher'&&(record.status==='approved'||record.orderId))?'GV-'+(record.orderId||record.id||''):''));
+}
+function qualityGiftRecipientTitle(gift){
+ const rows=gift.kind==='service'?sActive():gift.kind==='package'?pActive():[];
+ const item=rows.find(row=>String(row.id)===String(gift.itemId));
+ return clean(gift.giftTitle||gift.itemName||(item?stableLabel(item):'')||
+  (gift.kind==='voucher'?tr('قسيمة هدية','Gift voucher'):tr('هدية من الصالون','Salon gift')));
+}
+function qualityReceivedGiftCard(gift){
+ const cover=qualityGiftCoverId(gift.coverId),code=qualityGiftCode(gift),title=qualityGiftRecipientTitle(gift);
+ const left=Math.max(0,Number(gift.remainingAmount??gift.amount)||0);
+ const expires=clean(gift.expiresOn);
+ const expired=Boolean(expires&&expires<salonSaudiDate());
+ const label=expired||gift.status==='expired'?tr('منتهية الصلاحية','Expired'):
+  gift.status==='redeemed'||left===0?tr('اُستخدم الرصيد','Used up'):tr('متاحة للاستخدام','Available');
+ return `<article class="quality-order quality-received-gift">
+  <div class="quality-received-gift-cover">${qualityGiftCoverMarkup(cover)}</div>
+  <div class="quality-received-gift-details">
+   <header><strong>${safe(title)}</strong><span class="badge">${label}</span></header>
+   <p><strong>${tr('من','From')}${ar()?'':' '}</strong> ${safe(gift.senderName||'')}</p>
+   ${gift.message?`<p class="quality-gift-dedication">${safe(gift.message)}</p>`:''}
+   <p><strong>${tr('الرصيد المتبقي','Remaining balance')}</strong> ${amount(left)}
+   ${expires?' · '+tr('صالحة حتى','Valid through')+' <time dir="ltr">'+safe(expires)+'</time>':''}</p>
+   ${code?`<div class="row quality-gift-code"><span>${tr('رمز الهدية','Gift code')}</span><code dir="ltr">${safe(code)}</code>
+    <button type="button" class="btn secondary small" data-copy-gift-code="${safe(code)}">${tr('نسخ الرمز','Copy code')}</button></div>`:''}
+  </div></article>`;
+}
+function qualityGiftShareUrl(gift,title){
+ const code=qualityGiftCode(gift);
+ if(!code)return '';
+ const recipient=clean(gift.recipientName);
+ const expires=clean(gift.expiresOn);
+ const lines=['هدية من صالون جودة الأظافر',recipient?'إلى '+recipient:'',
+  'من '+(clean(gift.senderName)||'صالون جودة الأظافر'),clean(gift.message),'الهدية: '+title,
+  'قيمة الهدية: '+amount(gift.amountPaid??gift.requestedAmount??gift.amount),'رمز الهدية: '+code,
+  expires?'صالحة حتى: '+expires:'',
+  'احتفظي بالرمز واستخدميه عند طلب الحجز أو شراء باقة أو عند الدفع في الصالون.'];
+ return salonWhatsAppUrl(gift.recipientPhone,lines);
+}
+function qualityDrawGiftRibbon(ctx,x,y){
+ ctx.save();ctx.translate(x,y);ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=3;ctx.lineCap='round';
+ ctx.beginPath();
+ ctx.moveTo(-20,0);ctx.lineTo(20,0);ctx.moveTo(0,-24);ctx.lineTo(0,30);
+ ctx.moveTo(0,0);ctx.bezierCurveTo(-30,-2,-23,-32,-10,-22);ctx.bezierCurveTo(-4,-17,-1,-7,0,0);
+ ctx.moveTo(0,0);ctx.bezierCurveTo(30,-2,23,-32,10,-22);ctx.bezierCurveTo(4,-17,1,-7,0,0);
+ ctx.moveTo(0,0);ctx.lineTo(-16,18);ctx.moveTo(0,0);ctx.lineTo(16,18);
+ ctx.stroke();ctx.restore();
+}
+function qualityGiftPng(gift,title){
+ const canvas=document.createElement('canvas');
+ canvas.width=1200;canvas.height=780;
+ const ctx=canvas.getContext('2d');
+ if(!ctx)throw Error('تعذر تجهيز صورة بطاقة الهدية');
+ const cover=qualityGiftCover(gift.coverId);
+ ctx.fillStyle=cover.paper;ctx.fillRect(0,0,1200,780);
+ ctx.strokeStyle=cover.border;ctx.lineWidth=2;
+ ctx.strokeRect(44,44,1112,692);ctx.strokeRect(56,56,1088,668);
+ ctx.fillStyle=cover.trim;qualityDrawGiftRibbon(ctx,600,138);
+ ctx.fillStyle=cover.ink;ctx.direction='rtl';ctx.textAlign='center';
+ ctx.font='28px Arial,sans-serif';ctx.fillText('صالون جودة الأظافر',600,218,1000);
+ ctx.font='bold 58px Arial,sans-serif';ctx.fillText('بطاقة إهداء',600,309,1000);
+ ctx.font='38px Arial,sans-serif';ctx.fillText(title,600,379,960);
+ ctx.font='29px Arial,sans-serif';ctx.fillText('إلى '+clean(gift.recipientName)+'   ·   من '+clean(gift.senderName),600,443,980);
+ ctx.font='bold 42px Arial,sans-serif';ctx.fillText(amount(gift.amountPaid??gift.requestedAmount??gift.amount),600,526,1000);
+ ctx.font='25px Arial,sans-serif';ctx.fillText('رمز الهدية',600,588,1000);
+ ctx.direction='ltr';ctx.font='bold 29px Arial,sans-serif';ctx.fillText(qualityGiftCode(gift),600,633,1000);
+ if(gift.expiresOn){ctx.direction='rtl';ctx.font='23px Arial,sans-serif';ctx.fillText('صالحة حتى '+gift.expiresOn,600,687,1000)}
+ return canvas.toDataURL('image/png');
+}
+async function qualityShareGiftPng(gift,title){
+ const uri=qualityGiftPng(gift,title);
+ const name='gift-card-'+String(gift.id||'').replace(/[^\w-]/g,'')+'.png';
+ const bytes=Uint8Array.from(atob(uri.slice(uri.indexOf(',')+1)),char=>char.charCodeAt(0));
+ const file=new File([bytes],name,{type:'image/png'});
+ if(navigator.canShare?.({files:[file]})&&navigator.share){
+  try{await navigator.share({files:[file],title:'بطاقة إهداء من صالون جودة الأظافر'});return}
+  catch(error){if(error.name==='AbortError')return}
+ }
+ const download=document.createElement('a');download.href=uri;download.download=name;download.click();
+ toast('تم تنزيل بطاقة الهدية. أرفقي الصورة في محادثة المستلمة عبر واتساب.');
+}
+function qualityGiftShareControls(gift,title){
+ const code=qualityGiftCode(gift);
+ if(gift.status!=='approved'||!code)return '';
+ const expires=clean(gift.expiresOn);
+ const expired=Boolean(expires&&expires<salonSaudiDate());
+ const url=expired?'':qualityGiftShareUrl(gift,title);
+ return `<p class="quality-note"><b>رمز الهدية</b> <code dir="ltr">${safe(code)}</code>
+  ${expires?' · صالحة حتى <time dir="ltr">'+safe(expires)+'</time>':''}${expired?' · منتهية الصلاحية':''}</p>
+  ${expired?'':`<div class="row quality-gift-share">
+   ${url?`<a class="btn secondary small" href="${safe(url)}" target="_blank" rel="noopener noreferrer">إرسال الهدية للمستلمة عبر واتساب</a>`:'<span class="muted tiny">رقم المستلمة غير صالح للإرسال</span>'}
+   <button type="button" class="btn secondary small" data-gift-card-download="${safe(gift.id)}">مشاركة صورة بطاقة الهدية</button>
+  </div>`}`;
+}
+function qualityOwnerGiftControls(gift){
+ if(gift.status==='pending'){
+  return `<label class="quality-gift-expiry">تاريخ انتهاء الهدية
+   <input type="date" data-gift-expiry required min="${safe(salonSaudiDate())}" value="${safe(salonDefaultGiftExpiry())}">
+   </label>`;
+ }
+ return qualityGiftShareControls(gift,clean(gift.giftTitle)||orderItemName(gift,'gift'));
+}
+function qualityInstallSentGifts(target){
+ const section=document.createElement('section');
+ section.className='quality-received-gifts quality-sent-gifts';
+ section.innerHTML='<header class="spread"><h3>'+tr('هدايا أرسلتيها','Gifts you sent')+'</h3><button type="button" class="btn secondary small">'+tr('تحديث','Refresh')+'</button></header><div class="quality-sent-body" aria-live="polite"></div>';
+ const body=section.querySelector('.quality-sent-body'),refreshButton=section.querySelector('button');
+ const uid=auth.currentUser.uid;
+ let load=0;
+ async function refresh(){
+  const request=++load;
+  if(!section.isConnected||auth.currentUser?.uid!==uid)return;
+  body.textContent=tr('جارٍ تحميل طلباتك…','Loading your gift orders…');refreshButton.disabled=true;
+  try{
+   const snap=await giftOrders.where('clientUid','==',uid).get({source:'server'});
+   if(!section.isConnected||auth.currentUser?.uid!==uid||request!==load)return;
+   const gifts=snap.docs.map(doc=>({...doc.data(),id:doc.id})).filter(gift=>gift.clientUid===uid);
+   gifts.sort((a,b)=>orderCreatedAt(b)-orderCreatedAt(a));
+   body.innerHTML=gifts.map(gift=>{
+    const title=qualityGiftRecipientTitle(gift);
+    const status=gift.status==='approved'?tr('مؤكدة','Confirmed'):gift.status==='cancelled'?tr('ملغاة','Cancelled'):tr('بانتظار الدفع','Awaiting payment');
+    return `<article class="quality-order quality-received-gift">
+     <div class="quality-received-gift-cover">${qualityGiftCoverMarkup(gift.coverId)}</div>
+     <div><header><strong>${safe(title)}</strong><span class="badge">${status}</span></header>
+     <p>${tr('إلى','To')} ${safe(gift.recipientName||'')} · ${amount(gift.amountPaid??gift.requestedAmount)}</p>
+     ${qualityGiftShareControls(gift,title)}
+     </div></article>`;
+   }).join('')||tr('ما أرسلتي هدايا حتى الآن.','You have not sent gifts yet.');
+   qualityBindGiftShareButtons(body,gifts,qualityGiftRecipientTitle);
+  }catch(error){
+   if(section.isConnected&&auth.currentUser?.uid===uid&&request===load)
+    body.textContent=tr('تعذر تحميل الهدايا المرسلة. أعيدي التحديث.','Could not load sent gifts. Try refreshing.');
+  }finally{
+   if(request===load)refreshButton.disabled=false;
+  }
+ }
+ refreshButton.onclick=refresh;
+ target.append(section);
+ void refresh();
+ return refresh;
+}
+function qualityBindGiftShareButtons(container,rows,label){
+ container.querySelectorAll('[data-gift-card-download]').forEach(button=>button.onclick=async()=>{
+  const gift=rows.find(row=>row.id===button.dataset.giftCardDownload);
+  if(!gift||gift.status!=='approved')return;
+  button.disabled=true;
+  try{await qualityShareGiftPng(gift,label(gift))}
+  catch(error){notifyError('تعذر تجهيز صورة بطاقة الهدية',error)}
+  finally{if(button.isConnected)button.disabled=false}
+ });
+}
 function giftsForm(){
  const services=sActive(),packages=pActive();
  const serviceOpts=services.map(s=>`<option value="${safe(s.id)}" data-price="${Number(s.price)||0}">${safe(stableLabel(s))} — ${amount(s.price)}</option>`).join('');
  const packageOpts=packages.map(p=>`<option value="${safe(p.id)}">${safe(stableLabel(p))} — ${amount(p.price)}</option>`).join('');
  return `<section class="quality-gift"><div class="quality-gift-intro"><div><h2>${tr('أهدي لحظات جمال','Gift beautiful moments')}</h2><p>${tr('اختاري الهدية ورسالتك، ونؤكدها بعد الدفع.','Choose a gift and add your message. Payment is confirmed by the salon.')}</p></div></div>
  <form id="qualityGiftRequest" class="quality-form-grid">
+ ${qualityGiftCoverOptions()}
  <label>${tr('المناسبة','Occasion')}<select name="occasion"><option value="birthday">${tr('عيد ميلاد','Birthday')}</option><option value="graduation">${tr('تخرج','Graduation')}</option><option value="thanks">${tr('شكر وتقدير','Thank you')}</option><option value="other">${tr('مناسبة أخرى','Other occasion')}</option></select></label>
  <label>${tr('نوع الهدية','Gift type')}<select name="kind" id="qualityGiftKind"><option value="service">${tr('إهداء خدمة','Service gift')}</option><option value="package">${tr('إهداء باقة','Package gift')}</option><option value="voucher">${tr('قسيمة مالية','Gift voucher')}</option></select></label>
  <label id="qualityGiftServiceRow" class="wide">${tr('ابحثي عن خدمة ثم اختاريها','Search and select a service')}<input type="search" id="qualityGiftServiceSearch" placeholder="${tr('اكتبي اسم الخدمة…','Search service…')}" autocomplete="off"><select name="serviceId" id="qualityGiftService"><option value="">${tr('اختاري خدمة من النتائج','Select a service')}</option>${serviceOpts}</select></label>
@@ -8313,9 +8740,16 @@ function giftsForm(){
 function installGifts(){const target=document.getElementById('salonClientPagePanel');if(!client()||salonClientPage!=='gifts'||!target)return;
  target.innerHTML=giftsForm();const form=target.querySelector('#qualityGiftRequest'),kind=form.querySelector('[name="kind"]');
  const owned=document.createElement('section');owned.className='quality-received-gifts';owned.innerHTML='<h3>'+tr('هدايا وصلت لكِ','Gifts received')+'</h3><div class="quality-received-body">'+tr('جارٍ التحقق من هداياك…','Checking your gifts…')+'</div>';target.append(owned);
+ const refreshSent=qualityInstallSentGifts(target);
  try{const uid=auth.currentUser.uid;firestore.collection('clientGiftViews').doc(uid).collection('gifts').get({source:'server'}).then(snap=>{
   if(!owned.isConnected||auth.currentUser?.uid!==uid)return;const data=snap.docs.map(d=>d.data());
-  owned.querySelector('.quality-received-body').innerHTML=data.length?data.map(g=>`<div class="quality-order"><b>${safe(g.senderName)} 🎁</b><p>${safe(g.message)}</p><small>${safe(g.kind)} · ${g.kind==='voucher'?(Number(g.remainingAmount??g.amount)||0)+' '+tr('ريال متبقٍ','SAR remaining'):safe(g.amount)+' '+tr('ريال','SAR')} — ${g.status==='redeemed'?tr('تم استخدام الرصيد','Balance redeemed'):tr('مؤكدة، راجعي الصالون لاستبدالها','Approved; contact the salon to redeem')}</small></div>`).join(''):tr('ما عندك هدايا مربوطة بحسابك بعد.','No gifts are linked to your account yet.');
+  const body=owned.querySelector('.quality-received-body');
+  data.sort((a,b)=>orderCreatedAt(b)-orderCreatedAt(a));
+  body.innerHTML=data.length?data.map(qualityReceivedGiftCard).join(''):tr('ما عندك هدايا مربوطة بحسابك بعد.','No gifts are linked to your account yet.');
+  body.querySelectorAll('[data-copy-gift-code]').forEach(button=>button.onclick=async()=>{
+   try{await navigator.clipboard.writeText(button.dataset.copyGiftCode);toast(tr('تم نسخ رمز الهدية','Gift code copied'))}
+   catch(error){toast(tr('حددي الرمز وانسخيه من البطاقة.','Select and copy the code from the card.'))}
+  });
  }).catch(e=>{owned.querySelector('.quality-received-body').textContent=tr('تعذر عرض الهدايا؛ راجعي صلاحيات Firebase.','Unable to load gifts; check Firebase permissions.')})}catch(e){console.warn('Gift view',e)}
  function update(){const v=kind.value;form.querySelector('#qualityGiftServiceRow').hidden=v!=='service';form.querySelector('#qualityGiftPackageRow').hidden=v!=='package';form.querySelector('#qualityGiftVoucherRow').hidden=v!=='voucher';const selected=form.querySelector('[name="voucherChoice"]:checked')?.value;form.querySelector('#qualityGiftCustomRow').hidden=selected!=='custom'}
  form.addEventListener('change',update);update();
@@ -8334,7 +8768,7 @@ function installGifts(){const target=document.getElementById('salonClientPagePan
   else if(giftKind==='voucher'){const chosen=clean(d.get('voucherChoice'));price=Number(chosen==='custom'?d.get('customAmount'):chosen);if(!Number.isSafeInteger(price)||price<1||price>10000)throw Error('حددي مبلغ القسيمة من 1 إلى 10,000 ريال');title='قسيمة مالية';itemId='voucher'}
   else throw Error('نوع الهدية غير صحيح');
   popup=salonOpenRequestWindow();
-  const created=await giftOrders.add({clientUid:auth.currentUser.uid,recipientName:clean(d.get('recipientName')),recipientPhone:'0'+rPhone,senderName:clean(d.get('senderName')),senderPhone:clean(portalUser?.phone||''),occasion:clean(d.get('occasion')),kind:giftKind,itemId,message,requestedAmount:price,status:'pending',createdAt:timestamp()});
+  const created=await giftOrders.add({clientUid:auth.currentUser.uid,recipientName:clean(d.get('recipientName')),recipientPhone:'0'+rPhone,senderName:clean(d.get('senderName')),senderPhone:clean(portalUser?.phone||''),occasion:clean(d.get('occasion')),kind:giftKind,itemId,message,coverId:qualityGiftCoverId(d.get('coverId')),requestedAmount:price,status:'pending',createdAt:timestamp()});
   saved=true;
   const occasion={birthday:'عيد ميلاد',graduation:'تخرج',thanks:'شكر وتقدير',other:'مناسبة أخرى'}[clean(d.get('occasion'))];
   const url=salonRequestWhatsApp(['طلب هدية — صالون جودة الأظافر','رقم الطلب: '+created.id,
@@ -8343,7 +8777,7 @@ function installGifts(){const target=document.getElementById('salonClientPagePan
    'المناسبة: '+occasion,'القيمة المتوقعة: '+price+' ريال','رسالة الإهداء: '+message,'يرجى تزويدي بطريقة الدفع لتأكيد الهدية.']);
   salonFinishRequestWhatsApp(url,popup,target.querySelector('.quality-gift'));
   if(url)toast('تم تسجيل طلب الهدية. أرسلي الرسالة في واتساب لتنسيق الدفع.');
-  form.reset();update();
+  form.reset();update();void refreshSent();
  }catch(e){if(!saved)popup?.close();notifyError(saved?'تم حفظ الهدية وتعذر فتح واتساب':'تعذر حفظ طلب الهدية',e)}
  finally{if(button.isConnected)button.disabled=false}
 
@@ -8405,30 +8839,46 @@ async function deliverGiftToVerifiedRecipient(id){requiresOwner();const ref=gift
   if(matching.length!==1)throw Error('لا يوجد حساب واحد مؤكد للمستلمة. اربطي حسابها من إدارة العميلات بعد التحقق من هويتها أولًا.');
   const uid=String(matching[0].authUid),p=await tx.get(profile(uid));
   if(!p.exists||phone(p.data()?.phone)!==phone(gift.recipientPhone))throw Error('لا يتطابق رقم جوال المستلمة مع حسابها المسجل');
-  const view=firestore.collection('clientGiftViews').doc(uid).collection('gifts').doc(id);
-  tx.set(view,{orderId:id,recipientUid:uid,kind:String(gift.kind),itemId:String(gift.itemId),occasion:String(gift.occasion),senderName:String(gift.senderName),message:String(gift.message),amount:Number(gift.requestedAmount)||0,status:'active',createdAt:timestamp()});
+  const view=salonGiftViewRef(uid,id);
+  const voucherRef=firestore.collection('salonGiftVouchers').doc('GV-'+id);
+  const voucher=await tx.get(voucherRef);
+  if(voucher.exists){
+   const record=voucher.data();
+   if(record.orderId!==id||phone(record.recipientPhone)!==phone(gift.recipientPhone)||record.recipientUid&&record.recipientUid!==uid)
+    throw Error('رمز الهدية مربوط بحساب مختلف');
+   tx.update(voucherRef,{recipientUid:uid,updatedAt:timestamp()});
+  }
+  tx.set(view,giftProjection(gift,id,uid,voucher.exists?voucher.data():null));
   tx.update(ref,{recipientVerified:true,recipientUid:uid,deliveredAt:timestamp()});
  });
 }
+function giftProjection(gift,id,recipientUid,voucher){
+ const value=Number(voucher?.initialAmount??gift.amountPaid??gift.requestedAmount)||0;
+ return {orderId:id,recipientUid,kind:String(gift.kind),itemId:String(gift.itemId),occasion:String(gift.occasion),
+  senderName:String(gift.senderName),recipientName:String(gift.recipientName||''),message:String(gift.message),giftTitle:String(gift.giftTitle||''),
+  coverId:String(gift.coverId||'rose'),amount:value,status:voucher?.status||'active',createdAt:timestamp(),
+  ...(voucher?{voucherId:'GV-'+id,remainingAmount:Number(voucher.remainingAmount)||0,expiresOn:String(voucher.expiresOn||'')}:{})};
+}
 function verifiedCRM(remote,uid,p){const c=findOwnerLinked(uid,remote);if(phone(c.phone)!==phone(p.phone)||phone(c.phone).length!==9)throw Error('لا تتطابق بيانات ملكية الجوال. أعيدي التحقق من العميلة');return c}
 function packageProjection(main,crm){return (main.clientPackages||[]).filter(x=>String(x.clientId)===String(crm.id)).map(x=>({id:String(x.id),packageId:String(x.packageId||''),packageName:String(x.packageName||''),packageNameEn:String(x.packageNameEn||''),total:Number(x.total)||0,used:Number(x.used)||0,expiresOn:String(x.expiresOn||''),purchasedOn:String(x.purchasedOn||''),eligibleServiceIds:Array.isArray(x.eligibleServiceIds)?x.eligibleServiceIds:[],kind:String(x.kind||'credit')}))}
-async function approveOrder(type,id){requiresOwner();const ref=(type==='package'?packageOrders:giftOrders).doc(id),mainRef=salonDoc;
+async function approveOrder(type,id,expiresOn,expectedTender){requiresOwner();
+ if(type==='gift'&&(!expiresOn||salonGiftVoucherExpired({expiresOn})))throw Error('اختاري تاريخ انتهاء صالحًا للهدية');const ref=(type==='package'?packageOrders:giftOrders).doc(id),mainRef=salonDoc;
  await firestore.runTransaction(async tx=>{
   // Every read precedes the first write in a Firestore transaction.
   const orderSnap=await tx.get(ref);if(!orderSnap.exists||orderSnap.data().status!=='pending')throw Error('الطلب معتمد أو ملغي سابقًا');
   const o=orderSnap.data(),m=await tx.get(mainRef);if(!m.exists)throw Error('سجل الصالون غير متاح');
   const data=m.data()||{},p=await tx.get(profile(o.clientUid));if(!p.exists)throw Error('ملف العميلة غير موجود');
   const crm=verifiedCRM(data,o.clientUid,p.data());
-  let certifiedGiftAmount=0;
+  let certifiedGiftAmount=0,giftTitle='',packagePrice=0,giftUse=null,voucherRef=null,recipientView=null;
   if(type==='gift'){
    if(o.kind==='voucher'){
     if(String(o.itemId)!=='voucher'||!Number.isSafeInteger(Number(o.requestedAmount))||Number(o.requestedAmount)<1||Number(o.requestedAmount)>10000)throw Error('قسيمة الهدية بمبلغ غير صالح');
-    certifiedGiftAmount=Number(o.requestedAmount);
+    certifiedGiftAmount=Number(o.requestedAmount);giftTitle='قسيمة هدية';
    }else{
     const source=o.kind==='service'?(data.services||[]):o.kind==='package'?(data.packages||[]):[];
     const item=source.find(x=>String(x.id)===String(o.itemId)&&x.active!==false);
     if(!item)throw Error('الخدمة أو الباقة غير متاحة وقت الدفع؛ راجعي الطلب');
-    certifiedGiftAmount=Number(item.price)||0;
+    certifiedGiftAmount=Number(item.price)||0;giftTitle=clean(item.nameAr||item.name||'هدية');
     if(!Number.isFinite(certifiedGiftAmount)||certifiedGiftAmount<0||Math.abs(Number(o.requestedAmount)-certifiedGiftAmount)>.01)throw Error('تغيّر سعر الخدمة أو الباقة. ألغِي الطلب القديم وأنشئي طلبًا بالسعر الصحيح.');
    }
   }
@@ -8453,6 +8903,19 @@ async function approveOrder(type,id){requiresOwner();const ref=(type==='package'
   }
   if(type==='package'){
    const template=(data.packages||[]).find(x=>String(x.id)===String(o.packageId)&&x.active!==false);if(!template)throw Error('الباقة محذوفة أو غير نشطة');
+   packagePrice=Math.round(Number(template.price||0)*100)/100;
+   if(!Number.isFinite(packagePrice)||packagePrice<0)throw Error('سعر الباقة يحتاج إلى مراجعة');
+   if(o.giftOrderId){
+    const giftId=salonGiftOrderId('GV-'+o.giftOrderId);
+    recipientView=await salonReadClientGift(tx,String(o.clientUid),giftId);
+    voucherRef=firestore.collection('salonGiftVouchers').doc('GV-'+giftId);
+    const voucher=await tx.get(voucherRef),value=voucher.data();
+    if(!voucher.exists||value.orderId!==giftId||value.recipientUid!==String(o.clientUid)||phone(value.recipientPhone)!==phone(crm.phone))
+     throw Error('الهدية غير مرتبطة بعميلة الطلب');
+    giftUse=salonVoucherSpend(value,packagePrice);
+    if(giftUse.amountUsed!==Number(expectedTender?.amountUsed)||giftUse.externalAmount!==Number(expectedTender?.externalAmount))
+     throw Error('تغيّر رصيد الهدية أو سعر الباقة. أعيدي مراجعة المبلغ قبل التأكيد');
+   }
    kind=template.kind==='credit'?'credit':'instant';const included=(template.items||[]).filter(x=>Number(x.quantity)>0);
    if(!included.length)throw Error('الباقة لا تحتوي خدمات؛ يجب تصحيحها أولًا');
    const total=kind==='credit'?Math.floor(Number(template.creditsTotal)||0):1;
@@ -8474,17 +8937,40 @@ async function approveOrder(type,id){requiresOwner();const ref=(type==='package'
    tx.set(viewRef,view,{merge:true});
   }
   if(reward>0&&approvedWallet)tx.update(wRef,{points:Number(w.data().points||0)+reward,updatedAt:timestamp()});
-  if(recipientGiftRef){tx.set(recipientGiftRef,{orderId:id,recipientUid,kind:String(o.kind),itemId:String(o.itemId),occasion:String(o.occasion),senderName:String(o.senderName),message:String(o.message),amount:certifiedGiftAmount,status:'active',createdAt:timestamp()})}
-  // A paid voucher becomes a real owner-only balance, bound to the verified recipient's phone.
-  if(type==='gift' && o.kind==='voucher'){
+  if(type==='gift'){
    const voucherId='GV-'+id;
-   const vr=firestore.collection('salonGiftVouchers').doc(voucherId);
-   tx.set(vr,{voucherId,orderId:id,recipientPhone:String(o.recipientPhone),recipientUid:recipientUid||'',initialAmount:certifiedGiftAmount,remainingAmount:certifiedGiftAmount,spentAmount:0,status:'active',createdAt:timestamp(),updatedAt:timestamp()});
+   const voucher={voucherId,orderId:id,recipientPhone:String(o.recipientPhone),recipientUid,
+    initialAmount:certifiedGiftAmount,remainingAmount:certifiedGiftAmount,spentAmount:0,
+    status:certifiedGiftAmount?'active':'redeemed',expiresOn,createdAt:timestamp(),updatedAt:timestamp()};
+   tx.set(firestore.collection('salonGiftVouchers').doc(voucherId),voucher);
+   if(recipientGiftRef)tx.set(recipientGiftRef,giftProjection({...o,giftTitle},id,recipientUid,voucher));
+   tx.update(ref,{status:'approved',paidAt:timestamp(),resolvedBy:OWNER,awardedPoints:reward,amountPaid:certifiedGiftAmount,
+    recipientVerified:!!recipientUid,recipientUid,voucherId,giftTitle,expiresOn,coverId:String(o.coverId||'rose')});
+  }else{
+   if(giftUse){
+    const {remainingAmount,spentAmount,status}=giftUse;
+    tx.update(voucherRef,{remainingAmount,spentAmount,status,lastPackageOrderId:id,updatedAt:timestamp()});
+    tx.update(recipientView.ref,{remainingAmount,status});
+   }
+   tx.update(ref,{status:'approved',paidAt:timestamp(),resolvedBy:OWNER,awardedPoints:reward,grantId:grant.id,
+    amountPaid:packagePrice,externalAmountPaid:giftUse?.externalAmount??packagePrice,giftAmountUsed:giftUse?.amountUsed??0});
   }
-  tx.update(ref,{status:'approved',paidAt:timestamp(),resolvedBy:OWNER,awardedPoints:reward,...(type==='package'?{grantId:grant.id,amountPaid:Math.max(0,Number((data.packages||[]).find(x=>String(x.id)===String(o.packageId))?.price)||0)}:{amountPaid:certifiedGiftAmount,recipientVerified:!!recipientUid,recipientUid:recipientUid||''})});
  });
  // Update local cache only after the server commit, without re-writing CRM arrays.
  try{const r=await salonDoc.get({source:'server'});if(r.exists){db.clients=r.data().clients||db.clients;db.clientPackages=r.data().clientPackages||db.clientPackages}}catch(e){console.warn('Post-approval refresh',e)}
+}
+async function reviewPackageGiftPayment(id){
+ const ref=packageOrders.doc(id);
+ const [order,main]=await Promise.all([ref.get({source:'server'}),salonDoc.get({source:'server'})]);
+ if(!order.exists||order.data().status!=='pending'||!main.exists)throw Error('الطلب غير متاح');
+ const o=order.data();
+ if(!o.giftOrderId)return null;
+ const giftId=salonGiftOrderId('GV-'+o.giftOrderId);
+ const voucher=await firestore.collection('salonGiftVouchers').doc('GV-'+giftId).get({source:'server'});
+ const template=(main.data().packages||[]).find(p=>String(p.id)===String(o.packageId)&&p.active!==false);
+ const value=voucher.data();
+ if(!voucher.exists||value.recipientUid!==String(o.clientUid)||!template)throw Error('الهدية أو الباقة غير متاحة');
+ return salonVoucherSpend(value,template.price);
 }
 function ownerOrdersPage(type){
  const isPackage=type==='package';
@@ -8523,8 +9009,14 @@ function ownerOrdersPage(type){
    out.innerHTML=query.value.trim()||status.value?'<p class="muted">لا توجد طلبات مطابقة للبحث.</p>':'<p class="muted">لا توجد طلبات مسجلة.</p>';
    return;
   }
-    out.innerHTML=pageRows.map(d=>`<div class="quality-order" data-order-id="${safe(d.id)}"><header><strong>${safe(type==='package'?'طلب باقة':'طلب هدية')} #${safe(d.id.slice(0,8))}</strong><span class="badge">${safe(d.status==='approved'?'مؤكد الدفع':d.status==='cancelled'?'ملغي':'بانتظار الدفع')}</span></header><p>${type==='package'?`العميلة: ${safe(d.clientName)} · الجوال: ${safe(d.clientPhone)} · الباقة: ${safe(orderItemName(d,type))}`:`المرسلة: ${safe(d.senderName)} · المستلمة: ${safe(d.recipientName)} · جوال المرسلة: ${safe(d.senderPhone)} · جوال المستلمة: ${safe(d.recipientPhone)} · الهدية: ${safe(orderItemName(d,type))} · المبلغ المطلوب: ${safe(d.requestedAmount)} ر.س`}</p>${type==='gift'&&d.kind==='voucher'&&d.status==='approved'?`<p class="quality-note"><b>رمز القسيمة للاستخدام في الكاشير:</b> <code dir="ltr">GV-${safe(d.id)}</code></p>`:''}${orderDate(d)?`<p class="muted tiny">تاريخ الطلب: ${safe(orderDate(d))}</p>`:''}${d.message?`<p>${safe(d.message)}</p>`:''}<div class="row"><button type="button" data-approve="${safe(d.id)}" class="btn success small" ${d.status!=='pending'?'disabled':''}>تأكيد الدفع</button><button type="button" data-reject="${safe(d.id)}" class="btn danger small" ${d.status!=='pending'?'disabled':''}>إلغاء الطلب</button>${type==='gift'&&d.status==='approved'&&d.recipientVerified!==true?`<button type="button" data-deliver="${safe(d.id)}" class="btn secondary small">ربط الهدية بالمستلمة بعد التحقق</button>`:''}</div></div>`).join('');
-  out.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تأكدتِ من وصول المبلغ فعليًا ومن هوية العميلة؟ لن يتكرر التفعيل لنفس الطلب.'))return;b.disabled=true;try{await approveOrder(type,b.dataset.approve);toast('تم تأكيد الدفع وحفظ الطلب');await refresh()}catch(e){notifyError('تعذر اعتماد الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
+    out.innerHTML=pageRows.map(d=>`<div class="quality-order" data-order-id="${safe(d.id)}"><header><strong>${safe(type==='package'?'طلب باقة':'طلب هدية')} #${safe(d.id.slice(0,8))}</strong><span class="badge">${safe(d.status==='approved'?'مؤكد الدفع':d.status==='cancelled'?'ملغي':'بانتظار الدفع')}</span></header><p>${type==='package'?`العميلة: ${safe(d.clientName)} · الجوال: ${safe(d.clientPhone)} · الباقة: ${safe(orderItemName(d,type))}`:`المرسلة: ${safe(d.senderName)} · المستلمة: ${safe(d.recipientName)} · جوال المرسلة: ${safe(d.senderPhone)} · جوال المستلمة: ${safe(d.recipientPhone)} · الهدية: ${safe(orderItemName(d,type))} · المبلغ المطلوب: ${safe(d.requestedAmount)} ر.س`}</p>${type==='gift'?qualityOwnerGiftControls(d):''}${orderDate(d)?`<p class="muted tiny">تاريخ الطلب: ${safe(orderDate(d))}</p>`:''}${d.message?`<p>${safe(d.message)}</p>`:''}<div class="row"><button type="button" data-approve="${safe(d.id)}" class="btn success small" ${d.status!=='pending'?'disabled':''}>تأكيد الدفع</button><button type="button" data-reject="${safe(d.id)}" class="btn danger small" ${d.status!=='pending'?'disabled':''}>إلغاء الطلب</button>${type==='gift'&&d.status==='approved'&&d.recipientVerified!==true?`<button type="button" data-deliver="${safe(d.id)}" class="btn secondary small">ربط الهدية بالمستلمة بعد التحقق</button>`:''}</div></div>`).join('');
+  if(type==='gift')qualityBindGiftShareButtons(out,pageRows,gift=>clean(gift.giftTitle)||orderItemName(gift,'gift'));
+  out.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const tender=type==='package'?await reviewPackageGiftPayment(b.dataset.approve):null;
+   if(!tender&&!confirm('هل تأكدتِ من وصول المبلغ ومن هوية العميلة؟ لن يتكرر تفعيل الطلب.'))return;
+   if(tender&&!confirm('سيُخصم '+amount(tender.amountUsed)+' من الهدية. '+(tender.externalAmount?'هل تأكدتِ من وصول المتبقي '+amount(tender.externalAmount)+'؟':'لا يوجد مبلغ إضافي مطلوب. هل تؤكدين الطلب؟')))return;
+   const expiry=type==='gift'?b.closest('[data-order-id]').querySelector('[data-gift-expiry]'):null;
+   if(expiry&&!expiry.reportValidity())return;
+   await approveOrder(type,b.dataset.approve,expiry?.value,tender);toast('تم تأكيد الدفع وحفظ الطلب');await refresh()}catch(e){notifyError('تعذر اعتماد الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
   out.querySelectorAll('[data-reject]').forEach(b=>b.onclick=async()=>{if(!confirm('تأكيد إلغاء الطلب؟ لن تُضاف باقة أو نقاط.'))return;b.disabled=true;try{await rejectOrder(type,b.dataset.reject);toast('أُلغي الطلب');await refresh()}catch(e){notifyError('تعذر إلغاء الطلب',e)}finally{if(b.isConnected)b.disabled=false}});
   out.querySelectorAll('[data-deliver]').forEach(b=>b.onclick=async()=>{if(!confirm('هل تحققتِ من ملكية حساب المستلمة للمشتريات ورقم جوالها؟'))return;b.disabled=true;try{await deliverGiftToVerifiedRecipient(b.dataset.deliver);toast('تم ربط الهدية بحساب المستلمة المؤكد');await refresh()}catch(e){notifyError('تعذر ربط الهدية',e)}finally{if(b.isConnected)b.disabled=false}});
 
@@ -8599,30 +9091,68 @@ showPortalBookingsOwner=async function(){
  try{const snap=await firestore.collection('portalBookings').get({source:'server'});
   if(!host.isConnected)return;
   const data=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time))||orderCreatedAt(a)-orderCreatedAt(b));
-  const waiting=data.filter(b=>b.status==='pending');
-  const recent=data.filter(b=>b.status!=='pending'&&String(b.date||'')>=today());
+  const changes=data.filter(salonHasPendingReschedule);
+  const waiting=data.filter(b=>b.status==='pending'&&!salonHasPendingReschedule(b));
+  const recent=data.filter(b=>b.status!=='pending'&&!salonHasPendingReschedule(b)&&String(b.date||'')>=today());
   const active=['confirmed','arrived','inProgress','completed'];
   const card=b=>{
+   const request=salonHasPendingReschedule(b)?b.rescheduleRequest:null;
+   const requestedDate=request?.date||b.date,requestedTime=request?.time||b.time;
    const id=safe(b.id),hasNumber=b.queueNumber&&b.queueDate===b.date;
    const date=safe(salonBookingDayLabel(b.date)),time=safe(b.time);
-   const collision=b.status==='pending'&&data.some(other=>other.id!==b.id&&other.date===b.date&&other.staffUid===b.staffUid&&
-    (other.status==='pending'||active.includes(other.status))&&timeToMin(b.time)<timeToMin(other.time)+Math.max(5,Number(other.duration)||30)&&
-    timeToMin(other.time)<timeToMin(b.time)+Math.max(5,Number(b.duration)||30));
+   const collision=(request||b.status==='pending')&&data.some(other=>other.id!==b.id&&other.date===requestedDate&&other.staffUid===b.staffUid&&
+    (other.status==='pending'||active.includes(other.status))&&timeToMin(requestedTime)<timeToMin(other.time)+Math.max(5,Number(other.duration)||30)&&
+    timeToMin(other.time)<timeToMin(requestedTime)+Math.max(5,Number(b.duration)||30));
    return `<article class="quality-order"><header><strong>${safe(b.clientName)} — ${date} · ${time}</strong><span class="badge">${safe(salonBookingQueueStatus(b))}</span></header>
     <p>${safe(b.serviceName)} — ${safe(b.staffName)} · ${safe(b.clientPhone)}</p>
     ${b.pointsToRedeem>0?`<p>طلب استخدام ${safe(b.pointsToRedeem)} نقطة · الخصم المطلوب ${amount(b.loyaltyDiscountRequested)}</p>`:''}
     ${collision?'<p class="quality-note">يوجد طلب آخر أو حجز متداخل في وقت الموظفة. يبقى كل طلب في الانتظار إلى أن تقرري الموافقة عليه.</p>':''}
     ${hasNumber?`<p><strong>رقم الدور: ${safe(b.queueNumber)}</strong></p>`:''}
+    ${b.giftOrderId?`<p>هدية مطلوبة للفاتورة: <code dir="ltr">GV-${safe(b.giftOrderId)}</code></p>`:''}
+    ${request?`<p class="quality-note">طلب تأجيل إلى ${safe(salonBookingDayLabel(request.date))} الساعة ${safe(request.time)}. الموعد الأصلي هو المعروض أعلى البطاقة.</p>`:''}
     <div class="row">
-     ${b.status==='pending'||b.status==='confirmed'&&!hasNumber?`<button type="button" class="btn success small" data-confirm="${id}">${b.status==='pending'?'موافقة وتخصيص دور':'تخصيص دور للحجز المؤكد'}</button>`:''}
-     ${['pending','confirmed'].includes(b.status)?`<button type="button" class="btn secondary small" data-edit-booking="${id}">تعديل الموعد</button><button type="button" class="btn danger small" data-cancel="${id}">إلغاء</button>`:''}
+     ${request?`<button type="button" class="btn success small" data-approve-reschedule="${id}">الموافقة على التأجيل</button><button type="button" class="btn secondary small" data-decline-reschedule="${id}">رفض التأجيل</button>`:''}
+     ${!request&&(b.status==='pending'||b.status==='confirmed'&&!hasNumber)?`<button type="button" class="btn success small" data-confirm="${id}">${b.status==='pending'?'موافقة وتخصيص دور':'تخصيص دور للحجز المؤكد'}</button>`:''}
+     ${['pending','confirmed'].includes(b.status)?`${request?'':`<button type="button" class="btn secondary small" data-edit-booking="${id}">تعديل الموعد</button>`}<button type="button" class="btn danger small" data-cancel="${id}">إلغاء</button>`:''}
+     ${b.giftOrderId&&b.status==='confirmed'?`<button type="button" class="btn secondary small" data-cashier-booking-gift="${id}">فتح الكاشير برمز الهدية</button>`:''}
      ${salonBookingConfirmationLink(b)}${salonCancellationLink(b)}
     </div></article>`;
   };
-  host.innerHTML=`<h3>قائمة انتظار طلبات الحجز (${waiting.length})</h3>
+  host.innerHTML=`${changes.length?`<h3>طلبات تأجيل المواعيد (${changes.length})</h3>${changes.map(card).join('')}`:''}<h3>قائمة انتظار طلبات الحجز (${waiting.length})</h3>
    <p class="muted">تستلمين العربون عبر واتساب قبل الموافقة. يبدأ ترقيم الدور من 1 لكل يوم موعد، حسب ترتيب موافقتك.</p>
    ${waiting.length?waiting.map(card).join(''):'<p class="muted">لا توجد طلبات تنتظر الموافقة.</p>'}
    <h3>الحجوزات المؤكدة والحالات الأخرى</h3>${recent.length?recent.map(card).join(''):'<p class="muted">لا توجد حجوزات حالية.</p>'}`;
+  host.querySelectorAll('[data-cashier-booking-gift]').forEach(button=>button.onclick=()=>{
+   const booking=data.find(item=>item.id===button.dataset.cashierBookingGift);
+   if(!booking?.giftOrderId)return;
+   const crm=(db.clients||[]).find(c=>String(c.authUid||'')===String(booking.clientUid));
+   renderOwner('cashier');
+   const input=document.querySelector('#invoiceGiftVoucherCode'),form=document.querySelector('#invoiceForm');
+   if(input&&form){input.value='GV-'+booking.giftOrderId;form.dataset.linkedBooking=booking.id}
+   if(crm){
+    setCashierCustomerMode('existing');
+    const select=document.querySelector('#invoiceClient');
+    if(select){select.value=crm.id;select.dispatchEvent(new Event('change'))}
+   }
+   toast('تم نقل الرمز إلى الكاشير. تحققي من الرصيد والمستلمة قبل الحفظ.');
+  });
+  host.querySelectorAll('[data-approve-reschedule],[data-decline-reschedule]').forEach(button=>button.onclick=async()=>{
+   const approve=button.hasAttribute('data-approve-reschedule');
+   const id=button.dataset.approveReschedule||button.dataset.declineReschedule;
+   const booking=changes.find(item=>item.id===id);
+   if(!booking||!confirm(approve?'تأكيد تغيير الموعد إلى '+salonBookingDayLabel(booking.rescheduleRequest.date)+' الساعة '+booking.rescheduleRequest.time+'؟':'رفض طلب التأجيل والإبقاء على الموعد الأصلي؟'))return;
+   const actions=[...button.parentElement.querySelectorAll('button')];
+   actions.forEach(action=>{action.disabled=true});
+   try{
+    requiresOwner();
+    const ref=firestore.collection('portalBookings').doc(id);
+    const {id:ignored,...expected}=booking;
+    const result=await firestore.runTransaction(tx=>salonResolveBookingReschedule(tx,ref,expected,approve));
+    toast(approve?(result.confirmed?'تم تغيير الموعد. تقدرين ترسلين الموعد الجديد للعميلة عبر واتساب.':'تغيّر الوقت المطلوب. الحجز لا يزال بانتظار التأكيد.'):'تم رفض التأجيل وبقي الموعد الأصلي.');
+    await showPortalBookingsOwner();
+   }catch(err){notifyError('تعذر تحديث طلب التأجيل',err)}
+   finally{actions.forEach(action=>{action.disabled=false})}
+  });
   host.querySelectorAll('[data-edit-booking]').forEach(button=>button.onclick=()=>window.ownerEditSavedBooking(button.dataset.editBooking));
   host.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await confirmPortalBooking(b.dataset.confirm)}catch(e){notifyError('تعذر تأكيد الحجز',e)}});
   host.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await cancelPortalBooking(b.dataset.cancel)}catch(e){notifyError('تعذر إلغاء الحجز',e)}});
@@ -8780,21 +9310,223 @@ const fmt=n=>new Intl.NumberFormat('ar-SA',{style:'currency',currency:'SAR'}).fo
 function install(){if(!owner())return;
  const form=document.querySelector('#cashierForm,#invoiceForm,form#cashierInvoiceForm');
  if(!form||form.querySelector('#salonGiftVoucherPanel'))return;
- const panel=document.createElement('section');panel.id='salonGiftVoucherPanel';panel.innerHTML=`<h3>🎁 صرف قسيمة هدية مدفوعة</h3><p class="voucher-note">تتحقق قاعدة Firebase من الرصيد ورقم المستلمة عند حفظ الفاتورة، ويُخصم المبلغ مع حفظها في معاملة واحدة.</p>
+ const panel=document.createElement('section');panel.id='salonGiftVoucherPanel';panel.innerHTML=`<h3>صرف قسيمة هدية مدفوعة</h3><p class="voucher-note">تتحقق قاعدة Firebase من الرصيد ورقم المستلمة عند حفظ الفاتورة، ويُخصم المبلغ مع حفظها في معاملة واحدة.</p>
  <div class="voucher-fields"><label>رمز القسيمة بعد اعتماد دفعها <input type="text" id="invoiceGiftVoucherCode" placeholder="GV-رقم-طلب-الهدية" autocomplete="off" dir="ltr"></label><label>المبلغ المراد استخدامه (ر.س) <input id="invoiceGiftVoucherAmount" type="number" min="0" step=".01" value="0" inputmode="decimal"></label></div>
  <label><input id="invoiceGiftVoucherVerified" type="checkbox"> تحققت من هوية مستلمة القسيمة ومطابقة رقم جوالها</label>
  <button type="button" class="btn secondary small" id="invoiceGiftVoucherCheck">التحقق من الرصيد</button><p class="voucher-note" id="invoiceGiftVoucherStatus" aria-live="polite"></p>`;
  const anchor=form.querySelector('#invoicePayment')?.closest('.field')||form.querySelector('button[type="submit"]');
  if(anchor)anchor.after(panel);else form.append(panel);
- panel.querySelector('#invoiceGiftVoucherCheck').addEventListener('click',async()=>{const code=panel.querySelector('#invoiceGiftVoucherCode').value.trim(),status=panel.querySelector('#invoiceGiftVoucherStatus');
+ const codeField=panel.querySelector('#invoiceGiftVoucherCode');
+ const amountField=panel.querySelector('#invoiceGiftVoucherAmount');
+ const verified=panel.querySelector('#invoiceGiftVoucherVerified');
+ const status=panel.querySelector('#invoiceGiftVoucherStatus');
+ let lookupVersion=0;
+ codeField.addEventListener('input',()=>{
+  lookupVersion++;
+  amountField.value='0';verified.checked=false;status.textContent='';
+ });
+ panel.querySelector('#invoiceGiftVoucherCheck').addEventListener('click',async()=>{
+  if(codeField.disabled)return;
+  const code=codeField.value.trim(),version=++lookupVersion;
+  amountField.value='0';verified.checked=false;
   if(!/^GV-[A-Za-z0-9_-]{6,130}$/.test(code)){status.textContent='اكتبي رمز القسيمة الصحيح الذي يظهر بعد تأكيد دفع الهدية.';return}
-  status.textContent='جارٍ التحقق…';try{const snap=await firestore.collection('salonGiftVouchers').doc(code).get({source:'server'});if(!snap.exists){status.textContent='القسيمة غير موجودة أو لم يُعتمد دفعها';return}
-  const v=snap.data();const remainder=Number(v.remainingAmount)||0;status.textContent=(v.status==='active'?'الرصيد المتبقي: '+fmt(remainder):'القسيمة مستهلكة أو غير نشطة')+' — الرقم المسجل للمستلمة: '+String(v.recipientPhone||'');
-  if(v.status==='active'&&remainder>0)panel.querySelector('#invoiceGiftVoucherAmount').value=String(Math.min(remainder,Number(typeof cashierTotals==='function'?cashierTotals().total:remainder)||remainder));
- }catch(e){status.textContent='تعذر فحص القسيمة: '+String(e.message||e)}});
+  status.textContent='جارٍ التحقق…';
+  try{
+   const snap=await firestore.collection('salonGiftVouchers').doc(code).get({source:'server'});
+   if(version!==lookupVersion)return;
+   if(!snap.exists){status.textContent='القسيمة غير موجودة أو لم يُعتمد دفعها';return}
+   const v=snap.data(),remainder=Number(v.remainingAmount);
+   const expiry=String(v.expiresOn||'');
+   const phone=' — الرقم المسجل للمستلمة: '+String(v.recipientPhone||'');
+   if(salonGiftVoucherExpired(v)){
+    status.textContent='القسيمة منتهية الصلاحية أو تاريخها يحتاج إلى مراجعة'+(expiry?' — '+expiry:'')+phone;
+    return;
+   }
+   const date=expiry?' — صالحة حتى '+expiry:'';
+   if(v.status!=='active'||!Number.isFinite(remainder)||remainder<=0){
+    status.textContent='القسيمة مستهلكة أو غير نشطة'+date+phone;
+    return;
+   }
+   status.textContent='الرصيد المتبقي: '+fmt(remainder)+date+phone;
+   const total=Number(typeof cashierTotals==='function'?cashierTotals().total:remainder);
+   if(Number.isFinite(total)&&total>0)amountField.value=String(Math.floor(Math.min(remainder,total)*100+1e-6)/100);
+  }catch(error){
+   if(version===lookupVersion)status.textContent='تعذر فحص القسيمة: '+String(error.message||error);
+  }
+ });
 }
 const oldRender=renderOwner;
 renderOwner=function(...args){const val=oldRender.apply(this,args);if(owner()&&(args[0]||ownerActiveTab)==='cashier')install();return val};
+})();
+</script>
+<style id="salon-day-night-style">
+.salon-appearance-button{flex:0 0 auto;min-height:38px;padding:7px 11px!important;border-radius:9px!important;white-space:nowrap;font-size:12px!important;line-height:1.35}
+.top-actions:has(.salon-appearance-button),.owner-top-tools:has(.salon-appearance-button){flex-wrap:wrap;justify-content:flex-end;gap:6px}
+@media(max-width:500px){.topbar:has(.salon-appearance-button) .brand{min-width:0}.owner-top:has(.salon-appearance-button){height:auto!important;min-height:56px;padding-block:6px}}
+@media screen{
+html[data-salon-appearance="dark"]{
+ color-scheme:dark;
+ --night-background:#19151b;
+ --night-surface:#241e27;
+ --night-raised:#302733;
+ --night-input:#1c1720;
+ --night-line:#564456;
+ --night-text:#f4e9ef;
+ --night-muted:#cdbbc8;
+ --night-accent:#edbbd2;
+ --night-gold:#e4bd92;
+ --ink:var(--night-text)!important;
+ --paper:var(--night-surface)!important;
+ --rose:var(--night-raised)!important;
+ --muted:var(--night-muted)!important;
+ --line:var(--night-line)!important;
+ --salon-background:var(--night-background)!important;
+ --editorial-ink:var(--night-text);
+ --editorial-cream:var(--night-surface);
+ --editorial-blush:var(--night-raised);
+ --editorial-brown:var(--night-muted);
+ --editorial-gold:var(--night-gold);
+ --editorial-line:var(--night-line);
+ --luxe-text:var(--night-text);
+ --luxe-ivory:var(--night-background);
+ --quality-ivory:var(--night-background);
+ --shadow:0 12px 32px #0005;
+}
+html[data-salon-appearance="dark"] body,
+html[data-salon-appearance="dark"] body:has(#app:is(.salon-editorial-home,.salon-editorial-auth,.qa-premium,.owner-content)){
+ background:var(--night-background)!important;color:var(--night-text)!important
+}
+html[data-salon-appearance="dark"] body #app:is(.wrap,.salon-editorial-client,.qa-premium,.salon-editorial-home,.salon-editorial-auth),
+html[data-salon-appearance="dark"] #app .owner-main,
+html[data-salon-appearance="dark"] #app .owner-content,
+html[data-salon-appearance="dark"] #app #employeeBookingBoard{
+ background:transparent!important;color:var(--night-text)!important
+}
+html[data-salon-appearance="dark"] body:has(#app) .topbar{
+ background:var(--night-surface)!important;color:var(--night-text)!important;border-color:var(--night-line)!important;box-shadow:0 4px 18px #0005!important
+}
+html[data-salon-appearance="dark"] body:has(#app) .topbar .brand h1,
+html[data-salon-appearance="dark"] body:has(#app) .topbar .brand small{
+ color:var(--night-text)!important
+}
+html[data-salon-appearance="dark"] #app .owner-shell :is(.owner-sidebar,.owner-top,.owner-nav-group,.owner-nav-group-items,.owner-nav-group>summary,.owner-side-bottom){
+ background:var(--night-surface)!important;color:var(--night-text)!important;border-color:var(--night-line)!important
+}
+html[data-salon-appearance="dark"] #app .owner-shell :is(.owner-brand,.owner-brand b,.owner-brand small,.owner-user,.owner-top-tools,.owner-nav-label){
+ color:var(--night-text)!important
+}
+html[data-salon-appearance="dark"] #app .owner-menu .owner-nav-group-items>button:not(.selected),
+html[data-salon-appearance="dark"] #app .owner-top-tools button,
+html[data-salon-appearance="dark"] #app .owner-mobile-menu-toggle{
+ background:var(--night-raised)!important;color:var(--night-text)!important;border-color:var(--night-line)!important
+}
+html[data-salon-appearance="dark"] body #app:is(.wrap,.qa-premium,.salon-editorial-client) :is(
+ .card,.stat,.owner-panel,.owner-kpi,.service,.table-wrap,.salon-startup-shell,.salon-setting-card,.salon-invoice-card,
+ .salon-invoice-summary>div,.salon-mobile-subpage,.salon-my-package-card,.salon-pkg-shop,.salon-pkg-card,.salon-balance-tile,
+ .salon-package-tile,.salon-package-service,.quality-order,.quality-reward,.quality-gift,.quality-administration,.quality-received-gifts,
+ .employee-booking-card,.salon-editorial-tile,.salon-editorial-auth-panel,.qa-stat,.qa-feature,.qa-giftband,.qa-sectionhero,
+ .qa-drawer-body,.qa-mobilenav,.qa-drawer-grid button,.qa-hero,.theme-preview,.salon-bulk-preview,.salon-bulk-workflow,
+ #salonBookPointPanel,#qualityPhotoEditor,#salonCartPicker
+),
+html[data-salon-appearance="dark"] :is(.modal-box,.quality-pdf-box){
+ background:var(--night-surface)!important;color:var(--night-text)!important;border-color:var(--night-line)!important;box-shadow:0 10px 25px #0003!important
+}
+html[data-salon-appearance="dark"] #app .hero{
+ background:linear-gradient(130deg,#2f2130,#452b3c)!important;color:var(--night-text)!important;border-color:var(--night-line)!important
+}
+html[data-salon-appearance="dark"] #app .owner-welcome{
+ background:linear-gradient(120deg,#322333,#492c41)!important;color:var(--night-text)!important
+}
+html[data-salon-appearance="dark"] #app :is(.qa-masthead,.qa-meta,.salon-editorial-points,.owner-mini-list>div,.chart-bars,td){
+ border-color:var(--night-line)!important
+}
+html[data-salon-appearance="dark"] body #app :is(
+ .qa-brand,.qa-intro h1,.qa-sectionhero h1,.qa-stat strong,.qa-feature strong,.qa-giftband h3,.qa-splithead h2,
+ .qa-drawer-title,.salon-editorial-title,.salon-editorial-tilebody strong,.salon-editorial-auth h2,.salon-mobile-subpage h2,
+ .salon-invoice-card header,.quality-order p,.quality-gift label,.salon-startup-shell strong,.owner-kpi strong,.stat strong,
+ .owner-welcome h2,.owner-panel h3,.hero h2,.service h3,.section-head h2,.section-head h3,.portal h3,.field label
+){
+ color:var(--night-text)!important
+}
+html[data-salon-appearance="dark"] body #app :is(
+ .qa-intro p,.qa-stat small,.qa-splithead p,.qa-sectionhero p,.qa-giftband p,.qa-feature span,.qa-meta,
+ .salon-editorial-lead,.salon-editorial-tilebody small,.salon-startup-shell small,.salon-invoice-items,.hero p,.owner-kpi small,
+ .owner-kpi>span,.owner-mini-list small,.muted,.tiny,.stat span,.empty,.bar-col
+),
+html[data-salon-appearance="dark"] .footer{
+ color:var(--night-muted)!important
+}
+html[data-salon-appearance="dark"] body #app :is(
+ .price,.invoice-total,.salon-invoice-money,.qa-textbutton,.salon-editorial-title em,.salon-editorial-tilebody b,
+ .qa-feature small,.qa-eyebrow,.qa-brandname span,.salon-editorial-kicker
+){
+ color:var(--night-accent)!important
+}
+html[data-salon-appearance="dark"] body #app:is(.wrap,.salon-editorial-client,.qa-premium) :is(
+ .qa-logo,.qa-staticon,.qa-iconbutton,.qa-logout,.qa-secondary,.nav,.nav button:not(.active),
+ .qa-desktopnav button:not(.is-active),.qa-mobilenav button:not(.is-active),.portal-icon,.qa-featureposter,
+ .salon-pkg-label,.salon-editorial-outlinebtn,.salon-editorial-tileicon,.salon-point-summary,.quality-vouchers label,
+ .btn.secondary,.btn.outline,th,.progress
+),
+html[data-salon-appearance="dark"] :is(.top-actions,.modal-box,.quality-pdf-box) .btn:is(.secondary,.outline){
+ background:var(--night-raised)!important;color:var(--night-text)!important;border-color:var(--night-line)!important
+}
+html[data-salon-appearance="dark"] #app :is(.qa-desktopnav,.qa-mobilenav) button.is-active,
+html[data-salon-appearance="dark"] #app .nav button.active{
+ background:#75475f!important;color:#fff!important
+}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input:not([type="color"],[type="checkbox"],[type="radio"],[type="range"],[type="button"],[type="submit"]),textarea,select){
+ background:var(--night-input)!important;color:var(--night-text)!important;border-color:var(--night-line)!important;accent-color:var(--night-accent)
+}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input,textarea)::placeholder{color:var(--night-muted);opacity:.8}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input[type="checkbox"],input[type="radio"]){accent-color:#c184a5}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.notice,.quality-note,.salon-bulk-hint,.salon-booking-stopped,.salon-conflict-warning){
+ background:#3b2d25!important;color:#f5d8b8!important;border-color:#6f513d!important
+}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) .badge{background:var(--night-raised);color:var(--night-text)}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.badge.green,.good){background:#234137!important;color:#c8f1dd!important}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.badge.red,.bad){background:#4d2936!important;color:#ffd4e0!important}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.badge.amber){background:#423426!important;color:#f7d5a9!important}
+html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.danger-text,.salon-invoice-error){color:#ffc1cd!important}
+html[data-salon-appearance="dark"] #app :is(div,section,article,form)[style*="background:#fff"]:not(.notice,.good,.bad){
+ background:var(--night-surface)!important
+}
+}
+</style>
+<script id="salon-day-night-mode">
+(function(){
+ 'use strict';
+ const root=document.documentElement,app=document.getElementById('app');
+ const storageKey='qualityNailSalon.appearance';
+ const button=document.createElement('button');
+ button.type='button';button.className='btn secondary salon-appearance-button no-print';
+ let dark=false;
+ try{dark=localStorage.getItem(storageKey)==='dark'}catch(error){}
+ function apply(){
+  root.dataset.salonAppearance=dark?'dark':'light';
+  const en=root.lang==='en';
+  const label=en?'Night mode':'الوضع الليلي';
+  if(button.textContent!==label)button.textContent=label;
+  button.setAttribute('aria-pressed',String(dark));
+  button.title=en?(dark?'Switch to day mode':'Switch to night mode'):(dark?'التبديل إلى الوضع النهاري':'التبديل إلى الوضع الليلي');
+ }
+ function attach(){
+  const host=app?.querySelector('.owner-top-tools')||app?.querySelector('.qa-masthead .qa-headleft')||document.querySelector('.topbar .top-actions');
+  if(host&&button.parentNode!==host)host.prepend(button);
+  apply();
+ }
+ button.addEventListener('click',()=>{
+  dark=!dark;
+  try{localStorage.setItem(storageKey,dark?'dark':'light')}catch(error){}
+  apply();
+ });
+ attach();
+ const observer=new MutationObserver(attach);
+ if(app)observer.observe(app,{childList:true});
+ observer.observe(root,{attributes:true,attributeFilter:['lang']});
+ window.addEventListener('storage',event=>{
+  if(event.key===storageKey){dark=event.newValue==='dark';apply()}
+ });
 })();
 </script>
 </body>
