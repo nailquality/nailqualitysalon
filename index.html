@@ -161,13 +161,12 @@ html.salon-site-gated #app.salon-maintenance{box-sizing:border-box;width:min(100
 #modalRoot fieldset{margin:12px 0;min-width:0}
 </style>
 <style id="salon-offers-and-ratings-css">
-#salonOnlineOfferEntry{margin:14px 0;display:flex;justify-content:center}
-.salon-online-offer-trigger{border:1px solid #ddbdce;background:#fff0f6;color:#693551;border-radius:999px;padding:10px 16px;font:inherit;font-weight:750;cursor:pointer}
-.salon-offer-dialog{width:min(94vw,500px);border:1px solid #e4c8d5;border-radius:24px;padding:26px;background:#fff9fc;color:#3b2934;box-shadow:0 20px 65px #29122240}
+.salon-offer-dialog{box-sizing:border-box;width:min(calc(100% - 28px),640px);border:1px solid #e4c8d5;border-radius:28px;padding:clamp(26px,7vw,52px);background:#fff9fc;color:#3b2934;box-shadow:0 20px 65px #29122240;text-align:center}
 .salon-offer-dialog::backdrop{background:#28192370}
-.salon-offer-dialog h2{margin:0 0 12px}
-.salon-offer-dialog p{white-space:pre-wrap;overflow-wrap:anywhere}
-.salon-offer-dialog .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.salon-offer-dialog h2{margin:0 0 14px;font-size:clamp(1.5rem,6vw,2.5rem);line-height:1.25}
+.salon-offer-dialog p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+.salon-offer-dialog .row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:24px}
+.salon-offer-dialog .row button{min-height:48px;min-width:130px}
 .salon-offer-dialog [hidden]{display:none!important}
 .salon-discount-gallery{margin:20px auto;padding:clamp(16px,4vw,32px);width:min(100%,1120px);background:#fffdfb;color:#3b2934;border:1px solid #eddcd9;border-radius:22px}
 .salon-discount-gallery header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px}
@@ -9402,7 +9401,7 @@ async function salonRequireSiteOpen(){
  const tr=(ar,en)=>lang==='en'?en:ar;
  const catalog=firestore.collection('portal').doc('catalog');
  const route='discountedServices';
- let published=null,stop=null,expiryTimer,guestGallery=false;
+ let published=null,stop=null,expiryTimer,guestGallery=false,catalogReady=false,noticeShown=false;
  const client=()=>portalRole==='client'&&!!auth.currentUser&&!!portalUser;
  const guest=()=>!auth.currentUser&&!!document.querySelector('#app .salon-editorial-hero');
  const services=()=>published?.services||portalCatalog.services||[];
@@ -9412,19 +9411,21 @@ async function salonRequireSiteOpen(){
 
  function startCatalog(){
   if(stop)return;
-  stop=catalog.onSnapshot(snapshot=>{
+  stop=catalog.onSnapshot({includeMetadataChanges:true},snapshot=>{
    if(snapshot.metadata.fromCache)return;
+   catalogReady=true;
    published=snapshot.exists?snapshot.data():null;
    refresh();
   },()=>{
    stop=null;
+   catalogReady=true;
    published=null;
    clearTimeout(expiryTimer);
    if(salonSiteIsOpen())refresh();
   });
  }
  function stopCatalog(){
-  stop?.();stop=null;published=null;
+  stop?.();stop=null;published=null;catalogReady=false;
   clearTimeout(expiryTimer);
  }
  function scheduleOfferBoundary(){
@@ -9437,8 +9438,7 @@ async function salonRequireSiteOpen(){
   if(Number.isFinite(next))expiryTimer=setTimeout(refresh,Math.min(next-now+25,2147483647));
  }
 
- function openNotice(trigger){
-  document.querySelector('#salonOnlineOfferDialog')?.remove();
+ function openNotice(sale,message){
   const dialog=document.createElement('dialog');
   dialog.id='salonOnlineOfferDialog';
   dialog.className='salon-offer-dialog';
@@ -9446,11 +9446,11 @@ async function salonRequireSiteOpen(){
   dialog.innerHTML='<h2 id="salonOnlineOfferTitle"></h2><p></p><div class="row">'+
    '<button type="button" class="btn" data-browse></button>'+
    '<button type="button" class="btn secondary" data-dismiss autofocus></button></div>';
-  const sale=active().length>0;
   dialog.querySelector('h2').textContent=sale?heading():tr('تنبيه الصالون','Salon announcement');
-  dialog.querySelector('p').textContent=notice()||(sale?tr('تصفّحي الخدمات التي يشملها الخصم واحجزي موعدك من الموقع.','Browse the discounted services and book your appointment online.'):'');
+  dialog.querySelector('p').textContent=message||tr('تصفّحي الخدمات التي يشملها الخصم واحجزي موعدك من الموقع.','Browse the discounted services and book your appointment online.');
   const browse=dialog.querySelector('[data-browse]');
-  browse.textContent=tr('تصفّح الخدمات التي عليها الخصم','Browse discounted services');
+  browse.textContent=tr('مهتمة','I’m interested');
+  browse.setAttribute('aria-label',tr('مهتمة، تصفّح الخدمات التي عليها خصم','I’m interested, browse discounted services'));
   browse.hidden=!sale;
   browse.onclick=()=>{
    dialog.close();
@@ -9459,11 +9459,12 @@ async function salonRequireSiteOpen(){
    document.querySelector('#salonDiscountGallery h1')?.focus();
   };
   const dismiss=dialog.querySelector('[data-dismiss]');
-  dismiss.textContent=tr('إغلاق','Close');
+  dismiss.textContent=tr('المرة القادمة','Maybe next time');
   dismiss.onclick=()=>dialog.close();
-  dialog.addEventListener('close',()=>{dialog.remove();if(trigger.isConnected)trigger.focus()},{once:true});
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
   document.getElementById('app').append(dialog);
   dialog.showModal();
+  noticeShown=true;
  }
 
  function drawGallery(app){
@@ -9503,24 +9504,11 @@ async function salonRequireSiteOpen(){
   if(!app)return;
   const showClient=client();
   if((showClient&&salonClientPage===route)||(guestGallery&&!auth.currentUser&&(guest()||app.querySelector('#salonDiscountGallery')))){
-   app.querySelector('#salonOnlineOfferEntry')?.remove();
    drawGallery(app);
-  }else{
-   const entry=app.querySelector('#salonOnlineOfferEntry');
-   const show=guest()||showClient&&salonClientPage==='home';
+  }else if(!noticeShown&&catalogReady&&(guest()||showClient&&salonClientPage==='home')){
    const sale=active().length>0;
-   const showNotice=!!notice();
-   if(!show||(!sale&&!showNotice)){entry?.remove();scheduleOfferBoundary();return}
-   if(entry){entry.firstElementChild.textContent=sale?heading():tr('تنبيه الصالون','Salon announcement')}
-   else{
-    const area=document.createElement('div');area.id='salonOnlineOfferEntry';
-    const button=document.createElement('button');
-    button.className='salon-online-offer-trigger';button.type='button';
-    button.textContent=sale?heading():tr('تنبيه الصالون','Salon announcement');
-    button.onclick=()=>openNotice(button);area.append(button);
-    const header=app.querySelector('.qa-masthead');
-    if(header)header.after(area);else app.prepend(area);
-   }
+   const message=notice();
+   if(sale||message)openNotice(sale,message);
   }
   scheduleOfferBoundary();
  }
