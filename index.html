@@ -10138,5 +10138,266 @@ renderOwner=function(tab=ownerActiveTab){const result=originalOwner.apply(this,a
 if(ownerReady()){makeFlatMenu();if(ownerActiveTab==='dashboard')buildDashboard();if(ownerActiveTab==='reports')reportTools()}
 })();
 </script>
+
+<style id="salon-unified-light-dark-contrast-20261114">
+/* 2026-11-14 — unified day/night contrast for every portal.
+   Pure CSS: does not change auth, bookings, packages, invoices, or Firebase. */
+@media screen {
+  html:not([data-salon-appearance="dark"]){
+    color-scheme:light;
+    --qns-surface:#fffdfc; --qns-surface-2:#fff4f8;
+    --qns-input:#fff; --qns-ink:#422b3a; --qns-muted:#6c5261;
+    --qns-border:#e5cbd7; --qns-link:#783c5a; --qns-good:#21714e;
+  }
+  html[data-salon-appearance="dark"]{
+    color-scheme:dark;
+    --qns-surface:#281f2a; --qns-surface-2:#352837;
+    --qns-input:#201922; --qns-ink:#fff0f6; --qns-muted:#e0c7d4;
+    --qns-border:#665066; --qns-link:#ffc3e0; --qns-good:#96e3bf;
+    --quality-ivory:#1b161f; --quality-wine:#f2b5d1;
+    --quality-line:#665066; --quality-petal:#665066;
+  }
+  /* Day mode: small captions and labels should remain legible on pale surfaces. */
+  html:not([data-salon-appearance="dark"]) #app :is(
+    .salon-invoice-card header,.salon-invoice-items,.salon-mobile-subpage p,
+    .salon-pkg-shop-intro,.salon-pkg-note,.salon-pkg-card p,
+    .salon-pkg-teaser p,.salon-public-package p,.quality-order p,
+    .quality-booking-hint,.salon-my-package-empty
+  ){color:#654c5b!important}
+  html:not([data-salon-appearance="dark"]) #app :is(
+    .salon-gift-fields label,.quality-form-grid>label,.field label
+  ){color:#55394b!important}
+  html:not([data-salon-appearance="dark"]) :is(#app,#modalRoot) :is(input,textarea)::placeholder{color:#786473;opacity:1}
+
+  /* Ensure old white/cream !important rules cannot leak into night mode. */
+  html[data-salon-appearance="dark"] body,
+  html[data-salon-appearance="dark"].salon-client-active body,
+  html[data-salon-appearance="dark"] body:has(.owner-shell){
+    background:#1a151e!important;color:var(--qns-ink)!important
+  }
+  html[data-salon-appearance="dark"] #app,
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client,
+  html[data-salon-appearance="dark"] #app.salon-editorial-employee{
+    color:var(--qns-ink)!important;border-color:var(--qns-border)!important
+  }
+  html[data-salon-appearance="dark"] #app :is(
+    .card,.stat,.service,.owner-panel,.owner-kpi,.salon-mobile-subpage,
+    .salon-mobile-info,.salon-invoice-card,.salon-invoice-summary>div,
+    .salon-invoice-manager,.salon-pkg-shop,.salon-pkg-card,.salon-pkg-use,
+    .salon-pkg-teaser,.salon-my-package-card,.salon-my-package-balance>div,
+    .salon-my-package-empty,.salon-booking-manager,.salon-balance-tile,
+    .salon-public-package,.salon-package-tile,.salon-package-card,
+    .salon-balance-card,.salon-bulk-workflow,.salon-bulk-preview,
+    .salon-visible-deals,.salon-visible-deal-card,.salon-price-import,
+    .salon-login-support,.salon-client-head,.salon-skill-option,
+    .salon-recovery-box,.salon-account-settings .salon-setting-card,
+    .salon-ai-box,.salon-ai-panel,.salon-ai-layout,
+    .quality-administration,.quality-order,.quality-reward,.quality-option,
+    .quality-gift,.quality-pdf-box,.quality-vouchers label,
+    .employee-account-card,.employee-booking-card,
+    .salon-mobile-offer,.salon-mobile-shortcut,
+    .oq-panel,.oq-kpi,.oq-filters,.oq-report-extra
+  ),
+  html[data-salon-appearance="dark"] :is(#modalRoot,.quality-pdf-overlay) :is(
+    .modal-box,.quality-pdf-box,.salon-invoice-manager
+  ){
+    background:var(--qns-surface)!important;
+    color:var(--qns-ink)!important;
+    border-color:var(--qns-border)!important;
+    box-shadow:0 8px 24px #09050a40!important
+  }
+  /* Lighter secondary regions must also change; the light/white mismatch was
+     the main reason invoice, package and gift labels vanished. */
+  html[data-salon-appearance="dark"] #app :is(
+    .salon-gift-hero,.salon-gift-preview,.salon-mobile-banner,
+    .salon-booking-stopped,.salon-invoice-error,.salon-quality-client-note,
+    .salon-promo-occasion,.salon-pkg-card .salon-pkg-label,
+    .salon-my-package-form,.salon-visible-deals-list,
+    .salon-offer-kind,.salon-login-help,.salon-edit-invoice-banner,
+    .salon-account-hero,.salon-booking-manager .notice,
+    .salon-client-management .salon-client-head,
+    .quality-note,.salon-bulk-actions,.salon-balance-grid,
+    .salon-service-photo-preview,.salon-discount-gallery,
+    .salon-discount-card-body,.salon-promo-badge,
+    .salon-recovery-icon,.salon-setting-symbol,
+    .salon-site-gate .salon-maintenance-reason
+  ){
+    background:var(--qns-surface-2)!important;
+    color:var(--qns-ink)!important;
+    border-color:var(--qns-border)!important
+  }
+  html[data-salon-appearance="dark"] #app :is(
+    .salon-mobile-shortcut,.salon-mobile-offer,.salon-gift-preview,
+    .salon-my-package-balance>div,.salon-invoice-summary>div,
+    .salon-pkg-tabs button,.salon-luxe-package-tabs button,
+    .salon-pkg-card .salon-pkg-label,.quality-vouchers label,
+    .quality-option,.salon-balance-tile
+  ){background:var(--qns-surface-2)!important;border-color:var(--qns-border)!important}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(
+    .salon-invoice-summary strong,.salon-invoice-money,
+    .salon-my-package-head h3,.salon-my-package-balance b,
+    .salon-pkg-shop h2,.salon-pkg-card h3,.salon-pkg-teaser h3,
+    .salon-public-package h3,.salon-public-package>b,
+    .salon-mobile-subpage h2,.salon-mobile-section-title,
+    .salon-mobile-top strong,.salon-mobile-brand,.salon-mobile-info strong,
+    .salon-mobile-offer b,.salon-mobile-offer strong,
+    .salon-banner-text h3,.salon-pkg-card .price,
+    .quality-gift-intro h2,.quality-administration h2,
+    .salon-invoice-card b,.salon-invoice-card strong,
+    .salon-account-settings h2,.salon-account-settings h3,
+    .salon-booking-manager strong,.salon-price-import summary,
+    .owner-panel h3,.owner-kpi strong,.stat strong,.service .price,
+    .salon-discount-prices strong,.salon-promo-occasion,
+    .salon-credit-numbers b,.salon-pkg-label,
+    .salon-invoice-card summary,.salon-invoice-card .salon-invoice-money
+  ){
+    color:var(--qns-ink)!important
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(
+    .salon-invoice-card header,.salon-invoice-items,.salon-mobile-subpage p,
+    .salon-mobile-info small,.salon-mobile-section-title small,
+    .salon-mobile-brand span,.salon-pkg-shop-intro,.salon-pkg-note,
+    .salon-pkg-card p,.salon-pkg-teaser p,.salon-public-package p,
+    .salon-my-package-card small,.salon-invoice-card small,
+    .salon-gift-hero p,.salon-gift-preview small,
+    .quality-order p,.quality-booking-hint,.salon-my-package-empty,
+    .salon-offer-kind,.salon-account-settings p,.salon-setting-header p,
+    .salon-recovery-subtitle,.salon-pkg-use .field p,
+    .salon-cashier-offer-btn small,.salon-visible-deal-card small,
+    .owner-welcome p,.owner-kpi small,.owner-kpi span,
+    .salon-invoice-card details,.salon-gift-fields small,
+    .salon-package-tile p,.salon-promo-cart-occasion,
+    .salon-ai-helper,.employee-muted,.salon-quality-client-note small
+  ){color:var(--qns-muted)!important}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(
+    .field label,.salon-gift-fields label,.quality-form-grid>label,
+    .quality-admin-controls>label,.salon-pkg-use label,.salon-invoice-manager label,
+    .salon-setting-card label,.salon-booking-manager label,
+    .oq-period-fields label,.oq-report-fields label
+  ){color:var(--qns-ink)!important}
+  /* Inputs and native controls: consistent dark-on-dark, including hover,
+     autofill, option text, placeholder text and focus rings. */
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot,.quality-pdf-box) :is(
+    input:not([type="checkbox"],[type="radio"],[type="range"],[type="color"]),
+    select,textarea
+  ),
+  html[data-salon-appearance="dark"] #app .quality-booking-search input{
+    background:var(--qns-input)!important;
+    color:var(--qns-ink)!important;
+    border:1px solid var(--qns-border)!important;
+    -webkit-text-fill-color:var(--qns-ink)!important;
+    caret-color:var(--qns-ink)!important;
+    color-scheme:dark
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input,textarea)::placeholder{
+    color:#d0b8c6!important;opacity:1!important
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input,select,textarea):focus{
+    background:var(--qns-input)!important;
+    outline:2px solid #edb0cf!important;outline-offset:2px;
+    box-shadow:0 0 0 3px #cf8ab329!important
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input,select,textarea):-webkit-autofill{
+    -webkit-box-shadow:0 0 0 1000px #201922 inset!important;
+    -webkit-text-fill-color:#fff0f6!important
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) select option{
+    background:#201922!important;color:#fff0f6!important
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(input,select,textarea):disabled{
+    opacity:.66!important
+  }
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(
+    input[type="checkbox"],input[type="radio"],input[type="range"]
+  ){accent-color:#eeb0d0!important}
+  /* Tables, navigation and detailed invoice lines. */
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(
+    .table-wrap,.salon-invoice-card details,.salon-my-package-form,
+    .salon-gift-preview,.salon-bulk-preview,table,tr,th,td,fieldset
+  ){border-color:var(--qns-border)!important}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.table-wrap,table,td){background-color:transparent;color:var(--qns-ink)}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(th,thead){background:#3b2d3d!important;color:var(--qns-ink)!important}
+  html[data-salon-appearance="dark"] #app :is(
+    .salon-pkg-tabs button,.salon-luxe-package-tabs button,
+    .salon-mobile-nav button,.salon-mobile-shortcut,
+    .salon-mobile-offer,.salon-invoice-card summary
+  ){color:var(--qns-ink)!important}
+  html[data-salon-appearance="dark"] #app :is(
+    .salon-pkg-tabs button.active,.salon-luxe-package-tabs button.active,
+    .salon-mobile-nav button.active,.qa-mobilenav button.is-active
+  ){background:#855072!important;color:#fff4fa!important;border-color:#b47799!important}
+  /* Buttons with light backgrounds may not inherit the page's light text. */
+  html[data-salon-appearance="dark"] #app :is(
+    .btn.secondary,.btn.outline,.owner-top-tools button,
+    .salon-pkg-tabs button:not(.active),.qa-secondary,
+    .oq-period-modes button:not(.active),.oq-shortcuts button
+  ){background:var(--qns-surface-2)!important;color:var(--qns-ink)!important;border-color:var(--qns-border)!important}
+  html[data-salon-appearance="dark"].salon-client-active #app .btn:not(.secondary,.outline,.danger,.success,.gold),
+  html[data-salon-appearance="dark"] #app .salon-gift-send,
+  html[data-salon-appearance="dark"] #app .salon-banner-text button{
+    background:#eab0cd!important;color:#271923!important;border-color:#eab0cd!important
+  }
+  html[data-salon-appearance="dark"] #app .btn.danger{background:#a73351!important;color:white!important}
+  html[data-salon-appearance="dark"] #app .btn.success{background:#216d53!important;color:white!important}
+  html[data-salon-appearance="dark"] #app .salon-credit-numbers b[style*="color"]{color:var(--qns-good)!important}
+  html[data-salon-appearance="dark"] #app :is(
+    .salon-promo-badge,.salon-luxe-plan-type,.salon-pkg-label,
+    .salon-discount-card-body .badge
+  ){border-color:var(--qns-border)!important}
+  html[data-salon-appearance="dark"] #app .salon-public-package::before{color:#583e53!important}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) a:not(.btn){color:var(--qns-link)}
+  /* Warnings and success states retain distinct readable semantic colors. */
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.notice,.quality-note){background:#453527!important;color:#ffe2aa!important;border:1px solid #806346!important}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) .notice.good{background:#203f36!important;color:#bcf2d8!important;border-color:#467563!important}
+  html[data-salon-appearance="dark"] :is(#app,#modalRoot) :is(.notice.bad,.salon-booking-stopped,.salon-invoice-error){background:#4c2735!important;color:#ffd3df!important;border:1px solid #96566b!important}
+  /* Owner and employee workspaces: original pale dashboard rules also carry !important. */
+  html[data-salon-appearance="dark"] #app :is(.owner-main,#employeeBookingBoard){background:#1b161f!important;color:var(--qns-ink)!important}
+  html[data-salon-appearance="dark"] #app :is(.owner-top,.owner-sidebar,.owner-brand){background:#28202c!important;color:var(--qns-ink)!important;border-color:var(--qns-border)!important}
+  html[data-salon-appearance="dark"] #app :is(.owner-menu button,.owner-user,.owner-brand b,.owner-brand small,.owner-top-tools){color:var(--qns-ink)!important}
+  html[data-salon-appearance="dark"] #app .owner-menu button.selected{background:#875273!important;color:white!important}
+  html[data-salon-appearance="dark"] #app :is(.owner-content .card,.owner-panel,.oq-panel,.oq-report-extra){border-color:var(--qns-border)!important}
+  /* Never tint an uploaded custom banner photograph or white-over-photo text. */
+  html[data-salon-appearance="dark"] #app :is(.sv-employee-banner,.sv-custom-banner,.sv-custom-gift){background-color:#302631}
+  html[data-salon-appearance="dark"] #app :is(.sv-employee-banner,.sv-custom-banner,.sv-custom-gift) :is(h1,h2,h3,p){color:white!important}
+  /* Site closed and dialogs also use the selected palette. */
+  html[data-salon-appearance="dark"] :is(.salon-site-gate,.salon-offer-dialog,.salon-discount-gallery,.salon-startup-shell){background:var(--qns-surface)!important;color:var(--qns-ink)!important;border-color:var(--qns-border)!important}
+  html[data-salon-appearance="dark"] .salon-site-gate .salon-maintenance-reason{background:var(--qns-surface-2)!important;color:var(--qns-ink)!important}
+
+  /* Loyalty points, booking discounts, and the client home summary. */
+  html[data-salon-appearance="dark"].salon-client-active #salonBookPointPanel,
+  html[data-salon-appearance="dark"] #app #salonBookPointPanel{
+    background:var(--qns-surface)!important;
+    color:var(--qns-ink)!important;
+    border-color:var(--qns-border)!important;
+    box-shadow:none!important
+  }
+  html[data-salon-appearance="dark"].salon-client-active #salonBookPointPanel .salon-point-summary,
+  html[data-salon-appearance="dark"] #app #salonBookPointPanel .salon-point-summary{
+    background:var(--qns-surface-2)!important;
+    color:var(--qns-ink)!important;
+    border-color:var(--qns-border)!important
+  }
+  html[data-salon-appearance="dark"] #app :is(
+    .salon-mobile-top,.salon-top-greeting,.salon-kicker,
+    .salon-quality-client-eyebrow,.salon-banner-text .small,
+    .salon-banner-text p,.salon-mobile-info .salon-kicker
+  ){color:var(--qns-muted)!important}
+  html[data-salon-appearance="dark"] #app .salon-mobile-logo{
+    background:var(--qns-surface-2)!important;
+    color:var(--qns-link)!important;
+    border-color:var(--qns-border)!important
+  }
+  html[data-salon-appearance="dark"] #app .salon-mobile-info.accent{
+    background:linear-gradient(135deg,#8f4b76,#623452)!important;
+    border-color:#ad7a9a!important;
+    color:#fff!important
+  }
+  html[data-salon-appearance="dark"] #app .salon-mobile-info.accent :is(span,strong,small){color:#fff!important}
+}
+@media print {
+  html[data-salon-appearance="dark"]{color-scheme:light}
+  html[data-salon-appearance="dark"] body{background:#fff!important;color:#222!important}
+}
+</style>
 </body>
 </html>
