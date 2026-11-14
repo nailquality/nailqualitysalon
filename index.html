@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="ar" dir="rtl" class="salon-booting salon-site-gated">
 <head>
+<script>try{if(localStorage.getItem("qns_appearance")==="dark")document.documentElement.dataset.salonAppearance="dark"}catch(_){}</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#7c405c">
@@ -6075,7 +6076,7 @@ renderHome=function(){
   <div class="salon-editorial-copy"><span class="salon-editorial-kicker">QUALITY NAILS — BEAUTY STUDIO</span>
    <h1 class="salon-editorial-title">${title}${sub?` <em>${sub}</em>`:''}</h1>
    <p class="salon-editorial-lead">${label('لحظات من الجمال والعناية مصممة لكِ. اكتشفي خدمات الأظافر والباقات، واختاري الوقت الذي يناسب يومكِ بكل سهولة.','A refined beauty experience made just for you. Explore services, discover packages and book your perfect appointment.')}</p>
-   <div class="salon-editorial-actions"><button class="salon-editorial-mainbtn" type="button" onclick="portalLogin('client')">${label('احجزي موعدكِ','Book an appointment')} <span aria-hidden="true">↗</span></button><button class="salon-editorial-outlinebtn" type="button" onclick="portalLogin('client')">${label('تسجيل الدخول / حساب جديد','Sign in / Create account')}</button></div>
+   <div class="salon-editorial-actions"><button class="salon-editorial-mainbtn" type="button" onclick="portalLogin('client')">${label('احجزي موعدكِ','Book an appointment')} <span aria-hidden="true">↗</span></button><button class="salon-editorial-outlinebtn" type="button" onclick="salonBrowsePublicServices()">${label('تصفّحي الخدمات','Browse services')}</button><button class="salon-editorial-outlinebtn" type="button" onclick="portalLogin('client')">${label('تسجيل الدخول / حساب جديد','Sign in / Create account')}</button></div>
    <div class="salon-editorial-points"><span class="salon-editorial-point"><span>✦</span>${label('عناية باهتمام','Thoughtful care')}</span><span class="salon-editorial-point"><span>♡</span>${label('باقات تناسبكِ','Flexible packages')}</span><span class="salon-editorial-point"><span>✧</span>${label('حجز إلكتروني','Online booking')}</span></div>
   </div>
   <div class="salon-editorial-media"><i class="salon-editorial-deco" aria-hidden="true"></i><div class="salon-editorial-image-frame"><img id="salonHeroMainImage" src="${esc(heroUrl())}" alt="${label('أظافر أنيقة وعناية فاخرة','Beautiful manicure')}" loading="eager" decoding="async" onerror="this.onerror=null;this.style.opacity='0'"/><span class="salon-editorial-image-word">NAIL QUALITY · MEDINA</span></div><div class="salon-editorial-floating"><span class="salon-floating-spark">✧</span><span><strong>${label('لأنكِ تستحقين','Made for you')}</strong><small>${label('تجربة عناية مميزة','Your beauty, elevated')}</small></span></div></div>
@@ -8229,17 +8230,18 @@ document.addEventListener('click',e=>{const el=e.target.closest?.('#app.qa-premi
   assets.set(slot,{imageData});
   refreshServicePhotos();
  };
- window.salonDiscountServiceCards=function(services){
+ window.salonPublicServiceCards=function(services){
   const at=Date.now();
-  return (services||[]).filter(service=>service?.active!==false&&!service?.isPackage&&salonOfferIsActive(service?.sale,at)).map(service=>{
+  return services.map(service=>{
    const original=service.originalPrice??service.price;
+   const discounted=salonOfferIsActive(service.sale,at);
    return `<article class="salon-discount-card">
     ${servicePhotoMarkup(service,'salon-discount-photo')}
     <div class="salon-discount-card-body">
-     <span class="salon-promo-badge">${servicePhotoLabel('خصم','Save')} ${Number(service.sale.percent)}%</span>
+     ${discounted?`<span class="salon-promo-badge">${servicePhotoLabel('خصم','Save')} ${Number(service.sale.percent)}%</span>`:''}
      <h3>${safe(textService(service))}</h3>
      <div class="salon-discount-prices">
-      <del aria-label="${servicePhotoLabel('السعر السابق','Original price')} ${safe(money(original))}">${safe(money(original))}</del>
+      ${discounted?`<del aria-label="${servicePhotoLabel('السعر السابق','Original price')} ${safe(money(original))}">${safe(money(original))}</del>`:''}
       <strong>${safe(money(salonEffectivePrice(original,service.sale,at)))}</strong>
      </div>
     </div>
@@ -9401,11 +9403,12 @@ async function salonRequireSiteOpen(){
  const tr=(ar,en)=>lang==='en'?en:ar;
  const catalog=firestore.collection('portal').doc('catalog');
  const route='discountedServices';
- let published=null,stop=null,expiryTimer,guestGallery=false,catalogReady=false,noticeShown=false;
+ let published=null,stop=null,expiryTimer,guestGallery='',catalogReady=false,catalogFailed=false,noticeShown=false;
  const client=()=>portalRole==='client'&&!!auth.currentUser&&!!portalUser;
  const guest=()=>!auth.currentUser&&!!document.querySelector('#app .salon-editorial-hero');
  const services=()=>published?.services||portalCatalog.services||[];
- const active=()=>services().filter(service=>service&&service.active!==false&&!service.isPackage&&salonOfferIsActive(service.sale));
+ const available=()=>services().filter(service=>service&&service.active!==false&&!service.isPackage&&!String(service.id||'').startsWith('bundle_'));
+ const active=()=>available().filter(service=>salonOfferIsActive(service.sale));
  const heading=()=>tr('خصم خاص بحجوزات الموقع','Special discount for online bookings');
  const notice=()=>salonTheme.showFor?.client===false?'':String(tr(salonTheme.announcementAr||salonTheme.announcementEn,salonTheme.announcementEn||salonTheme.announcementAr)||'').trim();
 
@@ -9414,18 +9417,20 @@ async function salonRequireSiteOpen(){
   stop=catalog.onSnapshot({includeMetadataChanges:true},snapshot=>{
    if(snapshot.metadata.fromCache)return;
    catalogReady=true;
+   catalogFailed=false;
    published=snapshot.exists?snapshot.data():null;
    refresh();
   },()=>{
    stop=null;
    catalogReady=true;
+   catalogFailed=true;
    published=null;
    clearTimeout(expiryTimer);
    if(salonSiteIsOpen())refresh();
   });
  }
  function stopCatalog(){
-  stop?.();stop=null;published=null;catalogReady=false;
+  stop?.();stop=null;published=null;catalogReady=false;catalogFailed=false;
   clearTimeout(expiryTimer);
  }
  function scheduleOfferBoundary(){
@@ -9450,12 +9455,12 @@ async function salonRequireSiteOpen(){
   dialog.querySelector('p').textContent=message||tr('تصفّحي الخدمات التي يشملها الخصم واحجزي موعدك من الموقع.','Browse the discounted services and book your appointment online.');
   const browse=dialog.querySelector('[data-browse]');
   browse.textContent=tr('مهتمة','I’m interested');
-  browse.setAttribute('aria-label',tr('مهتمة، تصفّح الخدمات التي عليها خصم','I’m interested, browse discounted services'));
-  browse.hidden=!sale;
+  browse.setAttribute('aria-label',sale?tr('مهتمة، تصفّح الخدمات التي عليها خصم','I’m interested, browse discounted services'):tr('مهتمة، تصفّح الخدمات','I’m interested, browse services'));
   browse.onclick=()=>{
    dialog.close();
-   if(client()){salonClientPage=route;renderPortalClient()}
-   else{guestGallery=true;renderHome()}
+   if(client()&&sale){salonClientPage=route;renderPortalClient()}
+   else if(client()){salonClientPage='book';renderPortalClient()}
+   else{guestGallery=sale?'discounts':'all';renderHome()}
    document.querySelector('#salonDiscountGallery h1')?.focus();
   };
   const dismiss=dialog.querySelector('[data-dismiss]');
@@ -9478,25 +9483,38 @@ async function salonRequireSiteOpen(){
     if(host)host.replaceChildren(page);else app.append(page);
    }else app.replaceChildren(page);
   }
-  const discounted=active();
+  const discountsOnly=client()||guestGallery==='discounts';
+  const listed=discountsOnly?active():available();
+  const heading=discountsOnly?tr('الخدمات التي عليها خصم','Discounted services'):tr('خدمات الصالون','Salon services');
+  const empty=!catalogReady?tr('جارٍ تحميل الخدمات…','Loading services…'):
+   catalogFailed?tr('تعذّر تحميل الخدمات. حاولي مرة أخرى.','Could not load services. Please try again.'):
+   discountsOnly?tr('لا توجد خدمات عليها خصم حاليًا.','There are no discounted services right now.'):
+   tr('لا توجد خدمات منشورة حاليًا.','There are no published services right now.');
   const galleryHasFocus=page.contains(document.activeElement);
-  page.innerHTML='<header><h1 tabindex="-1">'+tr('الخدمات التي عليها خصم','Discounted services')+'</h1>'+
+  page.innerHTML='<header><h1 tabindex="-1">'+heading+'</h1>'+
    '<div class="row"><button type="button" class="btn secondary" data-back>'+tr('الرئيسية','Home')+'</button>'+
-   (discounted.length?'<button type="button" class="btn" data-book>'+tr('احجزي موعدك','Book an appointment')+'</button>':'')+
+   (listed.length?'<button type="button" class="btn" data-book>'+tr('احجزي موعدك','Book an appointment')+'</button>':'')+
    '</div></header>'+
-   (discounted.length?'<div class="salon-discount-grid">'+salonDiscountServiceCards(discounted)+'</div>':
-    '<p>'+tr('لا توجد خدمات عليها خصم حاليًا.','There are no discounted services right now.')+'</p>');
+   (listed.length?'<div class="salon-discount-grid">'+salonPublicServiceCards(listed)+'</div>':
+    '<p role="status">'+empty+'</p>');
   page.querySelector('[data-back]').onclick=()=>{
-   guestGallery=false;
+   guestGallery='';
    if(client()){salonClientPage='home';renderPortalClient()}else renderHome();
   };
   const book=page.querySelector('[data-book]');
   if(book)book.onclick=()=>{
-   guestGallery=false;
+   guestGallery='';
    if(client()){salonClientPage='book';renderPortalClient()}else portalLogin('client');
   };
   if(galleryHasFocus)page.querySelector('h1').focus();
  }
+
+ window.salonBrowsePublicServices=function(){
+  if(!salonSiteIsOpen()||!guest())return;
+  guestGallery='all';
+  renderHome();
+  document.querySelector('#salonDiscountGallery h1')?.focus();
+ };
 
  function refresh(){
   if(!salonSiteIsOpen())return;
@@ -9731,6 +9749,181 @@ const salonOfferSiteRating=(()=>{
     }catch(error){console.warn('Website rating eligibility could not be checked',error)}
     finally{if(checking===uid)checking=null}
   };
+})();
+</script>
+<style id="salon-night-theme">
+@media screen {
+.salon-appearance-toggle{flex:0 0 auto;display:inline-grid!important;place-items:center;width:38px;height:38px;min-height:38px!important;padding:0!important;font-size:21px!important;line-height:1}
+@media(max-width:480px){.salon-appearance-toggle{width:33px;height:33px;min-height:33px!important;font-size:18px!important}}
+html[data-salon-appearance=dark]{
+ color-scheme:dark;
+ --night-bg:#1a1419;
+ --night-card:#251d24;
+ --night-raised:#32252e;
+ --night-soft:#3b2934;
+ --night-border:#58404f;
+ --night-text:#f8ebf1;
+ --night-muted:#dac5d0;
+ --night-accent:#f3afce;
+ --night-gold:#f3c897;
+ --night-shadow:0 14px 34px #07030646;
+ --ink:var(--night-text)!important;
+ --muted:var(--night-muted)!important;
+ --paper:var(--night-card)!important;
+ --line:var(--night-border)!important;
+ --rose:var(--night-raised)!important;
+ --plum:var(--night-accent)!important;
+ --plum2:var(--night-accent)!important;
+ --pink:var(--night-accent)!important;
+ --gold:var(--night-gold)!important;
+ --salon-background:var(--night-bg)!important;
+ --luxe-ivory:var(--night-bg);
+ --luxe-milk:var(--night-card);
+ --luxe-rose:var(--night-raised);
+ --luxe-petal:var(--night-soft);
+ --luxe-cherry:var(--night-accent);
+ --luxe-wine:var(--night-accent);
+ --luxe-gold:var(--night-gold);
+ --luxe-text:var(--night-text);
+ --luxe-muted:var(--night-muted);
+ --luxe-border:var(--night-border);
+ --luxe-shadow:var(--night-shadow);
+ --luxe-shadow-hover:var(--night-shadow);
+ --editorial-ink:var(--night-text);
+ --editorial-brown:var(--night-muted);
+ --editorial-gold:var(--night-gold);
+ --editorial-cream:var(--night-card);
+ --editorial-blush:var(--night-raised);
+ --editorial-line:var(--night-border);
+ --editorial-shadow:var(--night-shadow)
+}
+html[data-salon-appearance=dark] body,
+html[data-salon-appearance=dark] body:has(#app:is(.salon-editorial-home,.salon-editorial-auth,.salon-editorial-client,.salon-editorial-employee,.salon-luxe-owner,.qa-premium),.owner-shell){
+ background:radial-gradient(ellipse at 85% 0%,#372430 0%,transparent 50%),var(--night-bg)!important;
+ color:var(--night-text)!important
+}
+html[data-salon-appearance=dark] body .topbar,
+html[data-salon-appearance=dark] body:has(#app:is(.salon-editorial-home,.salon-editorial-auth)) .topbar{
+ background:#251d24f5!important;border-color:var(--night-border)!important;color:var(--night-text)!important;box-shadow:0 1px 0 var(--night-border)!important
+}
+html[data-salon-appearance=dark] body:has(#app:is(.salon-editorial-home,.salon-editorial-auth)) .topbar .brand h1,
+html[data-salon-appearance=dark] .topbar .brand h1{color:var(--night-text)!important}
+html[data-salon-appearance=dark] body:has(#app:is(.salon-editorial-home,.salon-editorial-auth)) .topbar .brand .logo,
+html[data-salon-appearance=dark] .topbar .brand .logo{background:var(--night-raised)!important;color:var(--night-accent)!important;border-color:var(--night-border)!important}
+html[data-salon-appearance=dark] .topbar .brand small{color:var(--night-muted)!important}
+html[data-salon-appearance=dark] :is(.salon-editorial-title,.salon-editorial-sectionhead h2,.salon-editorial-featureband h2,.salon-editorial-tilebody strong,.salon-editorial-floating strong,.salon-site-gate h1,.salon-maintenance-top){color:var(--night-text)!important}
+html[data-salon-appearance=dark] :is(.salon-editorial-lead,.salon-editorial-point,.salon-editorial-sectionhead p,.salon-editorial-featureband p,.salon-editorial-tilebody small,.salon-editorial-floating small,.salon-editorial-footer-nav,.salon-site-gate p,.salon-discount-prices del,.footer){color:var(--night-muted)!important}
+html[data-salon-appearance=dark] :is(.salon-editorial-title em,.salon-editorial-kicker,.salon-editorial-eyebrow,.salon-editorial-tilebody b,.salon-editorial-stateless strong,.salon-editorial-footer-nav a,.salon-editorial-footer-nav button,.salon-credit a,.footer strong,.salon-discount-prices strong,.salon-maintenance-bottom button){color:var(--night-accent)!important}
+html[data-salon-appearance=dark] :is(.salon-editorial-floating,.salon-editorial-tile,.salon-editorial-stateless span,.salon-site-gate,.salon-offer-dialog,.salon-discount-gallery,.salon-discount-card,.salon-startup-shell){
+ background:var(--night-card)!important;color:var(--night-text)!important;border-color:var(--night-border)!important;box-shadow:var(--night-shadow)!important
+}
+html[data-salon-appearance=dark] :is(.salon-editorial-featureband,.salon-editorial-point span,.salon-site-gate .salon-maintenance-reason,.salon-maintenance-icon){
+ background:var(--night-raised)!important;color:var(--night-text)!important;border-color:var(--night-border)!important
+}
+html[data-salon-appearance=dark] :is(.salon-editorial-points,.salon-editorial-footer-nav,.footer){border-color:var(--night-border)!important}
+html[data-salon-appearance=dark] :is(.salon-editorial-outlinebtn,.btn.secondary,.btn.outline,.salon-top-link,#app .owner-top-tools button){
+ background:var(--night-raised)!important;color:var(--night-text)!important;border-color:var(--night-border)!important
+}
+html[data-salon-appearance=dark] :is(.salon-editorial-mainbtn,.salon-top-link.salon-top-book,.btn:not(.secondary,.outline,.danger,.success,.gold),#app.qa-premium .qa-primary){
+ background:#f0abc9!important;color:#271723!important;border-color:#f0abc9!important;box-shadow:none!important
+}
+html[data-salon-appearance=dark] :is(.salon-offer-dialog,.salon-discount-gallery,.salon-discount-card) :is(h1,h2,h3){color:var(--night-text)!important}
+html[data-salon-appearance=dark] .salon-offer-dialog::backdrop{background:#100a12b8}
+html[data-salon-appearance=dark] .salon-promo-badge{background:#693c58!important;color:#ffe2ef!important;border-color:#b9769a!important}
+html[data-salon-appearance=dark] .modal-box,
+html[data-salon-appearance=dark] #app :is(.card,.owner-panel,.owner-kpi,.service,.stat,.employee-account-card,.employee-booking-card,.salon-mobile-subpage,.salon-my-package-card,.salon-public-package,.salon-balance-card,.salon-account-hero,.salon-settings-stack,.salon-recovery-shell,.salon-discount-card),
+html[data-salon-appearance=dark] #app:is(.salon-editorial-client,.salon-editorial-employee,.salon-editorial-auth) :is(.card,.service,.stat,.salon-mobile-subpage){
+ background:var(--night-card)!important;color:var(--night-text)!important;border-color:var(--night-border)!important;box-shadow:var(--night-shadow)!important
+}
+html[data-salon-appearance=dark] #app :is(.hero,.portal,.owner-banner,.notice,.qa-giftband,.qa-sectionhero,.qa-stat,.qa-feature,.qa-drawer-body,.qa-drawer-grid button,.salon-my-package-balance > div,.salon-service-photo-preview,.salon-rating-entry),
+html[data-salon-appearance=dark] #app:is(.salon-editorial-client,.salon-editorial-employee)>.hero{
+ background:var(--night-raised)!important;color:var(--night-text)!important;border-color:var(--night-border)!important
+}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(h1,h2,h3,h4,legend,label,caption),
+html[data-salon-appearance=dark] #app:is(.salon-editorial-client,.salon-editorial-employee)>.hero h2{
+ color:var(--night-text)!important
+}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(.muted,.empty,.hero p,.portal p,.owner-welcome p,.owner-kpi > span,.owner-kpi > small,.qa-brandname span,.qa-intro p,.qa-meta,.qa-stat small,.qa-feature span,.qa-sectionhero p,.qa-giftband p,.qa-splithead p){
+ color:var(--night-muted)!important
+}
+html[data-salon-appearance=dark] #app :is(.qa-brand,.qa-stat strong,.qa-feature strong,.qa-drawer-title,.stat strong,.owner-kpi strong,.invoice-total){color:var(--night-text)!important}
+html[data-salon-appearance=dark] #app :is(.qa-eyebrow,.qa-textbutton,.qa-feature small,.qa-goldstar){color:var(--night-accent)!important}
+html[data-salon-appearance=dark] #app .qa-eyebrow::before{background:var(--night-accent)}
+html[data-salon-appearance=dark] #app :is(.qa-logo,.qa-staticon,.qa-featureimage,.qa-featureposter,.qa-iconbutton,.qa-secondary,.qa-logout,.qa-mobilenav,.qa-hero,.qa-desktopnav button:hover,.qa-mobilenav button,.qa-mobilenav button.is-active,.qa-desktopnav button.is-active){
+ background:var(--night-raised)!important;color:var(--night-text)!important;border-color:var(--night-border)!important
+}
+html[data-salon-appearance=dark] #app :is(.qa-mobilenav button.is-active,.qa-desktopnav button.is-active){background:#66415b!important;color:#ffe8f4!important}
+html[data-salon-appearance=dark] #app :is(.qa-masthead,.qa-hero,.qa-drawer-grid button){border-color:var(--night-border)!important}
+html[data-salon-appearance=dark] #app .qa-desktopnav button:not(.is-active){color:var(--night-muted)}
+html[data-salon-appearance=dark] #app :is(nav.nav,.nav button){
+ background:var(--night-card)!important;color:var(--night-text)!important;border-color:var(--night-border)!important
+}
+html[data-salon-appearance=dark] #app .nav button.active{background:#66415b!important;color:#ffe8f4!important}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(input:not([type=checkbox],[type=radio],[type=color],[type=range]),select,textarea){
+ background:#1f1720!important;color:var(--night-text)!important;border-color:var(--night-border)!important;accent-color:var(--night-accent)
+}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(input,textarea)::placeholder{color:#bda4b5}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(input[type=checkbox],input[type=radio],input[type=range]){accent-color:var(--night-accent)}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(th,td,fieldset,.table-wrap){border-color:var(--night-border)!important}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(th,.table-wrap tbody tr:nth-child(even),.table-wrap tbody tr:hover){
+ background:var(--night-raised)!important;color:var(--night-text)!important
+}
+html[data-salon-appearance=dark] #app .owner-shell{background:var(--night-bg)!important;color:var(--night-text)!important}
+html[data-salon-appearance=dark] #app :is(.owner-sidebar,.owner-brand,.owner-side-bottom,.owner-top,.owner-main,.owner-menu details,.owner-nav-group-items){
+ background:var(--night-card)!important;color:var(--night-text)!important;border-color:var(--night-border)!important
+}
+html[data-salon-appearance=dark] #app :is(.owner-brand b,.owner-brand small,.owner-side-bottom small,.owner-user,.owner-menu summary,.owner-menu button,.owner-menu-icon,.owner-nav-chevron){
+ color:var(--night-muted)!important
+}
+html[data-salon-appearance=dark] #app .owner-menu :is(button:hover,button.selected){background:#66415b!important;color:#ffe8f4!important}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) :is(a,.price,.danger-text){color:var(--night-accent)}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) .badge.green{background:#234439!important;color:#aef2ca!important}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) .badge.red{background:#572c3c!important;color:#ffc1d1!important}
+html[data-salon-appearance=dark] :is(#app,#modalRoot) .badge.amber{background:#533f28!important;color:#ffdda9!important}
+html[data-salon-appearance=dark] :focus-visible{outline-color:var(--night-accent)!important}
+}
+</style>
+<script id="salon-appearance-controls">
+(function(){
+ const root=document.documentElement;
+ const preference='qns_appearance';
+ const selector='.salon-appearance-toggle';
+ const night=()=>root.dataset.salonAppearance==='dark';
+ function syncControls(){
+  const english=lang==='en';
+  const action=night()?(english?'Light mode':'الوضع الصباحي'):(english?'Dark mode':'الوضع الليلي');
+  const icon=night()?'☀':'☾';
+  document.querySelectorAll(selector).forEach(button=>{
+   button.textContent=icon;
+   button.title=action;
+   button.setAttribute('aria-label',action);
+  });
+ }
+ function toggle(){
+  if(night())delete root.dataset.salonAppearance;
+  else root.dataset.salonAppearance='dark';
+  try{localStorage.setItem(preference,night()?'dark':'light')}catch(_){}
+  syncControls();
+ }
+ function mount(){
+  for(const container of document.querySelectorAll('.topbar .top-actions, #app .qa-headleft, #app .salon-maintenance-top, #app .owner-top-tools')){
+   if(container.querySelector(selector))continue;
+   const button=document.createElement('button');
+   button.className='btn secondary salon-appearance-toggle';
+   button.type='button';
+   button.onclick=toggle;
+   container.append(button);
+  }
+  syncControls();
+ }
+ const applyPreviousLanguage=applyLang;
+ applyLang=function(){
+  const result=applyPreviousLanguage.apply(this,arguments);
+  syncControls();
+  return result;
+ };
+ new MutationObserver(mount).observe(document.getElementById('app'),{childList:true});
+ mount();
 })();
 </script>
 </body>
