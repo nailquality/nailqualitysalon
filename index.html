@@ -10399,5 +10399,126 @@ if(ownerReady()){makeFlatMenu();if(ownerActiveTab==='dashboard')buildDashboard()
   html[data-salon-appearance="dark"] body{background:#fff!important;color:#222!important}
 }
 </style>
+
+<style id="salon-client-booking-points-contrast-hotfix-20261114">
+/* Repair booking/loyalty cards: legacy html.salon-client-active #app.salon-editorial-client
+   .card/.stat !important rules had more specificity than the general dark palette.
+   These narrowly scoped overrides are appended last; all business logic stays intact. */
+@media screen {
+  /* Keep the day theme creamy, with readable charcoal copy and pale form fields. */
+  html:not([data-salon-appearance="dark"]).salon-client-active #app.salon-editorial-client
+  #salonClientPagePanel :is(.card,.stat) {
+    color:#432a3a!important;
+  }
+  html:not([data-salon-appearance="dark"]).salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonClientPagePanel) :is(.field label,.stat span,.card p,.muted,.tiny){
+    color:#604555!important;
+  }
+  html:not([data-salon-appearance="dark"]).salon-client-active #app.salon-editorial-client
+  #portalBooking :is(input:not([type="checkbox"],[type="radio"],[type="range"]),select,textarea){
+    background:#fffcfb!important;color:#432a3a!important;border-color:#d6b9c6!important;
+    -webkit-text-fill-color:#432a3a!important;color-scheme:light;
+  }
+  html:not([data-salon-appearance="dark"]).salon-client-active #app.salon-editorial-client
+  #portalBooking :is(input,textarea)::placeholder{color:#775f6a!important;opacity:1!important}
+
+  /* Solid dark surfaces instead of leftover cream, on all client booking cards. */
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(.card,.stat,.service) {
+    background:#2b222f!important;
+    background-image:none!important;
+    color:#fff3f8!important;
+    border-color:#765c70!important;
+    box-shadow:0 9px 25px #120b153d!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonClientPagePanel :is(.card,.stat) {
+    background:#2b222f!important;
+    background-image:none!important;
+    color:#fff3f8!important;
+    border-color:#765c70!important;
+  }
+  /* The customer booking panel must match its dark inputs and text. */
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonClientPagePanel) :is(.card,.service,.salon-mobile-subpage){
+    color:#fff3f8!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonClientPagePanel) :is(h2,h3,h4,legend,.section-head h3,.field label,.card b,.card strong){
+    color:#fff0f6!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonClientPagePanel) :is(.card p,.stat span,.stat small,.muted,.tiny,.field small,.field p,.quality-booking-hint){
+    color:#e6cfdd!important;
+    opacity:1!important;
+  }
+  /* Highlight the approved points and discount without making labels disappear. */
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonClientPagePanel .stats .stat strong{
+    color:#ffbbd9!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonClientPagePanel .stats .stat span{
+    color:#f4d9e7!important;font-weight:700!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonClientPagePanel .card :is(p,.muted){
+    color:#efd8e5!important;
+  }
+  /* The notice inside the loyalty card has its own readable warning palette. */
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonClientPagePanel .card .notice{
+    color:#ffe5bb!important;background:#443327!important;border:1px solid #886a4d!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonBookPointPanel{
+    background:#302431!important;background-image:none!important;
+    color:#fff0f6!important;border-color:#765c70!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #salonBookPointPanel .salon-point-summary{
+    background:#382c3c!important;color:#fff0f6!important;border-color:#765c70!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonBookPointPanel) :is(input:not([type="checkbox"],[type="radio"],[type="range"]),select,textarea){
+    background:#211923!important;color:#fff3f8!important;
+    -webkit-text-fill-color:#fff3f8!important;border:1px solid #866c80!important;
+    color-scheme:dark!important;caret-color:#fff3f8!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonBookPointPanel) :is(input,textarea)::placeholder{
+    color:#d8c0d0!important;opacity:1!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonBookPointPanel) :is(input,select,textarea):focus-visible{
+    outline:2px solid #ffbddc!important;outline-offset:2px!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonBookPointPanel) :is(input,select,textarea):disabled{
+    opacity:.75!important;
+  }
+  /* Small explanatory copy under date, employee and time selectors. */
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  #portalBooking :is(.field,.checkline,.row) :is(span,small,p,label){
+    color:#ead4df!important;
+  }
+  /* Primary action should remain readable when legacy client gradient is active. */
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonClientPagePanel) .btn:not(.secondary,.outline,.danger,.success,.gold){
+    color:#fff9fc!important;background:#824461!important;background-image:none!important;
+    border:1px solid #c088a9!important;
+  }
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(#portalBooking,#salonClientPagePanel) .btn.secondary{
+    color:#fff0f6!important;background:#443145!important;
+    border-color:#80657c!important;
+  }
+  /* Preserve a readable presentation when printing a dark-mode invoice. */
+}
+@media print {
+  html[data-salon-appearance="dark"].salon-client-active #app.salon-editorial-client
+  :is(.card,.stat,.service){background:#fff!important;color:#222!important;box-shadow:none!important}
+}
+</style>
 </body>
 </html>
