@@ -17,7 +17,7 @@ html.salon-booting #app{min-height:65vh;display:flex;align-items:center;justify-
 /* Header links are only for visitors, not clients already signed in. */
 html.salon-client-active #salonHeaderLogin,html.salon-client-active #salonHeaderBook{display:none!important}
 </style>
-<meta name="salon-build" content="2026-11-04-flicker-header-sidebar-fix">
+<meta name="salon-build" content="2026-11-14-owner-unified-responsive-revenue-filters">
 <title>صالون جودة الأظافر | نظام الإدارة</title>
 <style>
 :root{--plum:#7c405c;--plum2:#5e2d45;--rose:#f7e9ef;--pink:#d58da8;--gold:#c49a52;--ink:#2e2630;--muted:#786e78;--paper:#fffdfd;--line:#eadde3;--green:#247c5a;--red:#b64152;--amber:#a56b15;--shadow:0 12px 32px #4c243012}
@@ -9924,6 +9924,218 @@ html[data-salon-appearance=dark] :focus-visible{outline-color:var(--night-accent
  };
  new MutationObserver(mount).observe(document.getElementById('app'),{childList:true});
  mount();
+})();
+</script>
+<style id="oq-owner-dashboard-responsive-20261114">
+/* One unified, fully labelled owner navigation, using the salon's existing rose/plum palette. */
+body:has(#app .owner-shell){background:#fcf8fa!important}
+#app .owner-shell{--oq-purple:#713c55;--oq-rose:#bb6b8b;--oq-paper:#fffdfd;--oq-soft:#f9eef3;--oq-muted:#826d7b;--oq-border:#ead6df;--oq-ink:#392936;display:grid!important;grid-template-columns:254px minmax(0,1fr)!important;min-height:100dvh!important;background:#fcf8fa!important;color:var(--oq-ink)!important}
+#app .owner-sidebar{width:auto!important;min-width:0!important;max-width:none!important;background:linear-gradient(180deg,#fffafb,#f8eaf0)!important;color:#683c53!important;position:sticky!important;top:0!important;height:100dvh!important;max-height:100dvh!important;overflow-y:auto!important;overflow-x:hidden!important;border-inline-end:1px solid #ead6df!important;scrollbar-color:#c78da7 #fff4f7!important;box-shadow:none!important}
+#app .owner-brand{padding:20px 14px 15px!important;background:transparent!important;border-bottom:1px solid #ead8df!important}
+#app .owner-brand b{font-size:14px!important;color:#68384d!important}
+#app .owner-brand small{font-size:10px!important;color:#a07487!important}
+#app .owner-menu{display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;overflow:visible!important;white-space:normal!important;gap:3px!important;padding:9px 10px 18px!important;background:transparent!important}
+#app .owner-menu button.oq-nav-item{display:flex!important;width:100%!important;min-width:0!important;max-width:none!important;min-height:43px!important;flex:0 0 auto!important;align-items:center!important;justify-content:flex-start!important;gap:11px!important;text-align:right!important;white-space:normal!important;padding:9px 13px!important;border:0!important;border-radius:12px!important;background:transparent!important;color:#71465c!important;font-size:13px!important;line-height:1.5!important;font-weight:750!important;box-shadow:none!important;transition:background .18s,color .18s!important}
+#app .owner-menu button.oq-nav-item:hover{background:#f5e1ea!important;color:#813956!important}
+#app .owner-menu button.oq-nav-item.selected{background:linear-gradient(110deg,#b36586,#8e4b6a)!important;color:#fff!important;box-shadow:0 7px 18px #a05f802b!important}
+#app .owner-menu .oq-nav-item .owner-menu-icon{display:inline-grid!important;place-items:center!important;flex:0 0 27px!important;width:27px!important;height:27px!important;color:#a96984!important;font-size:18px!important}
+#app .owner-menu .oq-nav-item.selected .owner-menu-icon{color:#fff!important}
+#app .owner-menu .oq-nav-item .owner-nav-label{display:block!important;visibility:visible!important;overflow-wrap:anywhere!important;color:inherit!important;font-size:inherit!important}
+#app .oq-nav-search{display:block;margin:12px 12px 4px;position:relative}
+#app .oq-nav-search input{width:100%;min-height:40px;border:1px solid #ebd5df;border-radius:12px;background:#fff!important;color:#684557;padding:8px 12px;outline-offset:2px;font-size:12px}
+#app .oq-nav-search input:focus{outline:2px solid #bb6b8b}
+#app .oq-nav-empty{display:block;margin:10px;padding:12px 10px;font-size:12px;color:#8e667a;text-align:center}
+#app .owner-side-bottom{margin-top:auto!important;background:transparent!important;color:#91697f!important}
+#app .owner-main{min-width:0!important;background:linear-gradient(180deg,#fff9fb 0%,#fcf8fa 320px,#fcf8fa 100%)!important}
+#app .owner-top{position:sticky!important;top:0!important;z-index:16!important;min-height:66px!important;background:rgba(255,253,253,.96)!important;border-bottom:1px solid var(--oq-border)!important;padding:11px clamp(14px,2.3vw,30px)!important;gap:14px!important}
+#app .owner-top .oq-top-search{display:flex;align-items:center;position:relative;flex:1 1 230px;max-width:385px}
+#app .owner-top .oq-top-search input{min-height:39px;width:100%;padding:8px 14px;border:1px solid #ecd8e2;border-radius:12px;background:#fff;color:#5b3d4d;box-shadow:0 3px 11px #9e65820a;font-size:12px}
+#app .owner-top .owner-top-tools{flex:0 0 auto;gap:8px!important}
+#app .owner-content{padding:clamp(13px,2.4vw,28px)!important;max-width:1700px!important;min-width:0!important;margin:auto!important}
+#app .oq-dashboard{display:flex;flex-direction:column;gap:15px;min-width:0}
+#app .oq-dashboard *{box-sizing:border-box}
+#app .oq-hero{display:flex;align-items:stretch;gap:16px;justify-content:space-between;flex-wrap:wrap}
+#app .oq-hero-copy{padding:9px 0;flex:1 1 300px;min-width:0}
+#app .oq-kicker{display:inline-block;font-size:11px;letter-spacing:.03em;font-weight:800;color:var(--oq-rose)}
+#app .oq-hero h2{margin:7px 0;font-weight:900;font-size:clamp(22px,2.2vw,32px);line-height:1.35;color:#613a50}
+#app .oq-hero p{margin:5px 0 0;color:#967b8a;font-size:13px}
+#app .oq-hero-art{display:flex;align-items:center;justify-content:center;text-align:center;min-height:105px;flex:0 1 365px;padding:16px 22px;border-radius:19px;background:linear-gradient(110deg,#fae4ed,#fff6f5 52%,#f2e0e9);border:1px solid #ebd0dc;box-shadow:0 9px 24px #a96d8412;color:#8a536b;font-weight:850;line-height:1.8;font-size:14px}
+#app .oq-hero-art em{font-style:normal;font-size:24px;color:#ae6485;margin-inline:7px}
+#app .oq-filters,#app .oq-panel{background:var(--oq-paper)!important;border:1px solid var(--oq-border)!important;border-radius:19px!important;box-shadow:0 9px 23px #9c64720d!important;color:var(--oq-ink)!important}
+#app .oq-filters{padding:15px 18px;display:grid;gap:12px}
+#app .oq-filters-top,#app .oq-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#app .oq-filters strong{font-size:14px;color:#6c4158}
+#app .oq-period-modes{display:flex;gap:7px;flex-wrap:wrap}
+#app .oq-period-modes button{min-height:37px;padding:8px 13px;border:1px solid #e9d4dd;border-radius:10px;background:#fff7fa;color:#714b60;font-size:12px;font-weight:750}
+#app .oq-period-modes button.active{background:#8f4a6c;color:#fff;border-color:#8f4a6c}
+#app .oq-period-fields{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+#app .oq-period-fields label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;color:#806a78;min-width:140px;flex:0 1 180px}
+#app .oq-period-fields input,#app .oq-report-fields input{height:40px;width:100%;min-width:0;border:1px solid #e6d4dd;border-radius:11px;padding:8px 10px;background:#fff;color:#452f3c;font-size:13px}
+#app .oq-period-note{font-size:12px;color:#8e7182;margin:0}
+#app .oq-period-error{font-size:12px;color:#af3e57;min-height:0}
+#app .oq-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+#app .oq-kpi{min-width:0;min-height:128px;padding:18px 17px;border:1px solid var(--oq-border);border-radius:17px;display:flex;flex-direction:column;gap:10px;box-shadow:0 9px 20px #9f67840a;background:linear-gradient(135deg,#fff,#fff1f7)}
+#app .oq-kpi:nth-child(2){background:linear-gradient(135deg,#fff,#f7effc)}
+#app .oq-kpi:nth-child(3){background:linear-gradient(135deg,#fff,#eff9f4)}
+#app .oq-kpi:nth-child(4){background:linear-gradient(135deg,#fff,#fff4ee)}
+#app .oq-kpi-head{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:#846777;font-weight:800}
+#app .oq-kpi-icon{display:grid;place-items:center;width:35px;height:35px;border-radius:12px;background:#f9dfe9;color:#a64c74;font-size:19px;flex:0 0 35px}
+#app .oq-kpi:nth-child(3) .oq-kpi-icon{background:#def4e8;color:#388762}
+#app .oq-kpi:nth-child(4) .oq-kpi-icon{background:#ffe8d9;color:#a66e45}
+#app .oq-kpi strong{font-size:clamp(20px,2.5vw,31px);font-weight:900;white-space:nowrap;color:#533246;letter-spacing:-.025em}
+#app .oq-kpi small{color:#98818e;font-size:11px}
+#app .oq-panels{display:grid;grid-template-columns:1fr 1.35fr 1fr;grid-auto-flow:row dense;gap:13px;align-items:start}
+#app .oq-panel{padding:18px!important;min-width:0;min-height:220px}
+#app .oq-panel h3{font-size:14px;color:#71455c;margin:0;font-weight:900}
+#app .oq-panel-head{margin-bottom:14px}
+#app .oq-panel-head button{border:1px solid #ead6df;border-radius:9px;background:#fbf1f5;color:#8c5270;padding:7px 11px;font-size:11px;font-weight:800}
+#app .oq-graph-panel{grid-column:span 2;min-height:285px}
+#app .oq-quick-panel{grid-column:span 1}
+#app .oq-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#app .oq-shortcuts button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:77px;padding:9px 5px;border:1px solid #efdce5;border-radius:12px;background:#fff7fa;color:#9b5577;font-size:19px}
+#app .oq-shortcuts button span{font-size:11px;color:#705266;font-weight:800;text-align:center}
+#app .oq-chart{display:flex;align-items:flex-end;gap:9px;overflow-x:auto;min-height:195px;padding:8px 2px 2px;border-bottom:1px solid #eadce3;scrollbar-width:thin}
+#app .oq-chart-col{display:flex;flex:1 0 32px;min-width:34px;max-width:85px;align-items:center;flex-direction:column;justify-content:flex-end;gap:7px;min-height:185px;text-align:center;color:#977e8e;font-size:10px}
+#app .oq-chart-value{font-size:10px;color:#75586c;white-space:nowrap}
+#app .oq-chart-bar{display:block;width:min(38px,82%);min-height:3px;border-radius:9px 9px 0 0;background:linear-gradient(0deg,#b56287,#e0a2bb);transition:height .2s}
+#app .oq-chart-key{font-size:10px;direction:ltr}
+#app .oq-chart-summary{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:13px;color:#8b7583;font-size:11px}
+#app .oq-chart-summary strong{color:#74435e;font-size:12px}
+#app .oq-item-list{display:grid;gap:4px}
+#app .oq-item{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:45px;border-bottom:1px solid #f2e8ed;padding:7px 0;font-size:12px}
+#app .oq-item:last-child{border-bottom:0}
+#app .oq-item-main{min-width:0;display:flex;flex-direction:column;gap:3px;overflow-wrap:anywhere}
+#app .oq-item-main strong{font-size:12px;color:#64465a;font-weight:800}
+#app .oq-item-main small{font-size:10px;color:#98818f}
+#app .oq-item>span:last-child{color:#8e5273;white-space:nowrap;font-weight:850}
+#app .oq-empty{padding:25px 7px;color:#a08895;text-align:center;font-size:12px}
+#app .oq-services-layout{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+#app .oq-donut{width:118px;height:118px;border-radius:50%;position:relative;flex-shrink:0;display:grid;place-items:center}
+#app .oq-donut::after{content:"";width:65px;height:65px;background:var(--oq-paper);border-radius:50%;position:absolute}
+#app .oq-donut span{position:relative;z-index:1;text-align:center;font-size:11px;font-weight:800;color:#724f64;line-height:1.7}
+#app .oq-service-list{min-width:140px;flex:1 1 140px;display:grid;gap:9px}
+#app .oq-service-row{display:flex;align-items:center;justify-content:space-between;gap:7px;font-size:11px;color:#765c6e}
+#app .oq-service-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:5px}
+#app .oq-report-extra{display:grid;gap:12px;padding:17px 19px;margin-bottom:13px;border:1px solid #e9d4df;border-radius:18px;background:linear-gradient(130deg,#fff9fc,#fffdfd)}
+#app .oq-report-extra h3{color:#75435d;margin:0;font-size:16px}
+#app .oq-report-fields{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+#app .oq-report-fields label{display:grid;gap:6px;flex:1 1 150px;font-size:12px;color:#795969;font-weight:750}
+#app .oq-report-extra .oq-report-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#app .oq-report-extra .oq-report-actions button{border:0;background:#89506d;color:#fff;padding:10px 17px;min-height:41px;border-radius:11px;font-size:13px;font-weight:800}
+#app .oq-report-extra .oq-report-actions button.secondary{background:#f4e5ec;color:#7f4b64;border:1px solid #ead1dc}
+#app .oq-report-legacy-fields{display:none!important}
+#app .oq-report-hint{font-size:12px;color:#8f7084}
+@media (max-width:1180px){#app .owner-shell{grid-template-columns:215px minmax(0,1fr)!important}#app .oq-panels{grid-template-columns:repeat(2,minmax(0,1fr))}#app .oq-graph-panel{grid-column:span 2}#app .oq-quick-panel{grid-column:span 1}#app .oq-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){
+ #app .owner-shell{grid-template-columns:minmax(0,1fr)!important;display:flex!important;flex-direction:column!important}
+ #app .owner-sidebar{position:relative!important;top:auto!important;height:auto!important;max-height:none!important;width:100%!important;border-inline-end:0!important;border-bottom:1px solid #ecd9e1!important;overflow:visible!important;display:flex!important;flex-direction:column!important;z-index:18}
+ #app .owner-brand{padding:10px 15px!important;min-height:58px!important}
+ #app .owner-mobile-menu-toggle{display:block!important;width:calc(100% - 24px)!important;margin:0 12px 11px!important;min-height:44px!important;text-align:right!important;background:#fff!important;color:#74445e!important;border:1px solid #e8cfd9!important;border-radius:12px!important;box-shadow:none!important;font-size:13px!important;font-weight:850!important}
+ #app .owner-sidebar .oq-nav-search,#app .owner-sidebar .owner-menu{display:none!important}
+ #app .owner-sidebar.owner-nav-open .oq-nav-search{display:block!important}
+ #app .owner-sidebar.owner-nav-open .owner-menu{display:flex!important;max-height:58dvh!important;overflow-y:auto!important;overflow-x:hidden!important;gap:4px!important;flex-wrap:nowrap!important;white-space:normal!important}
+ #app .owner-sidebar.owner-nav-open .owner-menu button.oq-nav-item{width:100%!important;min-width:0!important;max-width:100%!important;justify-content:flex-start!important;text-align:right!important;white-space:normal!important}
+ #app .owner-side-bottom{display:none!important}
+ #app .owner-top{top:0!important;min-height:58px!important;flex-wrap:wrap}
+ #app .owner-content{padding:15px!important}
+ #app .oq-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:640px){
+ #app .owner-top{padding:9px 12px!important;gap:8px!important}
+ #app .owner-top .oq-top-search{order:3;max-width:none;flex:1 0 100%}
+ #app .owner-top-tools>span{font-size:10px}
+ #app .oq-hero-copy{flex:1 1 100%}
+ #app .oq-hero-art{flex:1 1 100%;min-height:84px}
+ #app .oq-panels{grid-template-columns:minmax(0,1fr)!important;gap:12px}
+ #app .oq-graph-panel,#app .oq-quick-panel{grid-column:span 1!important}
+ #app .oq-panel{min-height:0;padding:15px!important}
+ #app .oq-kpi{min-height:108px;padding:14px 12px}
+ #app .oq-kpi strong{font-size:clamp(17px,4.5vw,24px);white-space:normal;overflow-wrap:anywhere}
+ #app .oq-kpi-head{font-size:11px}
+ #app .oq-chart-col{flex-basis:42px}
+ #app .oq-filters{padding:14px}
+ #app .oq-period-modes button{flex:1 1 43%;text-align:center}
+ #app .oq-period-fields label{flex:1 1 135px;min-width:0}
+ #app .oq-report-fields label{flex:1 1 135px}
+ #app .owner-content .table-wrap{max-width:calc(100vw - 38px);overflow-x:auto!important}
+}
+@media (max-width:375px){#app .oq-kpis{gap:7px}#app .oq-kpi{padding:12px 9px}#app .oq-kpi-icon{width:28px;height:28px;flex-basis:28px}#app .oq-kpi strong{font-size:17px}}
+/* The site's existing dark-mode toggle continues to control this design. */
+html[data-salon-appearance="dark"] #app .owner-shell{--oq-paper:#251e29;--oq-soft:#302333;--oq-border:#503b50;--oq-ink:#f6eaf2;--oq-muted:#bea8b8;background:#19151d!important;color:var(--oq-ink)!important}
+html[data-salon-appearance="dark"] body:has(#app .owner-shell){background:#19151d!important}
+html[data-salon-appearance="dark"] #app .owner-sidebar,html[data-salon-appearance="dark"] #app .owner-main{background:#1e1923!important;color:#f2e3ed!important;border-color:#4a3748!important}
+html[data-salon-appearance="dark"] #app .owner-brand,html[data-salon-appearance="dark"] #app .owner-top{background:#251d2a!important;border-color:#4a3648!important;color:#f2e3ed!important}
+html[data-salon-appearance="dark"] #app .owner-brand b,html[data-salon-appearance="dark"] #app .oq-hero h2,html[data-salon-appearance="dark"] #app .oq-filters strong,html[data-salon-appearance="dark"] #app .oq-panel h3,html[data-salon-appearance="dark"] #app .oq-kpi strong{color:#ffeaf5!important}
+html[data-salon-appearance="dark"] #app .owner-menu .oq-nav-item:not(.selected),html[data-salon-appearance="dark"] #app .oq-item-main strong{color:#ead5e2!important}
+html[data-salon-appearance="dark"] #app .owner-menu .oq-nav-item.selected{background:linear-gradient(110deg,#a85b84,#784365)!important;color:#fff!important}
+html[data-salon-appearance="dark"] #app .oq-kpi,html[data-salon-appearance="dark"] #app .oq-panel,html[data-salon-appearance="dark"] #app .oq-filters,html[data-salon-appearance="dark"] #app .oq-report-extra{background:#251e29!important;border-color:#4b394b!important;color:#f4e3ed!important}
+html[data-salon-appearance="dark"] #app .oq-hero-art{background:linear-gradient(120deg,#392837,#2c202f)!important;border-color:#503b51!important;color:#edd7e5!important}
+html[data-salon-appearance="dark"] #app .oq-donut::after{background:#251e29!important}
+html[data-salon-appearance="dark"] #app .oq-chart-value,html[data-salon-appearance="dark"] #app .oq-service-row,html[data-salon-appearance="dark"] #app .oq-period-note,html[data-salon-appearance="dark"] #app .oq-item-main small,html[data-salon-appearance="dark"] #app .oq-hero p{color:#c8acbf!important}
+html[data-salon-appearance="dark"] #app .oq-period-modes button,html[data-salon-appearance="dark"] #app .oq-panel-head button,html[data-salon-appearance="dark"] #app .oq-shortcuts button,html[data-salon-appearance="dark"] #app .oq-report-extra .oq-report-actions button.secondary{background:#36293a!important;color:#f1dfeb!important;border-color:#58435a!important}
+html[data-salon-appearance="dark"] #app .oq-period-modes button.active{background:#864a6c!important;color:#fff!important}
+html[data-salon-appearance="dark"] #app .oq-nav-search input,html[data-salon-appearance="dark"] #app .oq-top-search input,html[data-salon-appearance="dark"] #app .oq-report-fields input,html[data-salon-appearance="dark"] #app .oq-period-fields input{background:#211924!important;color:#f6e8f1!important;border-color:#5c455a!important}
+html[data-salon-appearance="dark"] #app .oq-kpi-head,html[data-salon-appearance="dark"] #app .oq-kpi small,html[data-salon-appearance="dark"] #app .oq-period-fields label{color:#cdb1c3!important}
+html[data-salon-appearance="dark"] #app .oq-item{border-color:#453545!important}
+html[data-salon-appearance="dark"] #app .oq-shortcuts button span,html[data-salon-appearance="dark"] #app .oq-item>span:last-child,html[data-salon-appearance="dark"] #app .oq-chart-summary strong{color:#f1cfe2!important}
+html[data-salon-appearance="dark"] #app .oq-chart-key,html[data-salon-appearance="dark"] #app .oq-chart-summary{color:#c9afbe!important}
+html[data-salon-appearance="dark"] #app .owner-mobile-menu-toggle{background:#302431!important;color:#f5e3ed!important;border-color:#584357!important}
+@media print{#app .owner-sidebar,#app .owner-top,#app .oq-report-extra,#app .oq-filters,#app .oq-quick-panel{display:none!important}#app .owner-shell{display:block!important}#app .oq-panel{box-shadow:none!important;break-inside:avoid}}
+</style>
+<script id="oq-owner-dashboard-data-and-navigation-20261114">
+/* Non-destructive UI layer. All existing Firestore records, roles, handlers and tabs remain unchanged. */
+(function(){
+'use strict';
+const srch={value:''};
+const state={mode:'month',dayFrom:today(),dayTo:today(),monthFrom:today().slice(0,7),monthTo:today().slice(0,7),yearFrom:today().slice(0,4),yearTo:today().slice(0,4)};
+let revenueMode='month';const reportSelections={};
+const dateOf=(v)=>String(v?.date||v?.createdAt||'').slice(0,10);
+const html=(v)=>esc(String(v??''));
+const amount=(v)=>money(Number(v)||0);
+const invoiceValue=(v)=>Number(salonInvoiceNet(v))||0;
+const fullMonthEnd=(m)=>/^\d{4}-\d{2}$/.test(m)?m+'-'+String(new Date(Date.UTC(Number(m.slice(0,4)),Number(m.slice(5,7)),0)).getUTCDate()).padStart(2,'0'):'';
+const within=(d,from,to)=>!!d&&(!from||d>=from)&&(!to||d<=to);
+function ownerReady(){return typeof hasOwner==='function'&&hasOwner()&&document.querySelector('#app .owner-shell')}
+function filterSidebar(q){srch.value=String(q||'');const menu=document.querySelector('#app .owner-menu');if(!menu)return;const needle=srch.value.trim().toLocaleLowerCase();let found=0;menu.querySelectorAll('.oq-nav-item').forEach(b=>{const ok=b.textContent.toLocaleLowerCase().includes(needle);b.hidden=!ok;b.style.display=ok?'flex':'none';if(ok)found++});const empty=menu.querySelector('.oq-nav-empty');if(empty)empty.hidden=!!found;document.querySelectorAll('#app .oq-menu-search-input').forEach(inp=>{if(inp.value!==srch.value)inp.value=srch.value})}
+function makeFlatMenu(){const menu=document.querySelector('#app .owner-menu');const sidebar=document.querySelector('#app .owner-sidebar');if(!menu||!sidebar||typeof OWNER_MENU==='undefined')return;
+ const frag=document.createDocumentFragment();const ids=new Set();for(const entry of OWNER_MENU){const [id,label,icon]=entry;if(ids.has(id))continue;ids.add(id);const button=document.createElement('button');button.type='button';button.className='oq-nav-item'+(ownerActiveTab===id?' selected':'');button.setAttribute('aria-current',ownerActiveTab===id?'page':'false');button.title=String(label);const glyph=document.createElement('span');glyph.className='owner-menu-icon';glyph.setAttribute('aria-hidden','true');glyph.textContent=String(icon||'•');const title=document.createElement('span');title.className='owner-nav-label';title.textContent=String(label);button.append(glyph,title);button.addEventListener('click',()=>{srch.value='';ownerTab(id);window.scrollTo?.({top:0,behavior:'instant'})});frag.append(button)}const empty=document.createElement('span');empty.className='oq-nav-empty';empty.hidden=true;empty.textContent='لا توجد أقسام مطابقة';frag.append(empty);menu.replaceChildren(frag);
+ let wrap=sidebar.querySelector('.oq-nav-search');if(!wrap){wrap=document.createElement('label');wrap.className='oq-nav-search';wrap.innerHTML='<input type="search" class="oq-menu-search-input" aria-label="البحث في أقسام الإدارة" placeholder="ابحثي في جميع الأقسام…">';sidebar.insertBefore(wrap,menu)}const si=wrap.querySelector('input');si.value=srch.value;si.oninput=()=>filterSidebar(si.value);
+ const top=document.querySelector('#app .owner-top');if(top){let search=top.querySelector('.oq-top-search');if(!search){search=document.createElement('label');search.className='oq-top-search';search.innerHTML='<input type="search" class="oq-menu-search-input" aria-label="البحث عن قسم من أقسام الإدارة" placeholder="بحث عن خدمة، قسم، فاتورة…">';const tools=top.querySelector('.owner-top-tools');if(tools)top.insertBefore(search,tools);else top.append(search)}const input=search.querySelector('input');input.value=srch.value;input.oninput=()=>{filterSidebar(input.value);if(input.value.trim()&&window.innerWidth<=900)sidebar.classList.add('owner-nav-open');const toggle=sidebar.querySelector('.owner-mobile-menu-toggle');if(toggle&&sidebar.classList.contains('owner-nav-open')){toggle.setAttribute('aria-expanded','true');toggle.textContent='✕ إغلاق القائمة'}}}
+ filterSidebar(srch.value)
+}
+function dashMarkup(){return `<div class="oq-dashboard" id="oqDashboard">
+ <div class="oq-hero"><div class="oq-hero-copy"><span class="oq-kicker">لوحة الإدارة • NAIL QUALITY SALON</span><h2>مرحبًا بكِ في صالون جودة الأظافر <span aria-hidden="true">✿</span></h2><p>إليكِ ملخص أعمال الصالون، والمبيعات، والحجوزات في مكان واحد.</p></div><div class="oq-hero-art"><span>كل تفاصيل الجمال تبدأ من هنا <em>✧</em><br><small>صالون جودة الأظافر · NAIL QUALITY SALON</small></span></div></div>
+ <section class="oq-filters" aria-label="تصفية إيرادات لوحة الإدارة"><div class="oq-filters-top"><strong>الإيرادات والنتائج حسب الفترة</strong><span class="oq-period-note" id="oqPeriodCaption"></span></div><div class="oq-period-modes" role="group" aria-label="نوع الفترة">${[['day','من يوم إلى يوم'],['month','من شهر إلى شهر'],['year','من سنة إلى سنة'],['all','كل التواريخ']].map(([id,name])=>`<button type="button" data-oq-mode="${id}" class="${state.mode===id?'active':''}">${name}</button>`).join('')}</div><div class="oq-period-fields" id="oqPeriodFields"></div><div class="oq-period-error" id="oqPeriodError" role="status"></div></section>
+ <div class="oq-kpis" aria-label="ملخص الأداء"><div class="oq-kpi"><div class="oq-kpi-head"><span>الحجوزات خلال الفترة</span><span class="oq-kpi-icon">▦</span></div><strong id="oqKpiBookings">—</strong><small>حجوزات مسجلة</small></div><div class="oq-kpi"><div class="oq-kpi-head"><span>إجمالي الإيرادات</span><span class="oq-kpi-icon">▤</span></div><strong id="oqKpiRevenue">—</strong><small>صافي الفواتير بعد الاسترجاع</small></div><div class="oq-kpi"><div class="oq-kpi-head"><span>صافي الربح التقديري</span><span class="oq-kpi-icon">♧</span></div><strong id="oqKpiProfit">—</strong><small>الإيرادات ناقص المصروفات المسجلة</small></div><div class="oq-kpi"><div class="oq-kpi-head"><span>المصروفات</span><span class="oq-kpi-icon">◫</span></div><strong id="oqKpiExpenses">—</strong><small>ضمن نفس الفترة المختارة</small></div></div>
+ <div class="oq-panels">
+ <section class="oq-panel oq-graph-panel"><div class="oq-panel-head"><h3>حركة المبيعات والإيرادات</h3><button type="button" data-oq-tab="reports">التقرير التفصيلي</button></div><div class="oq-chart" id="oqRevenueChart"></div><div class="oq-chart-summary" id="oqChartLegend"></div></section>
+ <section class="oq-panel oq-quick-panel"><div class="oq-panel-head"><h3>اختصارات سريعة</h3></div><div class="oq-shortcuts">${[['cashier','▣','الكاشير'],['newbooking','▦','حجز جديد'],['invoices','▤','الفواتير'],['services','✿','الخدمات'],['staff','♙','الموظفات'],['reports','▥','الإيرادات']].map(([id,ico,name])=>`<button type="button" data-oq-tab="${id}">${ico}<span>${name}</span></button>`).join('')}</div></section>
+ <section class="oq-panel"><div class="oq-panel-head"><h3>أحدث الفواتير</h3><button type="button" data-oq-tab="invoices">عرض الكل</button></div><div id="oqLatestInvoices" class="oq-item-list"></div></section>
+ <section class="oq-panel"><div class="oq-panel-head"><h3>الخدمات الأكثر بيعًا</h3><button type="button" data-oq-tab="services">إدارة الخدمات</button></div><div id="oqTopServices"></div></section>
+ <section class="oq-panel"><div class="oq-panel-head"><h3>الحجوزات القادمة</h3><button type="button" data-oq-tab="appointments">عرض المواعيد</button></div><div id="oqComingBookings" class="oq-item-list"></div></section>
+ <section class="oq-panel"><div class="oq-panel-head"><h3>الموظفات</h3><button type="button" data-oq-tab="staff">عرض الكل</button></div><div id="oqStaffList" class="oq-item-list"></div></section>
+ </div></div>`}
+function interval(){const m=state.mode;let from='',to='',label='جميع التواريخ';if(m==='day'){from=state.dayFrom;to=state.dayTo;label=`من ${from||'البداية'} إلى ${to||'النهاية'}`}else if(m==='month'){from=state.monthFrom?state.monthFrom+'-01':'';to=fullMonthEnd(state.monthTo);label=`من ${state.monthFrom||'البداية'} إلى ${state.monthTo||'النهاية'}`}else if(m==='year'){from=state.yearFrom?state.yearFrom+'-01-01':'';to=state.yearTo?state.yearTo+'-12-31':'';label=`من ${state.yearFrom||'البداية'} إلى ${state.yearTo||'النهاية'}`}return {from,to,label,invalid:!!(from&&to&&from>to)}}
+function wireDashboard(){const root=document.getElementById('oqDashboard');if(!root)return;root.querySelectorAll('[data-oq-tab]').forEach(el=>el.onclick=()=>ownerTab(el.dataset.oqTab));root.querySelectorAll('[data-oq-mode]').forEach(el=>el.onclick=()=>{state.mode=el.dataset.oqMode;wirePeriodFields();refreshDashboard()});wirePeriodFields();refreshDashboard()}
+function wirePeriodFields(){const root=document.getElementById('oqDashboard'),container=document.getElementById('oqPeriodFields');if(!root||!container)return;root.querySelectorAll('[data-oq-mode]').forEach(b=>b.classList.toggle('active',b.dataset.oqMode===state.mode));const fields={day:[['dayFrom','من تاريخ','date'],['dayTo','إلى تاريخ','date']],month:[['monthFrom','من شهر','month'],['monthTo','إلى شهر','month']],year:[['yearFrom','من سنة','number'],['yearTo','إلى سنة','number']],all:[]};container.innerHTML=fields[state.mode].map(([key,label,type])=>`<label>${label}<input data-oq-field="${key}" type="${type}" ${type==='number'?'min="1900" max="2500" step="1"':''} value="${html(state[key])}"></label>`).join('');container.querySelectorAll('input').forEach(inp=>inp.addEventListener('change',()=>{state[inp.dataset.oqField]=inp.value;refreshDashboard()}))}
+function bars(invoices,bounds){const chart=document.getElementById('oqRevenueChart');if(!chart)return;const dates=invoices.map(dateOf).filter(Boolean).sort();let from=bounds.from||dates[0]||today(),to=bounds.to||dates[dates.length-1]||today();const countDays=Math.max(0,Math.round((Date.parse(to+'T12:00:00Z')-Date.parse(from+'T12:00:00Z'))/86400000));const type=countDays<=30?'day':countDays<=1100?'month':'year';const arr=[];let cur=type==='day'?from:type==='month'?from.slice(0,7):from.slice(0,4);const last=type==='day'?to:type==='month'?to.slice(0,7):to.slice(0,4);for(let n=0;n<40&&cur<=last;n++){arr.push(cur);if(type==='year')cur=String(Number(cur)+1);else if(type==='month'){const [y,m]=cur.split('-').map(Number);cur=new Date(Date.UTC(y,m,1)).toISOString().slice(0,7)}else{const d=new Date(cur+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);cur=d.toISOString().slice(0,10)}}let keys=arr;const points=keys.map(key=>({key,value:invoices.filter(i=>dateOf(i).startsWith(key)).reduce((n,i)=>n+invoiceValue(i),0)}));const max=Math.max(1,...points.map(x=>Math.max(0,x.value)));chart.innerHTML=points.length?points.map(x=>`<div class="oq-chart-col" title="${html(x.key)}: ${html(amount(x.value))}"><span class="oq-chart-value">${x.value?html(Math.round(x.value).toLocaleString('en-US')):''}</span><span class="oq-chart-bar" style="height:${Math.max(4,Math.max(0,x.value)/max*142)}px"></span><span class="oq-chart-key">${type==='day'?html(x.key.slice(5)):type==='month'?html(x.key.slice(5)+'/'+x.key.slice(2,4)):html(x.key)}</span></div>`).join(''):'<p class="oq-empty">لا توجد مبيعات في الفترة المختارة</p>';const legend=document.getElementById('oqChartLegend');if(legend)legend.innerHTML=`<span>● إيرادات الفواتير بعد الاسترجاع</span><strong>${html(points.length)} فترة في الرسم</strong>`}
+function refreshDashboard(){const root=document.getElementById('oqDashboard');if(!root)return;const bounds=interval(),error=root.querySelector('#oqPeriodError');error.textContent=bounds.invalid?'تاريخ البداية يجب أن يكون قبل تاريخ النهاية أو مساويًا له.':'';if(bounds.invalid)return;root.querySelector('#oqPeriodCaption').textContent=bounds.label;const invoices=(db.invoices||[]).filter(i=>within(dateOf(i),bounds.from,bounds.to));const expenses=(db.expenses||[]).filter(e=>within(dateOf(e),bounds.from,bounds.to));const bookings=(db.bookings||[]).filter(b=>within(dateOf(b),bounds.from,bounds.to));const revenue=invoices.reduce((n,i)=>n+invoiceValue(i),0),cost=expenses.reduce((n,e)=>n+(Number(e.amount)||0),0);root.querySelector('#oqKpiBookings').textContent=bookings.length.toLocaleString('ar-SA');root.querySelector('#oqKpiRevenue').textContent=amount(revenue);root.querySelector('#oqKpiProfit').textContent=amount(revenue-cost);root.querySelector('#oqKpiExpenses').textContent=amount(cost);bars(invoices,bounds);
+ const latest=invoices.slice().sort((a,b)=>dateOf(b).localeCompare(dateOf(a))).slice(0,5);root.querySelector('#oqLatestInvoices').innerHTML=latest.map(i=>{let name='عميلة';try{name=(typeof window.salonInvoiceCustomerName==='function'&&window.salonInvoiceCustomerName(i))||i.customerName||clientName(i.clientId)||name}catch(_){name=i.customerName||name}return `<div class="oq-item"><div class="oq-item-main"><strong>${html(name)}</strong><small>${html(dateOf(i))} ${i.number?'· #'+html(i.number):''}</small></div><span>${html(amount(invoiceValue(i)))}</span></div>`}).join('')||'<div class="oq-empty">لا توجد فواتير ضمن الفترة</div>';
+ const upcoming=(db.bookings||[]).filter(b=>dateOf(b)>=today()&&!['cancelled','noShow'].includes(String(b.status))).slice().sort((a,b)=>(String(a.date)+String(a.time||'')).localeCompare(String(b.date)+String(b.time||''))).slice(0,5);root.querySelector('#oqComingBookings').innerHTML=upcoming.map(b=>`<div class="oq-item"><div class="oq-item-main"><strong>${html(b.customerName||clientName(b.clientId)||'عميلة')}</strong><small>${html(b.date||'')} · ${html(b.time||'')}</small></div><span>${html(b.serviceName||serviceName(b.serviceId)||'حجز')}</span></div>`).join('')||'<div class="oq-empty">لا توجد حجوزات قادمة مسجلة</div>';
+ const staff=(db.staff||[]).filter(e=>e.active!==false).slice(0,5);root.querySelector('#oqStaffList').innerHTML=staff.map(e=>`<div class="oq-item"><div class="oq-item-main"><strong>${html(e.name||'موظفة')}</strong><small>${html(e.role||e.specialty||'فريق الصالون')}</small></div><span>● نشطة</span></div>`).join('')||'<div class="oq-empty">لا توجد موظفات نشطات في السجل</div>';
+ const serviceMap=new Map();for(const inv of invoices)for(const item of Array.isArray(inv.items)?inv.items:[]){if(item.itemKind==='packagePurchase')continue;const name=String(item.name||item.serviceName||'خدمة').trim(),qty=Math.max(1,Number(item.quantity)||1);serviceMap.set(name,(serviceMap.get(name)||0)+qty)}const services=[...serviceMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5),sum=services.reduce((s,p)=>s+p[1],0),colors=['#cc799b','#a879c0','#daa5c3','#809bac','#e4b7a7'];let cumul=0;const segments=services.map(([n,value],idx)=>{const start=cumul/sum*100;cumul+=value;return `${colors[idx]} ${start.toFixed(2)}% ${(cumul/sum*100).toFixed(2)}%`});const node=root.querySelector('#oqTopServices');node.innerHTML=sum?`<div class="oq-services-layout"><div class="oq-donut" style="background:conic-gradient(${segments.join(',')})"><span>${sum}<br>خدمة</span></div><div class="oq-service-list">${services.map(([name,val],idx)=>`<div class="oq-service-row"><span><span class="oq-service-dot" style="background:${colors[idx]}"></span>${html(name)}</span><b>${val}</b></div>`).join('')}</div></div>`:'<div class="oq-empty">تظهر الخدمات الأكثر بيعًا عند وجود تفاصيل خدمات في الفواتير</div>';
+}
+function buildDashboard(){const content=document.querySelector('#app .owner-content');if(!content)return;content.innerHTML=dashMarkup();wireDashboard()}
+function reportTools(){const content=document.querySelector('#app .owner-content');const reportMode=document.getElementById('reportMode');if(!content||!reportMode)return;for(const field of ['reportFrom','reportTo']){const el=document.getElementById(field);if(el){el.removeAttribute('min');el.removeAttribute('max')}}const form=reportMode.closest('.form-grid');if(!form)return;form.classList.add('oq-report-legacy-fields');
+ let tools=content.querySelector('#oqReportExtra');if(tools)tools.remove();tools=document.createElement('section');tools.id='oqReportExtra';tools.className='oq-report-extra';tools.innerHTML=`<h3>بحث الإيرادات والمبيعات بأي فترة</h3><div class="oq-period-modes" id="oqReportModes" role="group" aria-label="نوع فترة الإيرادات">${[['day','يوم إلى يوم'],['monthRange','شهر إلى شهر'],['yearRange','سنة إلى سنة'],['month','شهر محدد'],['year','سنة محددة'],['all','كل التواريخ']].map(([m,name])=>`<button type="button" data-oq-report-mode="${m}" class="${m===revenueMode?'active':''}">${name}</button>`).join('')}</div><div class="oq-report-fields" id="oqReportFields"></div><div class="oq-report-actions"><button type="button" id="oqReportSearch">عرض النتائج</button><button type="button" id="oqReportThisMonth" class="secondary">هذا الشهر</button><small class="oq-report-hint">تُحسب النتائج وفق تاريخ إصدار الفاتورة، مع خصم الاسترجاعات والمصروفات المسجلة.</small></div><div class="oq-period-error" id="oqReportError" role="status"></div>`;
+ const original=reportMode.closest('.card');if(original)original.before(tools);else content.prepend(tools);
+ tools.querySelectorAll('[data-oq-report-mode]').forEach(b=>b.onclick=()=>{revenueMode=b.dataset.oqReportMode;renderReportFields()});tools.querySelector('#oqReportSearch').onclick=()=>runReport();tools.querySelector('#oqReportThisMonth').onclick=()=>{revenueMode='month';renderReportFields();runReport()};renderReportFields();runReport();
+}
+function renderReportFields(){const root=document.getElementById('oqReportExtra'),fields=document.getElementById('oqReportFields');if(!root||!fields)return;fields.querySelectorAll('[data-oq-report-field]').forEach(inp=>reportSelections[inp.dataset.oqReportField]=inp.value);root.querySelectorAll('[data-oq-report-mode]').forEach(b=>b.classList.toggle('active',b.dataset.oqReportMode===revenueMode));const now=today(),currentYear=now.slice(0,4),currentMonth=now.slice(0,7);let labels=[];if(revenueMode==='day')labels=[['from','من تاريخ','date',document.getElementById('reportFrom')?.value||now],['to','إلى تاريخ','date',document.getElementById('reportTo')?.value||now]];else if(revenueMode==='monthRange')labels=[['fromMonth','من شهر','month',currentMonth],['toMonth','إلى شهر','month',currentMonth]];else if(revenueMode==='yearRange')labels=[['fromYear','من سنة','number',currentYear],['toYear','إلى سنة','number',currentYear]];else if(revenueMode==='month')labels=[['oneMonth','الشهر المطلوب','month',currentMonth]];else if(revenueMode==='year')labels=[['oneYear','السنة المطلوبة','number',currentYear]];fields.innerHTML=labels.map(([key,title,type,value])=>`<label>${title}<input data-oq-report-field="${key}" type="${type}" ${type==='number'?'min="1900" max="2500" step="1"':''} value="${html(reportSelections[key]||value)}"></label>`).join('');root.querySelector('#oqReportError').textContent=''}
+function runReport(){const root=document.getElementById('oqReportExtra');if(!root||!document.getElementById('reportMode'))return;const get=(key)=>root.querySelector(`[data-oq-report-field="${key}"]`)?.value||'',source=document.getElementById('reportMode'),from=document.getElementById('reportFrom'),to=document.getElementById('reportTo'),yr=document.getElementById('reportYear'),mon=document.getElementById('reportMonth');let a='',b='';root.querySelector('#oqReportError').textContent='';if(revenueMode==='day'){source.value='range';a=get('from');b=get('to')}else if(revenueMode==='monthRange'){source.value='range';a=get('fromMonth')?get('fromMonth')+'-01':'';b=fullMonthEnd(get('toMonth'))}else if(revenueMode==='yearRange'){source.value='range';a=get('fromYear')?get('fromYear')+'-01-01':'';b=get('toYear')?get('toYear')+'-12-31':''}else if(revenueMode==='month'){source.value='month';const month=get('oneMonth')||today().slice(0,7);{const y=month.slice(0,4);if(!Array.from(yr.options).some(o=>o.value===y)){const option=document.createElement('option');option.value=y;option.textContent=y;yr.append(option)}yr.value=y}mon.value=month.slice(5,7)}else if(revenueMode==='year'){source.value='year';{const y=get('oneYear')||today().slice(0,4);if(!Array.from(yr.options).some(o=>o.value===y)){const option=document.createElement('option');option.value=y;option.textContent=y;yr.append(option)}yr.value=y}}else{source.value='all'}if(source.value==='range'){if(a&&b&&a>b){root.querySelector('#oqReportError').textContent='تاريخ البداية يجب أن يكون قبل تاريخ النهاية أو مساويًا له.';return}from.value=a;to.value=b}drawReports()}
+const originalOwner=renderOwner;
+renderOwner=function(tab=ownerActiveTab){const result=originalOwner.apply(this,arguments);if(!ownerReady())return result;makeFlatMenu();if((tab||ownerActiveTab)==='dashboard')buildDashboard();if((tab||ownerActiveTab)==='reports')reportTools();return result};
+if(ownerReady()){makeFlatMenu();if(ownerActiveTab==='dashboard')buildDashboard();if(ownerActiveTab==='reports')reportTools()}
 })();
 </script>
 </body>
