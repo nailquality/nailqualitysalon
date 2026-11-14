@@ -145,10 +145,19 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
 .salon-visible-deal-card strong{font-size:17px}.salon-visible-deal-card s{color:#94818b}.salon-visible-deal-card b{color:#b22b60;font-size:18px}.salon-visible-deal-card small{color:#855570}.salon-visible-deal-card:hover,.salon-visible-deal-card:focus-visible{border-color:#a76285;outline:2px solid #d2a8bb;outline-offset:1px}
 </style>
 <style>
-.salon-site-gated .topbar,.salon-site-gated body>.footer{display:none!important}
-.salon-site-gate{max-width:540px;margin:12vh auto 0;text-align:center;padding:28px}
-.salon-site-gate p{white-space:pre-wrap;overflow-wrap:anywhere}
-.salon-site-gate button{margin:5px}
+.salon-site-gated .topbar{display:none!important}
+html.salon-site-gated #app.salon-maintenance{box-sizing:border-box;width:min(100%,880px);min-height:calc(100svh - 112px);display:grid;grid-template-rows:auto 1fr auto;align-items:stretch;padding:24px clamp(18px,5vw,48px) 10px}
+.salon-maintenance-top{display:flex;justify-content:space-between;align-items:center;gap:12px;color:#6c3b55;font-weight:800}
+.salon-site-gate{width:min(100%,540px);align-self:center;justify-self:center;text-align:center;padding:clamp(24px,6vw,48px);margin:28px 0;background:#fff9fb;border:1px solid #eed5e0;border-radius:28px;box-shadow:0 18px 50px #66355017}
+.salon-maintenance-icon{display:grid;place-items:center;width:82px;height:82px;margin:0 auto 20px;border-radius:26px;background:#f7e2ec;border:1px solid #edc9db;font-size:42px;line-height:1}
+.salon-site-gate h1{margin:0 0 10px;color:#66334e;font-size:clamp(1.65rem,5vw,2.6rem);line-height:1.2}
+.salon-site-gate p{margin:0;color:#674e5d;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.salon-site-gate .salon-maintenance-reason{margin-top:18px;padding:12px 16px;background:#fff;border:1px solid #f0dce5;border-radius:14px}
+.salon-site-gate .btn{margin-top:16px}
+.salon-maintenance-bottom{text-align:center}
+.salon-maintenance-bottom button{border:0;background:none;color:#71435a;padding:10px;text-decoration:underline;text-underline-offset:3px;font:inherit;font-size:.9rem;cursor:pointer}
+.salon-credit{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 16px;text-align:center}
+.salon-credit a{color:#71435a}
 #modalRoot fieldset{margin:12px 0;min-width:0}
 </style>
 </head>
@@ -158,7 +167,7 @@ body:has(.owner-shell) .wrap{width:100%;max-width:none;padding:0;margin:0}
   <div class="top-actions"><button class="btn secondary" id="langBtn">English</button><button class="btn secondary hidden" id="homeBtn" data-i18n="home">الرئيسية</button></div>
 </header>
 <main class="wrap" id="app"><section class="salon-startup-shell" role="status" aria-live="polite"><span class="salon-startup-icon" aria-hidden="true"></span><strong>جاري تجهيز صالون جودة الأظافر</strong><small>Preparing your salon experience…</small></section></main>
-<div class="footer">تم تصميم وتطوير هذا الموقع بواسطة المصمم <strong>عبدالله</strong> · <a href="https://wa.me/966593055867" target="_blank" rel="noopener noreferrer">للتواصل عبر واتساب: +966 59 305 5867</a></div>
+<footer class="footer salon-credit"><span><span id="salonCreditLabel">تم تصميم هذا الموقع بواسطة</span> <strong><bdi>نواة</bdi> | <bdi>NAWA</bdi></strong></span><a href="https://wa.me/966593055867" target="_blank" rel="noopener noreferrer"><span id="salonCreditContact">للتواصل عبر واتساب</span> <bdi dir="ltr">0593055867</bdi></a></footer>
 <div id="modalRoot"></div><div id="toastRoot"></div>
 <script>
 "use strict";
@@ -351,7 +360,7 @@ function persist(){
   return saveQueue;
 }
 function toast(msg){const root=$("#toastRoot");root.innerHTML=`<div class="toast">${esc(msg)}</div>`;setTimeout(()=>root.innerHTML="",2800)}
-function applyLang(){document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";$("#langBtn").textContent=lang==="ar"?"English":"العربية";$$("[data-i18n]").forEach(el=>el.textContent=t(el.dataset.i18n));}
+function applyLang(){const credit=$("#salonCreditLabel"),contact=$("#salonCreditContact");if(credit)credit.textContent=lang==="en"?"Website designed by":"تم تصميم هذا الموقع بواسطة";if(contact)contact.textContent=lang==="en"?"Contact on WhatsApp":"للتواصل عبر واتساب";document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";$("#langBtn").textContent=lang==="ar"?"English":"العربية";$$("[data-i18n]").forEach(el=>el.textContent=t(el.dataset.i18n));}
 function textService(s){return lang==="en"?(s.nameEn||s.name):s.name}
 function statusBadge(s){let c=s==="completed"||s==="confirmed"?"green":s==="cancelled"||s==="noShow"?"red":s==="inProgress"?"amber":"";return `<span class="badge ${c}">${esc(t(s))}</span>`}
 function activeServices(){return db.services.filter(s=>s.active!==false)}
@@ -374,10 +383,11 @@ async function clearSession(){
   }finally{window.salonLogoutBusy=false}
 }
 function renderOwnerLogin(){
+  const ar=lang==="ar";
   applyLang();$("#homeBtn").classList.add("hidden");
-  $("#app").innerHTML=`<section class="hero"><div><h2>نظام إدارة صالون جودة الأظافر</h2><p>لوحة خاصة بصاحبة الصالون لإدارة العميلات والحجوزات والفواتير والخدمات والموظفات والمصروفات. سجّلي الدخول بحساب Firebase المصرّح له.</p></div><div class="hero-art">🌸</div></section><div class="card" style="max-width:620px;margin:0 auto"><h2>دخول صاحبة الصالون</h2><form id="ownerFirebaseLogin" class="form-grid"><div class="field full"><label>البريد الإلكتروني</label><input name="email" type="email" autocomplete="username" required></div><div class="field full"><label>كلمة المرور</label><input name="password" type="password" autocomplete="current-password" required></div><button class="btn full" id="ownerLoginSubmit">تسجيل الدخول</button><div id="loginError" class="danger-text tiny full"></div></form><p class="muted tiny">أنشئي الحساب أولًا من Firebase Console ← Authentication ← Users. لا تضعي كلمة المرور داخل الكود.</p></div>`;
+  $("#app").innerHTML=`<section class="hero"><div><h2>${ar?"نظام إدارة صالون جودة الأظافر":"Quality Nail Salon Management"}</h2><p>${ar?"لوحة خاصة بصاحبة الصالون لإدارة العميلات والحجوزات والفواتير والخدمات والموظفات والمصروفات. سجّلي الدخول بحساب Firebase المصرّح له.":"Sign in with the authorized owner account to manage the salon."}</p></div><div class="hero-art">🌸</div></section><div class="card" style="max-width:620px;margin:0 auto"><h2>${ar?"دخول صاحبة الصالون":"Salon owner sign-in"}</h2><form id="ownerFirebaseLogin" class="form-grid"><div class="field full"><label>${ar?"البريد الإلكتروني":"Email"}</label><input name="email" type="email" autocomplete="username" required></div><div class="field full"><label>${ar?"كلمة المرور":"Password"}</label><input name="password" type="password" autocomplete="current-password" required></div><button class="btn full" id="ownerLoginSubmit">${ar?"تسجيل الدخول":"Sign in"}</button><div id="loginError" class="danger-text tiny full"></div></form><p class="muted tiny">${ar?"أنشئي الحساب أولًا من Firebase Console ← Authentication ← Users. لا تضعي كلمة المرور داخل الكود.":"Create the owner account in Firebase Authentication. Keep the password out of the site code."}</p></div>`;
   $("#ownerFirebaseLogin").addEventListener("submit",async e=>{
-    e.preventDefault();loginInProgress=true;const form=e.currentTarget,fd=new FormData(form),btn=$("#ownerLoginSubmit"),error=$("#loginError");btn.disabled=true;btn.textContent="جارٍ التحقق…";error.textContent="";
+    e.preventDefault();loginInProgress=true;const form=e.currentTarget,fd=new FormData(form),btn=$("#ownerLoginSubmit"),error=$("#loginError");btn.disabled=true;btn.textContent=ar?"جارٍ التحقق…":"Checking…";error.textContent="";
     try{
       const credential=await auth.signInWithEmailAndPassword(String(fd.get("email")).trim(),String(fd.get("password")));
       if(credential.user.uid!=="AvRinM2frzLkDWH1CsH7CnIhFnK2")throw Object.assign(new Error("هذا الحساب ليس حساب صاحبة الصالون المصرّح له."),{code:"owner/not-authorized"});
@@ -391,8 +401,8 @@ function renderOwnerLogin(){
       salonInitializeInvoiceStorage().then(()=>{
        if(db.session?.type==='owner'&&ownerActiveTab==='dashboard')renderOwner('dashboard');
       }).catch(err=>console.warn('Invoice initialization',err));
-    }catch(err){console.error(err);try{await auth.signOut()}catch(_){}firebaseReady=false;error.textContent=(err.code==="auth/invalid-credential"||err.code==="auth/wrong-password"||err.code==="auth/user-not-found")?"الإيميل أو كلمة المرور غير صحيحة.":(err.code==="permission-denied"||err.code==="firestore/permission-denied")?"الحساب غير مصرح له في قواعد Firestore. تأكدي من UID صاحبة الصالون في Rules.":"تعذر الدخول: "+(err.message||"تحققي من إعدادات Firebase");}
-    finally{loginInProgress=false;btn.disabled=false;btn.textContent="تسجيل الدخول"}
+    }catch(err){console.error(err);try{await auth.signOut()}catch(_){}firebaseReady=false;error.textContent=!ar?(err.code==="owner/not-authorized"?"This account is not authorized as the salon owner.":"Unable to sign in. Check the credentials and try again."):(err.code==="auth/invalid-credential"||err.code==="auth/wrong-password"||err.code==="auth/user-not-found")?"الإيميل أو كلمة المرور غير صحيحة.":(err.code==="permission-denied"||err.code==="firestore/permission-denied")?"الحساب غير مصرح له في قواعد Firestore. تأكدي من UID صاحبة الصالون في Rules.":"تعذر الدخول: "+(err.message||"تحققي من إعدادات Firebase");}
+    finally{loginInProgress=false;btn.disabled=false;btn.textContent=ar?"تسجيل الدخول":"Sign in"}
   });
 }
 function showLogin(type="owner"){renderHome()}
@@ -8943,14 +8953,27 @@ function salonSiteShowGate(){
   document.querySelector('#homeBtn')?.classList.add('hidden');
   const ar=lang==='ar';
   const closed=salonSiteState?.closed===true;
-  const title=closed?(ar?'عذرًا، الموقع مغلق':'Sorry, the site is closed'):
+  const title=closed?(ar?'عذرًا، الموقع مغلق للصيانة':'Sorry, the site is closed for maintenance'):
     salonSiteFailed?(ar?'تعذّر التحقق من حالة الموقع':'Could not verify site availability'):
     (ar?'جارٍ التحقق من حالة الموقع…':'Checking site availability…');
-  app.className='wrap';
-  app.innerHTML='<section class="card salon-site-gate" role="region"><h2>'+esc(title)+'</h2>'+
-    (closed&&salonSiteState.reason?'<p>'+esc(salonSiteState.reason)+'</p>':'')+
-    '<button type="button" class="btn" id="salonSiteOwnerLogin">'+(ar?'دخول صاحبة الصالون':'Salon owner sign-in')+'</button>'+
-    (salonSiteFailed?'<button type="button" class="btn secondary" id="salonSiteRetry">'+(ar?'إعادة المحاولة':'Retry')+'</button>':'')+'</section>';
+  document.documentElement.classList.remove('salon-booting');
+  applyLang();
+  app.className='wrap salon-maintenance';
+  app.innerHTML='<div class="salon-maintenance-top"><span>'+t('brand')+'</span>'+
+    '<button type="button" class="btn secondary small" id="salonSiteLanguage" lang="'+(ar?'en':'ar')+'">'+(ar?'English':'العربية')+'</button></div>'+
+    '<section class="salon-site-gate" aria-labelledby="salonMaintenanceTitle">'+
+    (closed?'<div class="salon-maintenance-icon" aria-hidden="true">🛠️</div>':'')+
+    '<h1 id="salonMaintenanceTitle">'+esc(title)+'</h1>'+
+    (closed?'<p>'+(ar?'نعمل على صيانة الموقع وسنعود قريبًا.':'We’re carrying out maintenance and will be back soon.')+'</p>':'')+
+    (closed&&salonSiteState.reason?'<p class="salon-maintenance-reason" dir="auto">'+esc(salonSiteState.reason)+'</p>':'')+
+    (salonSiteFailed?'<button type="button" class="btn secondary" id="salonSiteRetry">'+(ar?'إعادة المحاولة':'Retry')+'</button>':'')+'</section>'+
+    '<div class="salon-maintenance-bottom"><button type="button" id="salonSiteOwnerLogin">'+(ar?'دخول صاحبة الصالون':'Salon owner sign-in')+'</button></div>';
+  document.querySelector('#salonSiteLanguage').onclick=()=>{
+    lang=ar?'en':'ar';
+    localStorage.setItem('qns_lang',lang);
+    salonSiteShowGate();
+    document.querySelector('#salonSiteLanguage').focus();
+  };
   document.querySelector('#salonSiteOwnerLogin').onclick=()=>renderOwnerLogin();
   const retry=document.querySelector('#salonSiteRetry');
   if(retry)retry.onclick=()=>location.reload();
@@ -9021,6 +9044,7 @@ async function salonRequireSiteOpen(){
   renderOwnerLogin=function(){
     if(salonSiteIsOpen())return originalOwnerLogin.apply(this,arguments);
     salonSiteLogin=true;
+    document.querySelector('#app').className='wrap';
     originalOwnerLogin.apply(this,arguments);
     const back=document.createElement('button');
     back.type='button';
