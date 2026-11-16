@@ -26,6 +26,196 @@ html.salon-client-active #salonHeaderLogin,html.salon-client-active #salonHeader
 @media(max-width:760px){.wrap{padding:14px 12px 40px}.topbar{padding:10px 12px}.brand h1{font-size:14px}.brand small{font-size:10px}.logo{width:37px;height:37px}.grid{grid-template-columns:1fr}.portal{min-height:auto;display:grid;grid-template-columns:54px 1fr;align-items:center;column-gap:12px}.portal-icon{grid-row:span 2}.portal p{grid-column:2}.hero{padding:20px}.hero-art{font-size:45px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat strong{font-size:21px}.form-grid{grid-template-columns:1fr}.full{grid-column:auto}.service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.card{padding:14px}.top-actions .btn{padding:8px 10px;font-size:12px}}@media(max-width:390px){.service-grid{grid-template-columns:1fr}.hero-art{display:none}.stats{gap:8px}.stat{padding:12px}}
 @media print{.topbar,.nav,.no-print,button{display:none!important}body{background:white}.wrap{width:100%;padding:0}.card{box-shadow:none;break-inside:avoid}}
 </style>
+<script id="salon-catalog-drafts">
+const salonCatalogDrafts = new WeakMap();
+const salonTranslatedNodes = new WeakMap();
+const salonTranslatedAttributes = new WeakMap();
+const salonLegacyNames = new Map([
+  ['رموش شهرية كلاسيك',['Classic Lash Extensions','Monthly Classic Lash Extensions']],
+  ['رموش شهرية هايبرد',['Hybrid Lash Extensions','Monthly Hybrid Lash Extensions']],
+  ['رموش شهرية فوليوم',['Volume Lash Extensions','Monthly Volume Lash Extensions']]
+]);
+
+function salonBilingual(ar, en) { return lang === 'en' ? en : ar; }
+function salonCatalogDescription(item) {
+  return item ? String(salonBilingual(item.description || '', item.descriptionEn || item.description || '')) : '';
+}
+function salonServiceEnglish(item) {
+  const source = String(item.name || '').trim();
+  const saved = String(item.nameEn || '').trim();
+  const legacy = salonLegacyNames.get(source);
+  if (legacy && (!saved || saved === legacy[0])) return legacy[1];
+  if (saved && !/\p{Script=Arabic}/u.test(saved)) return saved;
+  const known = window.salonKnownCatalogEnglish?.(source);
+  const catalog = typeof qualityNailPriceList === 'undefined' ? [] : qualityNailPriceList;
+  return catalog.find(row => row.name === source)?.nameEn || known || saved || source;
+}
+
+function salonSeedCatalogPreview(form) {
+  for (const draft of salonCatalogDrafts.get(form) || []) {
+    if (draft.target.value.trim() || draft.manual) {
+      draft.target.required = !!draft.source.value.trim();
+      draft.render();
+    }
+    else draft.refresh();
+  }
+}
+
+function salonBindCatalogPreview(form, pairs) {
+  if (salonCatalogDrafts.has(form)) return;
+  const drafts = pairs.map(([ar, en]) => {
+    const source = form.elements.namedItem(ar);
+    const target = form.elements.namedItem(en);
+    const status = document.createElement('small');
+    status.className = 'muted';
+    status.setAttribute('role', 'status');
+    status.dataset.keepOriginalLanguage = '';
+    target.closest('.field').append(status);
+    let version = 0;
+    let timer;
+    const draft = {source, target, manual: false, pending: false, message: null, render, refresh};
+    function render() { status.textContent = draft.message ? salonBilingual(...draft.message) : ''; }
+    function refresh() {
+      clearTimeout(timer);
+      const request = ++version;
+      const value = source.value.trim();
+      draft.pending = false;
+      draft.message = null;
+      target.required = !!value;
+      if (draft.manual || !value) {
+        if (!draft.manual) target.value = '';
+        render();
+        return;
+      }
+      target.value = '';
+      draft.pending = true;
+      draft.message = ['جارٍ إعداد الترجمة…', 'Preparing translation…'];
+      render();
+      timer = setTimeout(async () => {
+        const result = await salonAutoEnglish(value, {preview:true, maxLength:target.maxLength});
+        if (request !== version || draft.manual || value !== source.value.trim() || !form.isConnected) return;
+        draft.pending = false;
+        target.value = result;
+        draft.message = result ? ['راجعي الترجمة قبل الحفظ.', 'Review the translation before saving.']
+          : ['تعذّرت الترجمة التلقائية. اكتبي النص بالإنجليزية.', 'Automatic translation is unavailable. Enter the English text.'];
+        render();
+      }, 380);
+    }
+    source.addEventListener('input', refresh);
+    target.addEventListener('input', () => {
+      draft.manual = true;
+      draft.pending = false;
+      draft.message = null;
+      clearTimeout(timer);
+      ++version;
+      render();
+    });
+    return draft;
+  });
+  salonCatalogDrafts.set(form, drafts);
+  salonSeedCatalogPreview(form);
+  form.addEventListener('submit', event => {
+    const missing = drafts.find(({source,target,pending}) => pending || (source.value.trim() && !target.value.trim()));
+    if (!missing) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    missing.target.focus();
+    toast(salonBilingual('راجعي الترجمة الإنجليزية قبل الحفظ.', 'Review the English translation before saving.'));
+  }, true);
+}
+
+function salonSetTranslatedNode(node, value) {
+  const option = node.parentElement?.closest('option');
+  if (option && !option.hasAttribute('value')) option.value = option.value;
+  if (!salonTranslatedNodes.has(node)) salonTranslatedNodes.set(node, node.nodeValue);
+  node.nodeValue = value;
+}
+function salonSetTranslatedAttribute(element, attr, value) {
+  if (!salonTranslatedAttributes.has(element)) salonTranslatedAttributes.set(element, new Map());
+  const attributes = salonTranslatedAttributes.get(element);
+  if (!attributes.has(attr)) attributes.set(attr, element.getAttribute(attr));
+  element.setAttribute(attr, value);
+}
+
+function salonCaptureLanguageContext() {
+  const app = document.getElementById('app');
+  const modal = document.getElementById('modalRoot');
+  const modalContent = [...modal.childNodes];
+  const controls = () => {
+    const counts = new Map();
+    return new Map([...app.querySelectorAll('input,textarea,select')].map(el => {
+      const form = el.form?.id || '';
+      const key = el.id ? '#' + el.id : JSON.stringify([form, el.tagName, el.name, el.type, el.dataset.salonService,
+        ['radio','checkbox'].includes(el.type) ? el.getAttribute('value') : '']);
+      const index = counts.get(key) || 0;
+      counts.set(key, index + 1);
+      return [key + ':' + index, el];
+    }));
+  };
+  const saved = controls();
+  const focused = document.activeElement;
+  const scroll = [window.scrollX, window.scrollY];
+  const cart = [cashierCart, cashierEditingInvoiceId, cashierEditingInvoiceSource];
+  return () => {
+    if (modalContent.length && !modal.childNodes.length) modal.append(...modalContent);
+    if (lang === 'ar') {
+      const walker = document.createTreeWalker(modal, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (salonTranslatedNodes.has(node)) {
+          node.nodeValue = salonTranslatedNodes.get(node);
+          salonTranslatedNodes.delete(node);
+        }
+      }
+      for (const el of modal.querySelectorAll('*')) {
+        for (const [attr,value] of salonTranslatedAttributes.get(el) || []) el.setAttribute(attr,value);
+        salonTranslatedAttributes.delete(el);
+      }
+    }
+    if (app.querySelector('#cashierCartRows') && ownerActiveTab === 'cashier') {
+      [cashierCart, cashierEditingInvoiceId, cashierEditingInvoiceSource] = cart;
+      renderCashierCart();
+    }
+    const restoredForms = new Set();
+    for (const [key,el] of controls()) {
+      const old = saved.get(key);
+      if (!old || old === el) continue;
+      if (el.type === 'file') el.files = old.files;
+      else if (el.type === 'checkbox' || el.type === 'radio') el.checked = old.checked;
+      else if (el.multiple && el.options) {
+        const selected = new Set([...old.selectedOptions].map(o => o.value));
+        for (const option of el.options) option.selected = selected.has(option.value);
+      } else if (!el.options || [...el.options].some(o => o.value === old.value)) el.value = old.value;
+      if (el === el.form?.elements.namedItem(el.name) && salonCatalogDrafts.has(el.form)) {
+        const draft = salonCatalogDrafts.get(el.form).find(d => d.target === el);
+        const previous = salonCatalogDrafts.get(old.form)?.find(d => d.target === old);
+        if (draft && previous) {
+          draft.manual = previous.manual;
+          draft.message = previous.message;
+          restoredForms.add(el.form);
+        }
+      }
+      if (old === focused) {
+        el.focus({preventScroll:true});
+        if (old.selectionStart != null) el.setSelectionRange(old.selectionStart, old.selectionEnd);
+      }
+    }
+    for (const form of restoredForms) salonSeedCatalogPreview(form);
+    const offer = app.querySelector('#salonTimedOfferForm');
+    if (offer) {
+      offer.querySelector('.salonOfferService')?.dispatchEvent(new Event('change'));
+      offer.querySelector('#salonOfferSearch')?.dispatchEvent(new Event('input'));
+    }
+    app.querySelector('#portalBooking')?.dispatchEvent(new Event('salon-language-restored'));
+    for (const form of modal.querySelectorAll('form')) {
+      for (const draft of salonCatalogDrafts.get(form) || []) draft.render();
+    }
+    if (focused?.isConnected && modal.contains(focused)) focused.focus({preventScroll:true});
+    window.scrollTo(...scroll);
+  };
+}
+
+</script>
 <script id="salon-auto-english-20261114">
 /* Arabic-only input: translate public salon catalog labels when saving; romanize personal names privately.
    Never submit customer, employee or recipient personal names to external translation endpoints. */
@@ -77,7 +267,7 @@ html.salon-client-active #salonHeaderLogin,html.salon-client-active #salonHeader
  const letters={'ا':'a','أ':'a','إ':'i','آ':'aa','ب':'b','ت':'t','ث':'th','ج':'j','ح':'h','خ':'kh',
   'د':'d','ذ':'dh','ر':'r','ز':'z','س':'s','ش':'sh','ص':'s','ض':'d','ط':'t','ظ':'z',
   'ع':'a','غ':'gh','ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n','ه':'h','ة':'a','و':'w','ؤ':'o','ي':'y','ى':'a','ئ':'e','ء':''};
- const hasArabic=x=>/[\u0600-\u06FF]/u.test(x);
+ const hasArabic=x=>/(?=\p{L})\p{Script=Arabic}/u.test(x);
  const romanizeWord=w=>{
    if(personal[w])return personal[w];
    const r=Array.from(w.normalize('NFC').replace(/[\u064B-\u065F\u0670]/g,''),ch=>letters[ch]??ch).join('');
@@ -111,14 +301,17 @@ html.salon-client-active #salonHeaderLogin,html.salon-client-active #salonHeader
   const source=String(value??'').trim();if(!source||!hasArabic(source))return source;
   if(options.kind==='name')return window.salonRomanizeName(source).slice(0,options.maxLength||100);
   const key=source.toLocaleLowerCase('ar');
-  if(cache.has(key))return cache.get(key).slice(0,options.maxLength||350);
+  if(!options.preview&&cache.has(key))return cache.get(key).slice(0,options.maxLength||350);
   // Common salon terminology translates offline, so adding a well-known service is instant.
-  const result=(whole[source]||await requestTranslation(source)||localEnglish(source)).trim();
+  const known=options.preview?(salonLegacyNames.get(source)?.[1]||(typeof qualityNailPriceList!=='undefined'?qualityNailPriceList.find(row=>row.name===source)?.nameEn:'')):'';
+  const result=(known||whole[source]||await requestTranslation(source)|| (options.preview?'':localEnglish(source))).trim();
+  if(options.preview)return result&&!hasArabic(result)?result.slice(0,options.maxLength||350):'';
   const finalValue=result&& !hasArabic(result)?result:localEnglish(source);
   cache.set(key,finalValue);
   return finalValue.slice(0,options.maxLength||350);
  };
  window.salonFallbackEnglish=localEnglish;
+ window.salonKnownCatalogEnglish=source=>whole[String(source||'').trim()]||'';
 })();
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -496,7 +689,7 @@ function persist(){
 }
 function toast(msg){const root=$("#toastRoot");root.innerHTML=`<div class="toast">${esc(msg)}</div>`;setTimeout(()=>root.innerHTML="",2800)}
 function applyLang(){const credit=$("#salonCreditLabel"),contact=$("#salonCreditContact");if(credit)credit.textContent=lang==="en"?"Website designed by":"تم تصميم هذا الموقع بواسطة";if(contact)contact.textContent=lang==="en"?"Contact on WhatsApp":"للتواصل عبر واتساب";document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";$("#langBtn").textContent=lang==="ar"?"English":"العربية";$$("[data-i18n]").forEach(el=>el.textContent=t(el.dataset.i18n));}
-function textService(s){return lang==="en"?(s.nameEn||s.name):s.name}
+function textService(s){return lang==="en"?salonServiceEnglish(s):s.name}
 function statusBadge(s){let c=s==="completed"||s==="confirmed"?"green":s==="cancelled"||s==="noShow"?"red":s==="inProgress"?"amber":"";return `<span class="badge ${c}">${esc(t(s))}</span>`}
 function activeServices(){return db.services.filter(s=>s.active!==false)}
 function activeStaff(){return db.staff.filter(s=>s.active!==false)}
@@ -2015,7 +2208,7 @@ async function removeServiceSafe(id){
  const before=db.services.slice();db.services=db.services.filter(s=>s.id!==id);
  try{const saved=await persist();if(saved!==true)throw Error('تعذر حفظ الحذف في Firebase');const ok=await publishPortalCatalog();renderOwner('services');toast(ok?'تم حذف الخدمة من الإدارة وبوابة العميلات':'تم حذف الخدمة من الإدارة، لكن فشل نشر التحديث للعميلات؛ أعيدي النشر')}catch(e){db.services=before;renderOwner('services');toast('تعذر إكمال الحذف: '+e.message)}
 }
-function servicesPanel(){return `<div class="card"><h3>إعدادات استبدال نقاط الولاء</h3><div class="form-grid"><div class="field"><label>عدد النقاط المطلوبة للخصم</label><input id="redeemThreshold" type="number" min="1" step="1" value="${Number(db.settings.redeemPoints)||50}"></div><div class="field"><label>قيمة الخصم بالريال</label><input id="redeemValue" type="number" min="0.01" step="0.01" value="${Number(db.settings.redeemRiyals)||10}"></div><button class="btn full" type="button" onclick="saveLoyaltySettings()">حفظ إعدادات النقاط والخصم</button></div></div><div class="card" style="margin-top:14px"><h3>${esc(t("serviceTitle"))}</h3><form id="serviceForm" class="form-grid"><div class="field"><label>${esc(t("serviceName"))} (عربي)</label><input name="name" required maxlength="80"></div><div class="field full"><small class="muted">الاسم الإنجليزي يتولّد تلقائيًا عند حفظ الخدمة · English name is generated automatically.</small></div><div class="field"><label>${esc(t("servicePrice"))}</label><input name="price" type="number" min="0" step=".01" required></div><div class="field"><label>${esc(t("serviceDuration"))}</label><input name="duration" type="number" min="5" step="5" value="30" required></div><div class="field"><label>نقاط الولاء المكتسبة عند شراء الخدمة</label><input name="loyaltyPoints" type="number" min="0" step="1" value="0" required></div><div class="field full"><label>${lang==="en"?"Choose a service photo from your device":"اختيار صورة الخدمة من الجهاز"}</label><input name="serviceFile" type="file" accept="image/*"><small>${lang==="en"?"Upload a photo from your gallery.":"يمكن رفع الصورة من ألبوم الجوال بدون رابط."}</small></div><div class="field full"><label>${lang==="en"?"Service photo URL (HTTPS, optional)":"رابط صورة الخدمة (https://) — اختياري"}</label><input name="imageUrl" type="url" placeholder="https://example.com/service.jpg"><small class="muted">${lang==="en"?"Use a public image link to display the photo in the service gallery.":"الصورة تظهر للعميلة في صفحة الحجز ودليل الخدمات. استخدمي رابط صورة منشورة على الإنترنت."}</small></div><button class="btn full">${esc(t("addService"))}</button></form></div><div class="section-head"><h3>${esc(t("services"))}</h3></div><div class="service-grid">${db.services.map(s=>`<article class="service"><div class="spread"><span class="badge">${s.active===false?"مخفية":"نشطة"}</span><button class="btn danger small" onclick="toggleService('${s.id}')">${s.active===false?"تفعيل":"إخفاء"}</button></div>${servicePicture(s)}<h3>${esc(textService(s))}</h3><p>${s.duration} ${esc(t("minutes"))} • نقاط الخدمة: ${Math.max(0,Number(s.loyaltyPoints)||0)}</p><div class="spread" style="margin-top:10px"><span class="price">${money(s.price)}</span><div class="row"><button class="btn secondary small" onclick="setServicePhoto('${s.id}')">${lang==="en"?"Service photo":"صورة الخدمة"}</button><button class="btn danger small" onclick="removeServiceSafe('${s.id}')">حذف الخدمة</button><button class="btn secondary small" onclick="editService('${s.id}')">${esc(t("edit"))}</button></div></div></article>`).join("")}</div>`}
+function servicesPanel(){return `<div class="card"><h3>إعدادات استبدال نقاط الولاء</h3><div class="form-grid"><div class="field"><label>عدد النقاط المطلوبة للخصم</label><input id="redeemThreshold" type="number" min="1" step="1" value="${Number(db.settings.redeemPoints)||50}"></div><div class="field"><label>قيمة الخصم بالريال</label><input id="redeemValue" type="number" min="0.01" step="0.01" value="${Number(db.settings.redeemRiyals)||10}"></div><button class="btn full" type="button" onclick="saveLoyaltySettings()">حفظ إعدادات النقاط والخصم</button></div></div><div class="card" style="margin-top:14px"><h3>${esc(t("serviceTitle"))}</h3><form id="serviceForm" class="form-grid"><div class="field"><label>${salonBilingual("اسم الخدمة بالعربية","Arabic service name")}<input name="name" dir="rtl" required maxlength="80"></label></div><div class="field"><label>${salonBilingual("اسم الخدمة بالإنجليزية","English service name")}<input name="nameEn" dir="ltr" maxlength="80" value="${esc('')}"></label></div><div class="field full"><label>${salonBilingual("الوصف بالعربية (اختياري)","Arabic description (optional)")}<textarea name="description" dir="rtl" maxlength="350">${esc('')}</textarea></label></div><div class="field full"><label>${salonBilingual("الوصف بالإنجليزية","English description")}<textarea name="descriptionEn" dir="ltr" maxlength="350">${esc('')}</textarea></label></div><div class="field"><label>${esc(t("servicePrice"))}</label><input name="price" type="number" min="0" step=".01" required></div><div class="field"><label>${esc(t("serviceDuration"))}</label><input name="duration" type="number" min="5" step="5" value="30" required></div><div class="field"><label>نقاط الولاء المكتسبة عند شراء الخدمة</label><input name="loyaltyPoints" type="number" min="0" step="1" value="0" required></div><div class="field full"><label>${lang==="en"?"Choose a service photo from your device":"اختيار صورة الخدمة من الجهاز"}</label><input name="serviceFile" type="file" accept="image/*"><small>${lang==="en"?"Upload a photo from your gallery.":"يمكن رفع الصورة من ألبوم الجوال بدون رابط."}</small></div><div class="field full"><label>${lang==="en"?"Service photo URL (HTTPS, optional)":"رابط صورة الخدمة (https://) — اختياري"}</label><input name="imageUrl" type="url" placeholder="https://example.com/service.jpg"><small class="muted">${lang==="en"?"Use a public image link to display the photo in the service gallery.":"الصورة تظهر للعميلة في صفحة الحجز ودليل الخدمات. استخدمي رابط صورة منشورة على الإنترنت."}</small></div><button class="btn full">${esc(t("addService"))}</button></form></div><div class="section-head"><h3>${esc(t("services"))}</h3></div><div class="service-grid">${db.services.map(s=>`<article class="service"><div class="spread"><span class="badge">${s.active===false?"مخفية":"نشطة"}</span><button class="btn danger small" onclick="toggleService('${s.id}')">${s.active===false?"تفعيل":"إخفاء"}</button></div>${servicePicture(s)}<h3>${esc(textService(s))}</h3>${salonCatalogDescription(s)?`<p>${esc(salonCatalogDescription(s))}</p>`:""}<p>${s.duration} ${esc(t("minutes"))} • نقاط الخدمة: ${Math.max(0,Number(s.loyaltyPoints)||0)}</p><div class="spread" style="margin-top:10px"><span class="price">${money(s.price)}</span><div class="row"><button class="btn secondary small" onclick="setServicePhoto('${s.id}')">${lang==="en"?"Service photo":"صورة الخدمة"}</button><button class="btn danger small" onclick="removeServiceSafe('${s.id}')">حذف الخدمة</button><button class="btn secondary small" onclick="editService('${s.id}')">${esc(t("edit"))}</button></div></div></article>`).join("")}</div>`}
 async function saveLoyaltySettings(){
  const pts=Number($("#redeemThreshold").value),sar=Number($("#redeemValue").value);
  if(!Number.isInteger(pts)||pts<1||!Number.isFinite(sar)||sar<=0){toast("تحققي من عدد النقاط وقيمة الخصم");return}
@@ -2024,9 +2217,9 @@ async function saveLoyaltySettings(){
  if(await persist()!==true){db.settings.redeemPoints=oldPoints;db.settings.redeemRiyals=oldRiyals;return}
  const ok=await publishPortalCatalog();toast(ok?"تم حفظ إعدادات النقاط ونشرها للعميلات":"حُفظت إعدادات النقاط لكن تعذر نشرها للعميلات");
 }
-function setupServices(){const f=$('#serviceForm');if(!f)return;f.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(f),button=f.querySelector('button[type="submit"],button:not([type])');if(button)button.disabled=true;
- try{const file=f.querySelector('[name="serviceFile"]')?.files?.[0];const imageUrl=String(fd.get('imageUrl')||'').trim();
- const added={id:uid('svc'),name:String(fd.get('name')).trim(),nameEn:await salonAutoEnglish(String(fd.get('name')).trim(),{kind:"label",maxLength:80}),price:Number(fd.get('price')),duration:Number(fd.get('duration')),loyaltyPoints:Math.max(0,Math.floor(Number(fd.get('loyaltyPoints'))||0)),active:true,imageUrl,materials:[]};
+function setupServices(){const f=$('#serviceForm');if(!f||f.dataset.salonBound)return;f.dataset.salonBound='1';salonBindCatalogPreview(f,[['name','nameEn'],['description','descriptionEn']]);f.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(f),button=f.querySelector('button[type="submit"],button:not([type])');if(button?.disabled)return;if(button)button.disabled=true;
+ try{if(db.session?.type!=='owner')return;if(!String(fd.get('name')).trim()){toast(salonBilingual('أدخلي اسم الخدمة.','Enter the service name.'));return;}const file=f.querySelector('[name="serviceFile"]')?.files?.[0];const imageUrl=String(fd.get('imageUrl')||'').trim();
+ const added={id:uid('svc'),name:String(fd.get('name')).trim(),nameEn:String(fd.get('nameEn')).trim(),description:String(fd.get('description')).trim(),descriptionEn:String(fd.get('descriptionEn')).trim(),price:Number(fd.get('price')),duration:Number(fd.get('duration')),loyaltyPoints:Math.max(0,Math.floor(Number(fd.get('loyaltyPoints'))||0)),active:true,imageUrl,materials:[]};
  db.services.push(added);
  const saved=await persist();if(saved!==true){db.services=db.services.filter(x=>x.id!==added.id);throw Error('تعذر حفظ الخدمة في Firebase')}
  let photoFailed=false;
@@ -2044,18 +2237,46 @@ async function toggleService(id){
  const published=await publishPortalCatalog();renderOwner("services");
  toast(published?"تم تحديث حالة الخدمة في الإدارة وبوابة العميلات":"حُفظت حالة الخدمة في الإدارة لكن تعذر نشرها للعميلات؛ أعيدي النشر من إدارة الخدمات");
 }
-async function editService(id){
- const item=db.services.find(x=>String(x.id)===String(id));if(!item)return;
- const name=prompt(t("serviceName"),item.name);if(name===null)return;
- const price=prompt(t("servicePrice"),item.price);if(price===null)return;
- const dur=prompt(t("serviceDuration"),item.duration);if(dur===null)return;
- const pts=prompt("عدد نقاط الولاء لهذه الخدمة",String(item.loyaltyPoints||0));if(pts===null)return;
- if(!name.trim()||!Number.isFinite(Number(price))||Number(price)<0||!Number.isFinite(Number(dur))||Number(dur)<5||!Number.isInteger(Number(pts))||Number(pts)<0){toast("تحققي من الاسم والسعر والمدة والنقاط");return}
- const original={name:item.name,price:item.price,duration:item.duration,loyaltyPoints:item.loyaltyPoints};
- Object.assign(item,{name:name.trim(),price:Number(price),duration:Number(dur),loyaltyPoints:Number(pts)});
- if(await persist()!==true){Object.assign(item,original);renderOwner("services");return}
- const published=await publishPortalCatalog();renderOwner("services");
- toast(published?"تم تعديل الخدمة ونشر السعر الجديد للعميلات":"حُفظ التعديل في الإدارة، لكن تعذر نشره للعميلات؛ أعيدي نشر الخدمات");
+function editService(id){
+ const item=db.services.find(x=>String(x.id)===String(id));if(!item||db.session?.type!=='owner')return;
+ $('#modalRoot').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-box">
+ <div class="spread"><h2>تعديل الخدمة</h2><button type="button" class="btn secondary" onclick="closeModal()">إغلاق</button></div>
+ <form id="salonEditServiceForm" class="form-grid">
+ <div class="field"><label>اسم الخدمة بالعربية<input name="name" dir="rtl" maxlength="80" required value="${esc(item.name)}"></label></div>
+ <div class="field"><label>اسم الخدمة بالإنجليزية<input name="nameEn" dir="ltr" maxlength="80" value="${esc(salonServiceEnglish(item)===item.name?'':salonServiceEnglish(item))}"></label></div>
+ <div class="field full"><label>الوصف بالعربية (اختياري)<textarea name="description" dir="rtl" maxlength="350">${esc(item.description||'')}</textarea></label></div>
+ <div class="field full"><label>الوصف بالإنجليزية<textarea name="descriptionEn" dir="ltr" maxlength="350">${esc(item.descriptionEn||'')}</textarea></label></div>
+ <div class="field"><label>السعر<input name="price" type="number" min="0" step=".01" required value="${esc(item.price)}"></label></div>
+ <div class="field"><label>المدة بالدقائق<input name="duration" type="number" min="5" step="any" required value="${esc(item.duration)}"></label></div>
+ <div class="field"><label>نقاط الولاء<input name="loyaltyPoints" type="number" min="0" step="1" required value="${esc(item.loyaltyPoints||0)}"></label></div>
+ <button type="submit" class="btn full">حفظ التعديلات</button></form></div></div>`;
+ const form=$('#salonEditServiceForm');
+ salonBindCatalogPreview(form,[['name','nameEn'],['description','descriptionEn']]);
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(db.session?.type!=='owner'||!db.services.includes(item))return;
+  const data=new FormData(form),name=String(data.get('name')).trim();
+  if(!name){toast(salonBilingual('أدخلي اسم الخدمة.', 'Enter the service name.'));return;}
+  const update={name,nameEn:String(data.get('nameEn')).trim(),description:String(data.get('description')).trim(),descriptionEn:String(data.get('descriptionEn')).trim(),price:Number(data.get('price')),duration:Number(data.get('duration')),loyaltyPoints:Number(data.get('loyaltyPoints'))};
+  const original={...item};
+  const button=form.querySelector('button[type="submit"]');
+  if(button.disabled)return;
+  button.disabled=true;
+  try{
+   Object.assign(item,update);
+   if(await persist()!==true){
+    for(const key of Object.keys(update))if(!Object.hasOwn(original,key))delete item[key];
+    Object.assign(item,original);
+    return;
+   }
+   const published=await publishPortalCatalog();
+   if(form.isConnected)closeModal();
+   if(ownerActiveTab==='services')renderOwner('services');
+   toast(published?salonBilingual('تم تعديل الخدمة ونشرها للعميلات.','Service updated and published.')
+    :salonBilingual('حُفظ التعديل، وتعذّر النشر للعميلات.','Changes saved. Publish the catalog again.'));
+  }finally{button.disabled=false;}
+ });
+ translateInterface();
 }
 function expensesPanel(){return `<div class="card"><h3>${esc(t("expenseTitle"))}</h3><form id="expenseForm" class="form-grid"><div class="field"><label>${esc(t("category"))}</label><select name="category"><option>إيجار / Rent</option><option>رواتب / Salaries</option><option>مستلزمات / Supplies</option><option>فواتير / Bills</option><option>أخرى / Other</option></select></div><div class="field"><label>${esc(t("amount"))}</label><input name="amount" type="number" min=".01" step=".01" required></div><div class="field"><label>تاريخ المصروف</label><input name="date" type="date" min="2024-01-01" max="2050-12-31" value="${today()}" required></div><div class="field full"><label>${esc(t("notes"))}</label><input name="notes" maxlength="200"></div><button class="btn full">${esc(t("addExpense"))}</button></form></div><div class="section-head"><h3>${esc(t("expenses"))}</h3></div>${db.expenses.length?`<div class="table-wrap"><table><thead><tr><th>${esc(t("date"))}</th><th>${esc(t("category"))}</th><th>${esc(t("notes"))}</th><th>${esc(t("amount"))}</th><th></th></tr></thead><tbody>${db.expenses.slice().reverse().map(e=>`<tr><td>${esc(e.date)}</td><td>${esc(e.category)}</td><td>${esc(e.notes)}</td><td>${money(e.amount)}</td><td><button class="btn danger small" onclick="deleteExpense('${e.id}')">${esc(t("delete"))}</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">${esc(t("noData"))}</div>`}`}
 function setupExpenses(){const f=$("#expenseForm");if(!f)return;f.addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(f);db.expenses.push({id:uid("exp"),category:String(fd.get("category")),amount:Number(fd.get("amount")),notes:String(fd.get("notes")).trim(),date:String(fd.get("date")||today()),createdAt:new Date().toISOString()});persist();renderOwner("expenses");toast(t("saved"))})}
@@ -2126,12 +2347,15 @@ async function resetLocalData(){
 function ownerSettings(){if(db.session?.type!=="owner"){toast(t("noPermission"));return}$("#modalRoot").innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="modal-box"><div class="spread"><h2>${esc(t("adminSettings"))}</h2><button class="btn secondary small" onclick="closeModal()">✕</button></div><form id="settingsForm" class="form-grid"><div class="field full"><label>${esc(t("businessName"))}</label><input name="salonName" value="${esc(db.settings.salonName)}" required></div><div class="field full"><label>WhatsApp</label><input name="whatsapp" value="${esc(db.settings.whatsapp||WA_NUMBER)}" required></div><div class="field full"><label class="checkline"><input type="checkbox" name="homeServiceEnabled" ${db.settings.homeServiceEnabled===true?"checked":""}> تفعيل خيار الخدمة المنزلية في واجهة العميلة</label><small>الخدمة المنزلية مخفية عن العميلات افتراضيًا إلى أن تفعّليها. داخل الصالون متاح دائمًا.</small></div><button class="btn full">${esc(t("saveSettings"))}</button></form></div></div>`;$("#settingsForm").addEventListener("submit",e=>{e.preventDefault();const fd=new FormData(e.currentTarget);db.settings.salonName=String(fd.get("salonName")).trim();db.settings.whatsapp=String(fd.get("whatsapp")).replace(/\D/g,"");db.settings.homeServiceEnabled=fd.get("homeServiceEnabled")==="on";persist();closeModal();renderOwner(ownerActiveTab);toast(t("saved"))})}
 function renderApp(){if(!db.session){renderHome();return}if(db.session.type==="owner")renderOwner(ownerActiveTab);else if(db.session.type==="client")renderClient();else if(db.session.type==="employee")renderEmployee();else renderHome()}
 $("#langBtn").addEventListener("click",()=>{
+ const restoreContext=salonCaptureLanguageContext();
  lang=lang==="ar"?"en":"ar";
  localStorage.setItem("qns_lang",lang);
+ applyLang();
  if(db.session?.type==="owner")renderApp();
  else if(auth.currentUser&&portalUser&&portalRole==="employee")renderPortalEmployee();
  else if(auth.currentUser&&portalUser&&portalRole==="client")renderPortalClient();
  else renderApp();
+ restoreContext();
 });
 $("#homeBtn").addEventListener("click",()=>{clearSession()});
 
@@ -2742,11 +2966,11 @@ const interfaceTranslations={
 };
 function translateInterface(){
  const app=document.getElementById('app');if(!app)return;
- const reverse=Object.fromEntries(Object.entries(interfaceTranslations).map(([ar,en])=>[en,ar]));
+ if(lang!=='en')return;
  const walk=document.createTreeWalker(app,NodeFilter.SHOW_TEXT);
  const nodes=[];while(walk.nextNode())nodes.push(walk.currentNode);
- for(const n of nodes){if(n.parentElement?.closest('script,style'))continue;const v=n.nodeValue,trim=v.trim();if(!trim)continue;const target=lang==='en'?interfaceTranslations[trim]:reverse[trim];if(target&&target!==trim)n.nodeValue=v.replace(trim,target)}
- for(const el of app.querySelectorAll('input[placeholder],textarea[placeholder]')){const p=el.getAttribute('placeholder');const target=lang==='en'?interfaceTranslations[p]:reverse[p];if(target)el.setAttribute('placeholder',target)}
+ for(const n of nodes){if(n.parentElement?.closest('script,style'))continue;const v=n.nodeValue,trim=v.trim();if(!trim)continue;const target=interfaceTranslations[trim];if(target&&target!==trim)salonSetTranslatedNode(n,v.replace(trim,target))}
+ for(const el of app.querySelectorAll('input[placeholder],textarea[placeholder]')){const p=el.getAttribute('placeholder');const target=interfaceTranslations[p];if(target&&target!==p)salonSetTranslatedAttribute(el,'placeholder',target)}
 }
 let translationPending=false;
 const interfaceObserver=new MutationObserver(()=>{if(translationPending)return;translationPending=true;queueMicrotask(()=>{translationPending=false;translateInterface()})});
@@ -3659,7 +3883,8 @@ document.addEventListener('submit',async e=>{
    const list=document.createElement('div');list.className='salon-visible-deals-list';promos.append(list);
    advertised.forEach(item=>{
     const card=document.createElement('button');card.type='button';card.className='salon-visible-deal-card';
-    const occasion=document.createElement('span');occasion.className='salon-promo-occasion';occasion.textContent=String(item.sale?.occasion||'عرض خاص');card.append(occasion);
+    const occasion=document.createElement('span');occasion.className='salon-promo-occasion';occasion.textContent=salonBilingual(item.sale?.occasion||'عرض خاص',item.sale?.occasionEn||item.sale?.occasion||'Special offer');card.append(occasion);
+    const description=salonCatalogDescription(item.sale);if(description){const detail=document.createElement('span');detail.textContent=description;card.append(detail);}
     const title=document.createElement('strong');title.textContent=lang==='en'?(item.nameEn||item.name):item.name;card.append(title);
     const prices=document.createElement('span');const original=document.createElement('s');original.textContent=money(item.originalPrice??item.price);const current=document.createElement('b');current.textContent=money(salonEffectivePrice(item.originalPrice??item.price,item.sale));prices.append(original,' ← ',current);card.append(prices);
     const badge=document.createElement('small');badge.textContent='خصم '+Number(item.sale.percent)+'% · اضغطي لاختيار الخدمة';card.append(badge);
@@ -3689,7 +3914,7 @@ document.addEventListener('submit',async e=>{
   function drawResults(){
    results.replaceChildren();const q=normal(search.value);
    if(!q){hint.textContent='اكتبي اسم الخدمة لتظهر الخيارات.';return}
-   const matches=all.filter(x=>normal((x.name||'')+' '+(x.nameEn||'')).includes(q)).slice(0,15);
+   const matches=all.filter(x=>normal((x.name||'')+' '+salonServiceEnglish(x)).includes(q)).slice(0,15);
    hint.textContent=matches.length?'اضغطي إضافة لإرسال الخدمة إلى سلة الحجز.':'لا توجد خدمات مطابقة.';
    matches.forEach(item=>{
     const line=document.createElement('div');line.className='service';line.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px';
@@ -3697,8 +3922,11 @@ document.addEventListener('submit',async e=>{
      const activePromo=salonOfferIsActive(item.sale);
      const offerName=activePromo?String(lang==='en'?(item.sale.occasionEn||item.sale.occasion||''):(item.sale.occasion||item.sale.occasionEn||'')).trim():'';
      if(offerName){const occasion=document.createElement('div');occasion.className='salon-promo-occasion';occasion.textContent='✦ '+offerName;title.append(occasion)}
-     const name=document.createElement('strong');name.textContent=lang==='en'?(item.nameEn||item.name):item.name;title.append(name);
+     const name=document.createElement('strong');name.textContent=lang==='en'?salonServiceEnglish(item):item.name;title.append(name);
+     const serviceDescription=salonCatalogDescription(item);if(serviceDescription){const detail=document.createElement('p');detail.textContent=serviceDescription;title.append(detail);}
      if(activePromo){const badge=document.createElement('span');badge.className='salon-promo-badge';badge.textContent=(lang==='en'?'SALE ':'خصم ')+Number(item.sale.percent)+'%';title.append(' ',badge);
+       const offerDescription=salonCatalogDescription(item.sale);
+       if(offerDescription){const detail=document.createElement('p');detail.textContent=offerDescription;title.append(detail);}
        const price=document.createElement('div');price.innerHTML='<s class="muted">'+money(item.originalPrice)+'</s> <b>'+money(salonEffectivePrice(item.originalPrice,item.sale))+'</b>';title.append(price);
      }else{const price=document.createElement('div');price.textContent=money(salonEffectivePrice(item.originalPrice??item.price,item.sale));title.append(price)}
      const time=document.createElement('small');time.textContent=' ('+(Number(item.duration)||30)+' '+(lang==='en'?'min':'دقيقة')+')';title.append(time);
@@ -3724,6 +3952,7 @@ document.addEventListener('submit',async e=>{
    if(summary)summary.textContent='اختاري الموظفة والتاريخ والوقت بعد إضافة الخدمات إلى السلة.';
   }
   search.addEventListener('input',drawResults);
+  form.addEventListener('salon-language-restored',()=>{drawResults();drawCart();});
   const oldSubmit=form.onsubmit;
   form.onsubmit=function(e){
    const n=total();if(n<1){e.preventDefault();toast('أضيفي خدمة واحدة على الأقل إلى السلة');return false}
@@ -4055,8 +4284,7 @@ function packageForm(b){const editing=Boolean(b);const current=b||{nameAr:'',nam
  <form id="salonPackageForm" class="form-grid">
  <div class="field full"><label>نوع الباقة</label><select id="salonPackageKind" name="kind"><option value="instant" ${(current.kind||'instant')!=='credit'?'selected':''}>عرض استخدام واحد — خدمة واحدة أو عدة خدمات في زيارة واحدة</option><option value="credit" ${current.kind==='credit'?'selected':''}>باقة رصيد خدمات — زيارات منفصلة في أوقات مختلفة</option></select></div>
  <div class="field"><label>اسم الباقة بالعربي</label><input name="nameAr" maxlength="65" value="${esc(current.nameAr)}" required placeholder="مثال: باقة العناية الملكية"></div>
- <div class="field full"><small class="muted">اكتبي اسم الباقة بالعربي فقط؛ الاسم الإنجليزي يتولّد تلقائيًا عند الحفظ.</small></div>
- <div class="field full"><label>وصف الباقة (اختياري)</label><textarea name="description" maxlength="350">${esc(current.description||'')}</textarea></div>
+ <div class="field"><label>${salonBilingual("اسم الباقة بالإنجليزية","English package name")}<input name="nameEn" dir="ltr" maxlength="65" value="${esc(current.nameEn||'')}"></label></div><div class="field full"><label>${salonBilingual("الوصف بالعربية (اختياري)","Arabic description (optional)")}<textarea name="description" dir="rtl" maxlength="350">${esc(current.description||'')}</textarea></label></div><div class="field full"><label>${salonBilingual("الوصف بالإنجليزية","English description")}<textarea name="descriptionEn" dir="ltr" maxlength="350">${esc(current.descriptionEn||'')}</textarea></label></div>
  <div class="field"><label>سعر الباقة النهائي (ر.س)</label><input type="number" name="price" min="0" max="100000" step="0.01" required value="${esc(String(current.price??''))}"></div>
  <div class="field"><label>نقاط شراء الباقة</label><input type="number" name="packagePoints" min="0" max="9999" step="1" required value="${salonPackageReward(db.settings,current.id)}"><small>تُطبّق على عمليات الشراء الجديدة بعد الحفظ.</small></div>
  <div class="field"><label>لون بطاقة الباقة</label><input type="color" name="color" value="${validHex(current.color)}" style="width:100%;height:44px;cursor:pointer"></div>
@@ -4071,28 +4299,26 @@ function packageForm(b){const editing=Boolean(b);const current=b||{nameAr:'',nam
  <div class="field full"><div class="row"><button type="submit" class="btn" id="salonPackageSave">${editing?'حفظ تعديلات الباقة':'إضافة الباقة ونشرها'}</button>${editing?'<button type="button" class="btn secondary" onclick="salonResetPackageEditor()">إلغاء التعديل</button>':''}</div></div>
  </form></section>`}
 function packageList(){const all=packages();return `<section class="card"><h2>باقات الصالون (${all.length})</h2><p class="muted">كل باقة مستقلة عن الخدمات العادية، ويمكن تعديل سعرها ولونها أو إخفاؤها أو حذفها. حذف الباقة لا يحذف الحجوزات والفواتير القديمة.</p>
- <div class="salon-package-list">${all.length?all.map(b=>{const x=calculated(b);return `<article class="salon-package-tile" style="--bundle-color:${validHex(b.color)}"><div class="salon-package-line"><strong>${esc(b.nameAr)}</strong><span>${b.kind==='credit'?'رصيد خدمات':'عرض استخدام واحد'} • ${b.active!==false?'نشطة':'مخفية'}</span></div><small>${esc(b.nameEn||'')}</small><p>${esc(b.description||'')}</p><p>${esc((b.kind==='credit'?x.rows.map(i=>i.name):x.rows.map(i=>`${i.name} × ${i.quantity}`)).join(' + ')||'الخدمات غير متوفرة')}</p><div class="salon-package-line"><b>${money(Number(b.price)||0)}</b><small>${b.kind==='credit'?`رصيد ${Number(b.creditsTotal)||5} استخدامات · ${Number(b.validityMonths??12)===0?'بدون انتهاء':'صلاحية '+(Number(b.validityMonths??12))+' شهر'}`:`${x.duration} دقيقة · مجموع الخدمات منفردة: ${money(x.retail)}`}</small></div>
+ <div class="salon-package-list">${all.length?all.map(b=>{const x=calculated(b);return `<article class="salon-package-tile" style="--bundle-color:${validHex(b.color)}"><div class="salon-package-line"><strong>${esc(b.nameAr)}</strong><span>${b.kind==='credit'?'رصيد خدمات':'عرض استخدام واحد'} • ${b.active!==false?'نشطة':'مخفية'}</span></div><small>${esc(b.nameEn||'')}</small><p>${esc(salonCatalogDescription(b))}</p><p>${esc((b.kind==='credit'?x.rows.map(i=>i.name):x.rows.map(i=>`${i.name} × ${i.quantity}`)).join(' + ')||'الخدمات غير متوفرة')}</p><div class="salon-package-line"><b>${money(Number(b.price)||0)}</b><small>${b.kind==='credit'?`رصيد ${Number(b.creditsTotal)||5} استخدامات · ${Number(b.validityMonths??12)===0?'بدون انتهاء':'صلاحية '+(Number(b.validityMonths??12))+' شهر'}`:`${x.duration} دقيقة · مجموع الخدمات منفردة: ${money(x.retail)}`}</small></div>
  <p>نقاط الشراء: ${salonPackageReward(db.settings,b.id)}</p><div class="row"><button class="btn secondary small" type="button" onclick="salonEditPackage('${esc(b.id)}')">تعديل</button><button class="btn secondary small" type="button" onclick="salonTogglePackage('${esc(b.id)}')">${b.active!==false?'إخفاء':'إظهار'}</button><button class="btn danger small" type="button" onclick="salonDeletePackage('${esc(b.id)}')">حذف</button></div></article>`}).join(''):'<p class="muted">ما فيه باقات حاليًا. أضيفي أول باقة من النموذج.</p>'}</div></section>`}
 let editingId=null;
 function renderPackages(){const host=document.querySelector('#app');if(!host)return;const item=packages().find(b=>b.id===editingId)||null;ownerActiveTab='packages';host.innerHTML=ownerLayout('packages',`<div class="section-head"><h2>إدارة الباقات</h2><button type="button" class="btn secondary" onclick="ownerTab('qualityRewards')">إدارة نقاط جميع الباقات</button></div>${packageForm(item)}${packageList()}${salonOwnedPackagesPanel()}`);changeOwnerAccent(ownerThemeColor());bindPackageForm();salonBindOwnedPackages();showBrand();}
-function bindPackageForm(){const f=document.querySelector('#salonPackageForm');if(!f)return;
+function bindPackageForm(){const f=document.querySelector('#salonPackageForm');if(!f)return;salonBindCatalogPreview(f,[['nameAr','nameEn'],['description','descriptionEn']]);
  const kind=f.querySelector('#salonPackageKind');
  const switchType=()=>{const credit=kind.value==='credit';f.querySelectorAll('.salon-credit-config').forEach(x=>x.classList.toggle('hidden',!credit));f.querySelector('input[name="creditsTotal"]').required=credit;f.querySelector('#salonPackageItemsHelp').textContent=credit?'حددي الخدمات التي يمكن للعميلة اختيارها من الرصيد (أي عدد أكبر من صفر يعني أن الخدمة متاحة). عدد الزيارات الإجمالي بالأعلى.':'للعرض المستخدم مرة واحدة: اختاري خدمة واحدة بكمية 1، أو عدة خدمات تُقدم كلها في الزيارة نفسها.';};
  kind.addEventListener('change',switchType);switchType();
  const preview=()=>{let total=0,time=0,count=0;f.querySelectorAll('[data-salon-service]').forEach(el=>{const s=baseService(el.dataset.salonService),q=Number(el.value)||0;if(s&&q>0){count+=q;total+=q*(Number(s.price)||0);time+=q*(Number(s.duration)||30)}});const p=f.querySelector('#salonPackagePreview');if(p)p.textContent=kind.value==='credit'?`الخدمات المسموحة: ${f.querySelectorAll('[data-salon-service]').length?Array.from(f.querySelectorAll('[data-salon-service]')).filter(el=>Number(el.value)>0).length:0} نوع · رصيد الاستخدام: ${Number(f.querySelector('[name=creditsTotal]').value)||0} زيارات`: `عدد الخدمات داخل الباقة: ${count} · مجموع الأسعار المنفردة: ${money(total)} · المدة: ${time} دقيقة`};;
  f.querySelectorAll('[data-salon-service]').forEach(el=>el.addEventListener('input',preview));f.querySelector('[name=creditsTotal]')?.addEventListener('input',preview);kind.addEventListener('change',preview);preview();
  f.addEventListener('submit',async e=>{e.preventDefault();if(!isOwner()){toast('غير مصرح');return}
- const form=new FormData(f),nameAr=cleanName(form.get('nameAr')),nameEn=cleanName(salonFallbackEnglish(nameAr)).slice(0,65),price=Number(form.get('price')),packageKind=form.get('kind')==='credit'?'credit':'instant',creditsTotal=Number(form.get('creditsTotal')),validityMonths=Number(form.get('validityMonths'));
+ const form=new FormData(f),nameAr=cleanName(form.get('nameAr')),nameEn=cleanName(form.get('nameEn')),price=Number(form.get('price')),packageKind=form.get('kind')==='credit'?'credit':'instant',creditsTotal=Number(form.get('creditsTotal')),validityMonths=Number(form.get('validityMonths'));
  const items=[];for(const el of f.querySelectorAll('[data-salon-service]')){const q=Number(el.value);if(!Number.isInteger(q)||q<0||q>10){toast('العدد لكل خدمة يجب أن يكون بين 0 و10');return}if(q>0)items.push({serviceId:el.dataset.salonService,quantity:q})}
  if(!nameAr||!nameEn||nameAr.length>65||nameEn.length>65||!Number.isFinite(price)||price<0||price>100000||!items.length||(packageKind==='credit'&&(!Number.isInteger(creditsTotal)||creditsTotal<1||creditsTotal>999||!Number.isInteger(validityMonths)||validityMonths<0||validityMonths>120))){toast('راجعي اسم الباقة والسعر واختاري خدمة واحدة على الأقل');return}
- const button=f.querySelector('#salonPackageSave');button.disabled=true;
+ const button=f.querySelector('#salonPackageSave');if(button.disabled)return;button.disabled=true;
  const packagePoints=Number(form.get('packagePoints'));
  if(!Number.isSafeInteger(packagePoints)||packagePoints<0||packagePoints>9999){toast('عدد نقاط الباقة غير صالح');button.disabled=false;return}
  const id=editingId||uid('pkg');const original=packages().find(p=>p.id===id);const originalPoints=salonPackageReward(db.settings,id);const packageDescription=String(form.get('description')||'').trim().slice(0,350);
- const obj={id,nameAr,nameEn,description:packageDescription,descriptionEn:'',price,kind:packageKind,creditsTotal:packageKind==='credit'?creditsTotal:0,validityMonths:packageKind==='credit'?validityMonths:0,color:validHex(form.get('color')),active:form.has('active'),items,updatedAt:new Date().toISOString()};
+ const obj={id,nameAr,nameEn,description:packageDescription,descriptionEn:String(form.get('descriptionEn')||'').trim(),price,kind:packageKind,creditsTotal:packageKind==='credit'?creditsTotal:0,validityMonths:packageKind==='credit'?validityMonths:0,color:validHex(form.get('color')),active:form.has('active'),items,updatedAt:new Date().toISOString()};
  try{
-  obj.nameEn=cleanName(await salonAutoEnglish(nameAr,{maxLength:65}));
-  obj.descriptionEn=packageDescription?await salonAutoEnglish(packageDescription,{maxLength:350}):'';
   await saveQueue;
   let updated;
   await firestore.runTransaction(async tx=>{
@@ -4235,22 +4461,23 @@ function salonOffersPage(){
  const offers=salonOffersMap(),services=(db.services||[]).filter(s=>s.active!==false);
  const rows=Object.entries(offers).filter(([,o])=>o&&Number(o.percent)>0).map(([id,o])=>{const s=db.services.find(x=>String(x.id)===id);if(!s)return '';
  const active=salonOfferIsActive(o),expired=Date.now()>=Date.parse(o.endsAt),status=lang==='en'?(active?'Active':expired?'Expired':'Scheduled'):(active?'ساري الآن':expired?'انتهى':'مجدول');
- return `<div class="salon-offer-row"><div><b>${esc(s.name)}</b><span class="salon-promo-badge">خصم ${Number(o.percent)}%</span>${o.occasion?`<p class="salon-promo-occasion">${esc(lang==='en'?(o.occasionEn||o.occasion):o.occasion)}</p>`:''}<p class="muted tiny">${status} — ${salonOfferDisplay(o.startsAt)} إلى ${salonOfferDisplay(o.endsAt)}</p></div><div class="row"><button class="btn secondary small" type="button" onclick="salonEditScheduledOffer('${esc(s.id)}')">${lang==="en"?"Edit":"تعديل"}</button><button class="btn danger small" type="button" onclick="salonRemoveScheduledOffer('${esc(s.id)}')">${lang==="en"?"Cancel":"إلغاء"}</button></div></div>`}).join('');
+ return `<div class="salon-offer-row"><div><b>${esc(textService(s))}</b><span class="salon-promo-badge">خصم ${Number(o.percent)}%</span>${(o.occasion||o.occasionEn)?`<p class="salon-promo-occasion">${esc(lang==='en'?(o.occasionEn||o.occasion):o.occasion)}</p>`:''}${salonCatalogDescription(o)?`<p>${esc(salonCatalogDescription(o))}</p>`:''}<p class="muted tiny">${status} — ${salonOfferDisplay(o.startsAt)} ${salonBilingual("إلى","to")} ${salonOfferDisplay(o.endsAt)}</p></div><div class="row"><button class="btn secondary small" type="button" onclick="salonEditScheduledOffer('${esc(s.id)}')">${lang==="en"?"Edit":"تعديل"}</button><button class="btn danger small" type="button" onclick="salonRemoveScheduledOffer('${esc(s.id)}')">${lang==="en"?"Cancel":"إلغاء"}</button></div></div>`}).join('');
  return `<section class="card"><h2>${lang==="en"?"Scheduled offers and discounts":"العروض والخصومات المؤقتة"}</h2><p class="muted">${lang==="en"?"Choose the eligible services, discount and start and end times (Saudi time). Regular prices resume when the offer ends.":"اختاري خدمة أو عدة خدمات أو جميع الخدمات، وحددي نسبة الخصم ووقت البداية والنهاية بتوقيت السعودية. يعود السعر الأصلي تلقائيًا بانتهاء العرض، ولا تتغيّر الفواتير القديمة."}</p>
  <form id="salonTimedOfferForm" class="form-grid">
  <div class="field"><label>${lang==="en"?"Discount percentage":"نسبة الخصم %"}</label><input name="percent" type="number" min="1" max="100" step="1" required placeholder="30"></div>
- <div class="field full"><label class="checkline"><input type="checkbox" name="onlineOnly" checked> ${lang==="en"?"Apply this discount to online bookings only":"تطبيق هذا الخصم على حجوزات الموقع فقط"}</label></div><div class="field"><label>${lang==="en"?"Offer name (Arabic)":"اسم المناسبة (يظهر فوق الخدمات)"}</label><input name="occasion" maxlength="85" placeholder="${lang==='en'?'Arabic offer name':'مثال: عروض نوفمبر'}" autocomplete="off"></div>
- <div class="field"><label>${lang==="en"?"Offer name (English)":"اسم المناسبة بالإنجليزية"}</label><input name="occasionEn" maxlength="85"></div><div class="field"><label>${lang==="en"?"Selected services":"الخدمات المختارة"}</label><div id="salonOfferCount" class="notice">${lang==="en"?"0 services":"0 خدمة"}</div></div>
+ <div class="field full"><label class="checkline"><input type="checkbox" name="onlineOnly" checked> ${lang==="en"?"Apply this discount to online bookings only":"تطبيق هذا الخصم على حجوزات الموقع فقط"}</label></div><div class="field"><label>${lang==="en"?"Offer name (Arabic)":"اسم المناسبة (يظهر فوق الخدمات)"}</label><input name="occasion" dir="rtl" maxlength="85" placeholder="${lang==='en'?'Arabic offer name':'مثال: عروض نوفمبر'}" autocomplete="off"></div>
+ <div class="field"><label>${lang==="en"?"Offer name (English)":"اسم المناسبة بالإنجليزية"}</label><input name="occasionEn" dir="ltr" maxlength="85"></div><div class="field"><label>${lang==="en"?"Selected services":"الخدمات المختارة"}</label><div id="salonOfferCount" class="notice">${lang==="en"?"0 services":"0 خدمة"}</div></div>
  <div class="field"><label>${lang==="en"?"Start (Saudi time)":"بداية الخصم (توقيت السعودية)"}</label><input name="startsAt" type="datetime-local" required></div>
  <div class="field"><label>${lang==="en"?"End (Saudi time)":"نهاية الخصم (توقيت السعودية)"}</label><input name="endsAt" type="datetime-local" required></div>
  <div class="field full"><div class="row"><button type="button" class="btn secondary small" id="salonOfferSelectAll">${lang==="en"?"Select all services":"تحديد كل الخدمات"}</button><button type="button" class="btn secondary small" id="salonOfferClear">${lang==="en"?"Clear selection":"إلغاء التحديد"}</button></div></div>
  <div class="field full"><label for="salonOfferSearch">${lang==="en"?"Search eligible services":"البحث عن خدمة ضمن قائمة الخصومات"}</label><input id="salonOfferSearch" type="search" placeholder="${lang==='en'?'Search by service name':'ابحثي باسم الخدمة'}" autocomplete="off"></div>
- <div class="field full"><label>${lang==="en"?"Choose the services to discount":"حددي الخدمات المشمولة بالخصم"}</label><div class="salon-offer-service-list">${services.map(s=>`<label><input class="salonOfferService" type="checkbox" value="${esc(s.id)}"><span>${esc(s.name)} — ${money(s.price)}</span>${offers[s.id]&&salonOfferIsActive(offers[s.id])?`<span class="salon-promo-badge">${Number(offers[s.id].percent)}%</span>`:''}</label>`).join('')}</div></div>
- <div class="field full"><button type="submit" class="btn full">${lang==="en"?"Save and publish offer":"حفظ ونشر العرض للعميلات"}</button></div></form></section>
+ <div class="field full"><label>${lang==="en"?"Choose the services to discount":"حددي الخدمات المشمولة بالخصم"}</label><div class="salon-offer-service-list">${services.map(s=>`<label><input class="salonOfferService" type="checkbox" value="${esc(s.id)}"><span>${esc(textService(s))} — ${money(s.price)}</span>${offers[s.id]&&salonOfferIsActive(offers[s.id])?`<span class="salon-promo-badge">${Number(offers[s.id].percent)}%</span>`:''}</label>`).join('')}</div></div>
+ <div class="field full"><label>${salonBilingual("الوصف بالعربية (اختياري)","Arabic description (optional)")}<textarea name="description" dir="rtl" maxlength="350">${esc('')}</textarea></label></div><div class="field full"><label>${salonBilingual("الوصف بالإنجليزية","English description")}<textarea name="descriptionEn" dir="ltr" maxlength="350">${esc('')}</textarea></label></div><div class="field full"><button type="submit" class="btn full">${lang==="en"?"Save and publish offer":"حفظ ونشر العرض للعميلات"}</button></div></form></section>
  <section class="card"><h2>${lang==="en"?"Scheduled and current offers":"العروض المجدولة والحالية"}</h2>${rows||(lang==='en'?'<p class="muted">No offers yet.</p>':'<p class="muted">لا توجد عروض.</p>')}</section>`;
 }
 function salonRiyadhDatetimeInput(offsetMinutes){const d=new Date(Date.now()+offsetMinutes*60000);return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d).replace(' ','T')}
 function salonBindOffersForm(){const form=document.getElementById('salonTimedOfferForm');if(!form)return;
+ salonBindCatalogPreview(form,[['occasion','occasionEn'],['description','descriptionEn']]);
  form.elements.startsAt.value=salonRiyadhDatetimeInput(0);form.elements.endsAt.value=salonRiyadhDatetimeInput(24*60);
  const checked=()=>[...form.querySelectorAll('.salonOfferService:checked')].map(x=>x.value);
  const count=()=>document.getElementById('salonOfferCount').textContent=checked().length+(lang==='en'?' services selected':' خدمة مختارة');
@@ -4265,9 +4492,9 @@ function salonBindOffersForm(){const form=document.getElementById('salonTimedOff
   if(!Number.isInteger(percent)||percent<1||percent>100){toast(lang==='en'?"Enter a discount from 1% to 100%":"الخصم من 1 إلى 100%");return}
   let start,end;try{start=salonOfferLocalToIso(form.elements.startsAt.value);end=salonOfferLocalToIso(form.elements.endsAt.value)}catch(err){toast(err.message);return}
   if(Date.parse(end)<=Date.parse(start)||Date.parse(end)<=Date.now()){toast(lang==='en'?"The offer must end after it starts and in the future":"نهاية الخصم لازم تكون بعد البداية وفي المستقبل");return}
-  const button=form.querySelector('button[type=submit]');button.disabled=true;
+  const button=form.querySelector('button[type=submit]');if(button.disabled)return;button.disabled=true;
   const old=JSON.parse(JSON.stringify(salonOffersMap())),oldBulk=db.settings.bulkDiscountPercent;
-  db.settings.serviceOffers={...old};for(const id of ids)db.settings.serviceOffers[id]={percent,startsAt:start,endsAt:end,onlineOnly:form.elements.onlineOnly.checked,occasionEn:String(form.elements.occasionEn.value||'').trim().slice(0,85),occasion:String(form.elements.occasion?.value||'').trim().slice(0,85)};
+  db.settings.serviceOffers={...old};for(const id of ids)db.settings.serviceOffers[id]={percent,startsAt:start,endsAt:end,onlineOnly:form.elements.onlineOnly.checked,occasionEn:String(form.elements.occasionEn.value||'').trim().slice(0,85),occasion:String(form.elements.occasion?.value||'').trim().slice(0,85),description:form.elements.description.value.trim(),descriptionEn:form.elements.descriptionEn.value.trim()};
   db.settings.bulkDiscountPercent=0;
   try{const saved=await persist();if(saved!==true)throw Error('تعذر حفظ الخصومات');const published=await publishPortalCatalog();if(!published)throw Error('تم حفظ العرض في الإدارة لكن تعذّر نشره للعميلات. أعيدي النشر من إدارة الخدمات.');toast(lang==='en'?"Offer saved and published. It will expire at the scheduled time.":"تم حفظ العرض ونشره. سينتهي تلقائيًا في الوقت المحدد.");salonOpenOffersPage()}
   catch(err){if(!String(err.message).includes('تم حفظ')){db.settings.serviceOffers=old;db.settings.bulkDiscountPercent=oldBulk}toast(err.message)}finally{if(button.isConnected)button.disabled=false}
@@ -4275,7 +4502,7 @@ function salonBindOffersForm(){const form=document.getElementById('salonTimedOff
 }
 function salonOpenOffersPage(){if(db.session?.type!=='owner'||!firebaseReady){renderHome();return}
  ownerActiveTab='offers';document.getElementById('app').innerHTML=ownerLayout('offers',salonOffersPage());changeOwnerAccent(ownerThemeColor());salonBindOffersForm();if(typeof showBrand==='function')showBrand();}
-window.salonEditScheduledOffer=id=>{salonOpenOffersPage();const o=salonOffersMap()[id];if(!o)return;const form=document.getElementById('salonTimedOfferForm');form.querySelectorAll('.salonOfferService').forEach(x=>x.checked=x.value===id);form.elements.percent.value=o.percent;form.elements.onlineOnly.checked=o.onlineOnly===true;form.elements.occasion.value=String(o.occasion||'');form.elements.occasionEn.value=String(o.occasionEn||'');
+window.salonEditScheduledOffer=id=>{salonOpenOffersPage();const o=salonOffersMap()[id];if(!o)return;const form=document.getElementById('salonTimedOfferForm');form.querySelectorAll('.salonOfferService').forEach(x=>x.checked=x.value===id);form.elements.percent.value=o.percent;form.elements.onlineOnly.checked=o.onlineOnly===true;form.elements.occasion.value=String(o.occasion||'');form.elements.occasionEn.value=String(o.occasionEn||'');form.elements.description.value=String(o.description||'');form.elements.descriptionEn.value=String(o.descriptionEn||'');salonSeedCatalogPreview(form);
  const search=document.getElementById('salonOfferSearch');if(search){search.value='';search.dispatchEvent(new Event('input'))}
  const isoToLocal=x=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(x)).replace(' ','T');
  form.elements.startsAt.value=isoToLocal(o.startsAt);form.elements.endsAt.value=isoToLocal(o.endsAt);form.querySelector('.salonOfferService:checked')?.scrollIntoView({block:'nearest'});document.getElementById('salonOfferCount').textContent='1 خدمة مختارة';};
@@ -4324,7 +4551,7 @@ publishPortalCatalog=async function(){
   const now=Date.now(),offers=salonOffersMap();
   const services=(db.services||[]).filter(Boolean).map(s=>{
    const originalPrice=asMoney(s.price),sale=offers[String(s.id)]||null;
-   return {id:asText(s.id),name:asText(s.name),nameEn:asText(s.nameEn),
+   return {id:asText(s.id),name:asText(s.name),nameEn:asText(salonServiceEnglish(s)),description:asText(s.description),descriptionEn:asText(s.descriptionEn),
     price:salonEffectivePrice(originalPrice,sale,now),originalPrice,
     sale,discountPercent:salonOfferIsActive(sale,now)?Number(sale.percent):0,
     duration:Math.max(1,Number(s.duration)||30),active:s.active!==false,
@@ -4335,7 +4562,7 @@ publishPortalCatalog=async function(){
     const service=(db.services||[]).find(s=>String(s.id)===String(item.serviceId));
     if(!service)return null;
     const quantity=Math.max(1,Math.min(10,Math.floor(Number(item.quantity)||1)));
-    return {serviceId:asText(service.id),quantity,name:asText(service.name),nameEn:asText(service.nameEn||service.name),duration:Math.max(1,Number(service.duration)||30)};
+    return {serviceId:asText(service.id),quantity,name:asText(service.name),nameEn:asText(salonServiceEnglish(service)),duration:Math.max(1,Number(service.duration)||30)};
    }).filter(Boolean);
    if(!rows.length)return null;
    const details=rows.map(r=>r.name+' ×'+r.quantity).join('، ');
@@ -6782,13 +7009,13 @@ document.documentElement.dataset.salonLogoutFix='stable-auth-20261103';
    for(const node of nodes){
       const parent=node.parentElement;
       if(!parent||skipTags.has(parent.tagName)||parent.closest('[contenteditable="true"],[data-keep-original-language],.salon-ai-panel'))continue;
-      const updated=translateString(node.nodeValue||'');if(updated!==node.nodeValue)node.nodeValue=updated;
+      const updated=translateString(node.nodeValue||'');if(updated!==node.nodeValue)salonSetTranslatedNode(node,updated);
    }
    const elements=[root,...root.querySelectorAll('input,textarea,button,select,option,[title],[aria-label]')];
    for(const el of elements){
       if(el.closest?.('[data-keep-original-language],.salon-ai-panel'))continue;
       for(const attr of ['placeholder','title','aria-label']){
-       if(el.hasAttribute?.(attr)){const prev=el.getAttribute(attr),next=translateString(prev);if(prev!==next)el.setAttribute(attr,next);}
+       if(el.hasAttribute?.(attr)){const prev=el.getAttribute(attr),next=translateString(prev);if(prev!==next)salonSetTranslatedAttribute(el,attr,next);}
       }
    }
  }
@@ -11009,7 +11236,172 @@ html[data-salon-appearance="dark"] .salon-revenue-table{background:#291f2a;borde
  'موظفة':'Employee','خدمة':'Service','عرض':'Offer','باقة':'Package',
  'يرجى الانتظار':'Please wait','حدث خطأ':'An error occurred'
  };
- Object.assign(interfaceTranslations,terms);
+ Object.assign(interfaceTranslations,terms,{
+  "تعديل الخدمة": "Edit service",
+  "إغلاق": "Close",
+  "اسم الخدمة بالعربية": "Arabic service name",
+  "اسم الخدمة بالإنجليزية": "English service name",
+  "الوصف بالعربية (اختياري)": "Arabic description (optional)",
+  "الوصف بالإنجليزية": "English description",
+  "المدة بالدقائق": "Duration (minutes)",
+  "حفظ التعديلات": "Save changes",
+  "إعدادات استبدال نقاط الولاء": "Loyalty redemption settings",
+  "عدد النقاط المطلوبة للخصم": "Points required for a discount",
+  "حفظ إعدادات النقاط والخصم": "Save points and discount settings",
+  "نقاط الولاء المكتسبة عند شراء الخدمة": "Loyalty points earned for this service",
+  "حذف الخدمة": "Delete service",
+  "خدمة مخفية": "Hidden service",
+  "مخفية": "Hidden",
+  "تفعيل": "Enable",
+  "إخفاء": "Hide",
+  "إظهار": "Show",
+  "لون بطاقة الباقة": "Package card color",
+  "عدد الزيارات / الخدمات في رصيد الباقة": "Number of visits or services included",
+  "صلاحية رصيد الباقة": "Package credit validity",
+  "مثال: 5 زيارات، تختار العميلة في كل زيارة أي خدمة من الخدمات المحددة بالأسفل.": "For example, with five visits, clients can select any eligible service on each visit.",
+  "نشطة وتظهر للعميلات": "Active and visible to clients",
+  "عرض استخدام واحد — خدمة واحدة أو عدة خدمات في زيارة واحدة": "One-time offer — one or more services in a single visit",
+  "باقة رصيد خدمات — زيارات منفصلة في أوقات مختلفة": "Multi-use package — services redeemed over separate visits",
+  "حددي الخدمات التي يمكن للعميلة اختيارها من الرصيد (أي عدد أكبر من صفر يعني أن الخدمة متاحة). عدد الزيارات الإجمالي بالأعلى.": "Choose the services clients can redeem. Any quantity above zero makes the service eligible. Set the total number of visits above.",
+  "للعرض المستخدم مرة واحدة: اختاري خدمة واحدة بكمية 1، أو عدة خدمات تُقدم كلها في الزيارة نفسها.": "For a one-time offer, choose one service with a quantity of 1 or several services for the same visit.",
+  "شهر": "1 month",
+  "3 أشهر": "3 months",
+  "6 أشهر": "6 months",
+  "سنة": "1 year",
+  "سنتان": "2 years",
+  "بدون تاريخ انتهاء": "No expiry date",
+  "تُطبّق على عمليات الشراء الجديدة بعد الحفظ.": "Applies to new purchases after saving.",
+  "إلغاء التعديل": "Cancel editing",
+  "الخدمات غير متوفرة": "Services unavailable",
+  "ما فيه باقات حاليًا. أضيفي أول باقة من النموذج.": "No packages yet. Use the form to add your first package.",
+  "كل باقة مستقلة عن الخدمات العادية، ويمكن تعديل سعرها ولونها أو إخفاؤها أو حذفها. حذف الباقة لا يحذف الحجوزات والفواتير القديمة.": "Packages are managed separately from regular services. You can change the price or color, hide the package, or delete it. Past bookings and invoices are retained.",
+  "تعذر حفظ الخصومات": "Unable to save the discounts",
+  "تم حفظ العرض في الإدارة لكن تعذّر نشره للعميلات. أعيدي النشر من إدارة الخدمات.": "Offer saved. Publish it again from Manage Services.",
+  "أضيفي خدمة واحدة على الأقل إلى السلة": "Add at least one service to your basket",
+  "لا توجد طلبات حجز مسجلة حاليًا.": "There are no booking requests yet.",
+  "رقم الطلب": "Request number",
+  "أُلغي بسبب عدم الدفع": "Canceled for nonpayment",
+  "العربون مدفوع": "Deposit paid",
+  "العربون لم يُدفع": "Deposit unpaid",
+  "عروض الاستخدام الواحد": "One-time offers",
+  "باقات رصيد الخدمات": "Multi-use packages",
+  "الكل": "All",
+  "الموظفات وحسابات الدخول": "Staff and sign-in accounts",
+  "حذف من قوائم الصالون": "Remove from salon lists",
+  "👋 مرحباً بك في صالون جودة الأظافر": "👋 Welcome to Quality Nail Salon",
+  "متطلبات سريعة": "Quick actions",
+  "الحجوزات اليوم": "Today’s bookings",
+  "☰ عرض أقسام الإدارة": "☰ Show management sections",
+  "أدوات الإدارة الأخرى": "Other management tools",
+  "لون لوحة الإدارة": "Dashboard accent color",
+  "⚙ الإعدادات": "⚙ Settings",
+  "البحث في العميلات النشطات والمؤرشفات": "Search active and archived clients",
+  "النقاط الافتتاحية": "Opening points balance",
+  "أرشفة": "Archive",
+  "حذف تجريبي": "Delete test record",
+  "تاريخ الأرشفة": "Archived on",
+  "استعادة": "Restore",
+  "بحث سريع برقم جوال العميلة": "Quick search by client mobile number",
+  "اختيار العميلة": "Select a client",
+  "الخدمات (اختاري أكثر من خدمة)": "Services (select one or more)",
+  "عنوان مكان الخدمة": "Service address",
+  "حفظ الحجز": "Save booking",
+  "الكاشير": "Checkout",
+  "فحص اتصال الفواتير": "Check invoice connection",
+  "البحث عن خدمة أو باقة": "Search for a service or package",
+  "اختاري الخدمة أو الباقة": "Select a service or package",
+  "العروض والباقات المسجلة": "Saved offers and packages",
+  "بيانات العميلة": "Client details",
+  "تسجيل عميلة جديدة": "Register a new client",
+  "البحث عن عميلة": "Find a client",
+  "اسم العميلة (اختياري)": "Client name (optional)",
+  "البريد الإلكتروني (اختياري)": "Email (optional)",
+  "ابحثي بالاسم أو رقم الجوال": "Search by name or mobile number",
+  "باقات العميلة ورصيد الخدمات": "Client packages and service credits",
+  "الموظفة الافتراضية للخدمات الجديدة": "Default specialist for new services",
+  "الخصم (ريال)": "Discount (SAR)",
+  "الضريبة %": "Tax (%)",
+  "نقاط إضافية للعميلة": "Bonus loyalty points",
+  "ملاحظات الفاتورة": "Invoice notes",
+  "إرسال الفاتورة للعميلة عبر واتساب بعد حفظها؟": "Send the invoice to the client via WhatsApp after saving?",
+  "تفريغ الخدمات": "Clear services",
+  "إصدار وحفظ الفاتورة": "Issue and save invoice",
+  "اختصارات الكاشير": "Checkout shortcuts",
+  "ملخص اليوم": "Today’s summary",
+  "الموظفة المنفذة": "Specialist",
+  "+ نسخ الخدمة": "+ Duplicate service",
+  "تاريخ قديم": "Previous date",
+  "مبلغ قديم": "Previous amount",
+  "تاريخ حالي": "Current date",
+  "مبلغ حالي": "Current amount",
+  "أرصدة الباقات المشتراة": "Purchased package balances",
+  "تحديث من Firebase": "Refresh from Firebase",
+  "إجمالي الاستخدامات": "Total uses",
+  "المتبقية": "Remaining",
+  "حفظ رصيد العميلة": "Save client balance",
+  "الخدمات والموظفات": "Services and staff",
+  "تعديل في الكاشير": "Edit in checkout",
+  "استرجاع كامل": "Full refund",
+  "طباعة": "Print",
+  "طباعة النتائج": "Print results",
+  "بحث بالتواريخ": "Search by date range",
+  "البحث بالتاريخ": "Search by date",
+  "فواتير اليوم": "Today’s invoices",
+  "عرض كل الفواتير": "View all invoices",
+  "تاريخ المصروف": "Expense date",
+  "مساعد المالكة — تحليل الإيرادات": "Owner assistant — revenue analysis",
+  "الخدمات الأكثر تنفيذًا": "Most frequently performed services",
+  "تسجيل فواتير من رسالة أو صورة": "Enter invoices from a message or image",
+  "ارفعي صورة كشف أو لقطة محادثة واتساب": "Upload a statement image or WhatsApp screenshot",
+  "قراءة الصور واستخراج النص": "Extract text from images",
+  "النص المستخرج أو المكتوب": "Extracted or entered text",
+  "استخراج الفواتير للمراجعة": "Extract invoices for review",
+  "إدارة أسعار الخدمات": "Manage service prices",
+  "الخدمات (يمكن اختيار أكثر من خدمة)": "Services (select one or more)",
+  "استبعاد": "Exclude",
+  "حجوزات بوابة العميلات": "Client portal bookings",
+  "واتساب": "WhatsApp",
+  "استيراد قائمة الأسعار السابقة (اختياري)": "Import previous price list (optional)",
+  "استيراد الأسعار": "Import prices",
+  "حفظ ونشر لجميع الأجهزة": "Save and publish to all devices",
+  "نسبة الخصم %": "Discount (%)",
+  "إلغاء الخصم": "Cancel discount",
+  "رسائل العميلات والعروض (واتساب مجاني)": "Client messages and offers (free WhatsApp)",
+  "عدد المستهدفات": "Number of recipients",
+  "نص الرسالة": "Message text",
+  "فتح واتساب": "Open WhatsApp",
+  "موافقات رسائل العروض": "Marketing message consent",
+  "تم تسجيل طلب الحجز في قائمة الانتظار": "Booking request added to the waitlist",
+  "تعديل الحجز": "Edit booking",
+  "النسخ الاحتياطي": "Backup",
+  "فتح إعدادات النظام": "Open system settings",
+  "وصلت العميلة": "Client arrived",
+  "بدء الخدمة": "Start service",
+  "تم تنفيذ الخدمة": "Service completed",
+  "لم تحضر": "No-show",
+  "الحجوزات والمواعيد": "Bookings and appointments",
+  "الحجوزات النشطة والقادمة": "Active and upcoming bookings",
+  "كل السجلات": "All records",
+  "تعديل وإيقاف حساب الموظفة": "Edit or disable employee account",
+  "تعديل الحساب": "Edit account",
+  "حفظ التعديل": "Save changes",
+  "إدارة الباقات": "Manage packages",
+  "إدارة نقاط جميع الباقات": "Manage loyalty points for all packages",
+  "تخصيص خدمات كل موظفة": "Assign services to each specialist",
+  "تحديث قائمة الموظفات": "Refresh staff list",
+  "تعديل الموظفة وخدماتها": "Edit employee and assigned services",
+  "استعادة الموظفة": "Restore employee",
+  "إعادة تفعيل الموظفة": "Reactivate employee",
+  "البريد المرتبط بـFirebase (للعرض فقط)": "Firebase email (read-only)",
+  "إلغاء تحديد الكل": "Deselect all",
+  "حفظ تعديل الموظفة والخدمات": "Save employee and service changes",
+  "تأكيد استلام الدفع": "Confirm payment received",
+  "إلغاء لعدم الدفع": "Cancel for nonpayment",
+  "إلغاء عادي": "Cancel booking",
+  "✦ طلبات ربط النقاط": "✦ Points transfer requests",
+  "تحديث الطلبات": "Refresh requests"
+}
+);
  const sentenceRules=[
   [/^الشهر\s+(\d{1,2})\/(\d{4})$/u,(m,a,b)=>`Month ${a}/${b}`],
   [/^السنة\s+(\d{4})$/u,(m,a)=>`Year ${a}`],
@@ -11022,6 +11414,8 @@ html[data-salon-appearance="dark"] .salon-revenue-table{background:#291f2a;borde
   [/^رصيدك\s+(.+?)\s+نقطة$/u,(m,n)=>`Your balance: ${n} points`],
   [/^الرصيد المتبقي:\s*(.+)$/u,(m,n)=>`Remaining balance: ${n}`],
   [/^(.+?)\s+نقطة$/u,(m,n)=>`${n} points`],
+  [/^(\d+)\s+دقيقة\s*•\s*نقاط الخدمة:\s*(\d+)$/u,(m,time,points)=>`${time} min • ${points} loyalty points`],
+  [/^خصم\s+(\d+)%\s*·\s*اضغطي لاختيار الخدمة$/u,(m,n)=>`${n}% off · Select this service`],
   [/^خصم\s+(.+)$/u,(m,n)=>`Discount ${n}`],
   [/^فاتورة رقم\s*(.+)$/u,(m,n)=>`Invoice #${n}`],
   [/^استخدام:\s*(.+)$/u,(m,n)=>`Use: ${n}`],
@@ -11042,9 +11436,9 @@ html[data-salon-appearance="dark"] .salon-revenue-table{background:#291f2a;borde
    // Legacy catalog rows may predate automatic nameEn generation: display a local translation, without modifying records.
    const modelNameMap=new Map();
    if(typeof db!=='undefined'&&db){
-    for(const service of db.services||[]){
+    for(const service of [...(portalCatalog?.services||[]),...(db.services||[])]){
      const ar=String(service.name||'').trim();if(!ar)continue;
-     const en=String(service.nameEn||window.salonFallbackEnglish?.(ar)||'').trim();if(en)modelNameMap.set(ar,en);
+     const en=salonServiceEnglish(service);if(en)modelNameMap.set(ar,en);
     }
     for(const pkg of db.packages||[]){
      const ar=String(pkg.nameAr||pkg.name||'').trim();if(!ar)continue;
@@ -11067,12 +11461,12 @@ html[data-salon-appearance="dark"] .salon-revenue-table{background:#291f2a;borde
      const direct=modelNameMap.get(trim)||interfaceTranslations[trim];
      let target=direct||'';
      if(!target)for(const [re,fn] of sentenceRules){const match=re.exec(trim);if(match){target=fn(...match);break;}}
-     if(target&&target!==trim)node.nodeValue=source.replace(trim,target);
+     if(target&&target!==trim)salonSetTranslatedNode(node,source.replace(trim,target));
     }
     for(const el of root.querySelectorAll('[title],[aria-label],[placeholder],option')){
      if(el.closest('[data-keep-original-language]'))continue;
      for(const attr of ['title','aria-label','placeholder']){
-      const text=el.getAttribute(attr);if(text&&interfaceTranslations[text])el.setAttribute(attr,interfaceTranslations[text]);
+      const text=el.getAttribute(attr);if(text&&interfaceTranslations[text]&&text!==interfaceTranslations[text])salonSetTranslatedAttribute(el,attr,interfaceTranslations[text]);
      }
     }
    }
@@ -11100,5 +11494,28 @@ html[lang="en"] #app .salon-revenue-explorer .field label{text-align:left}
 html[lang="en"] #app .salon-revenue-explorer h2{text-align:left}
 </style>
 
+<style id="salon-owner-colors">
+/* Owner palette: deep teal, pale sage and warm ivory. */
+body:has(#app .owner-shell){background:#f3f7f4!important}
+#app .owner-shell{--oq-purple:#23594f;--oq-rose:#38796c;--oq-paper:#fffefa;--oq-soft:#e4f0eb;--oq-muted:#516862;--oq-border:#c9ddd5;--oq-ink:#183832;background:#f3f7f4!important}
+#app .owner-shell .owner-sidebar{background:linear-gradient(180deg,#f4faf7,#dceee6)!important;color:#245449!important;border-color:#c9ddd5!important}
+#app .owner-shell .owner-main{background:linear-gradient(180deg,#f8fbf8,#edf5f0 320px,#edf5f0)!important}
+#app .owner-shell .owner-top{background:#fffefa!important;border-color:var(--oq-border)!important}
+#app .owner-shell .owner-brand{border-color:var(--oq-border)!important}
+#app .owner-shell :is(.owner-brand b,.owner-brand small,.owner-side-bottom,.oq-nav-item:not(.selected),.oq-nav-item:not(.selected) .owner-menu-icon){color:#245449!important}
+#app .owner-shell .owner-menu button.oq-nav-item:hover{background:#cce6dc!important;color:#173e35!important}
+#app .owner-shell .owner-menu button.oq-nav-item.selected{background:linear-gradient(110deg,#34796a,#23594f)!important;color:#fff!important;box-shadow:0 7px 18px #23594f2b!important}
+#app .owner-shell :is(.owner-kpi,.owner-panel,.owner-content .card,.owner-content .service,.oq-panel){border-color:var(--oq-border)!important}
+#app .owner-shell .owner-mobile-menu-toggle{background:#fffefa!important;color:#245449!important;border-color:var(--oq-border)!important}
+html[data-salon-appearance="dark"] body:has(#app .owner-shell){background:#10201e!important}
+html[data-salon-appearance="dark"] #app .owner-shell{--oq-purple:#9bd5c5;--oq-rose:#80c6b3;--oq-paper:#1b302c;--oq-soft:#213b35;--oq-border:#3b5e56;--oq-ink:#e1f1ec;--oq-muted:#b0cbc2;background:#10201e!important}
+html[data-salon-appearance="dark"] #app .owner-shell :is(.owner-sidebar,.owner-top,.owner-brand,.owner-mobile-menu-toggle){background:#1b302c!important;color:#e1f1ec!important;border-color:var(--oq-border)!important}
+html[data-salon-appearance="dark"] #app .owner-shell .owner-main{background:#132723!important}
+html[data-salon-appearance="dark"] #app .owner-shell :is(.owner-brand b,.owner-brand small,.owner-side-bottom,.oq-nav-item:not(.selected),.oq-nav-item:not(.selected) .owner-menu-icon){color:#c9e8de!important}
+html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-item:hover{background:#31594e!important;color:#fff!important}
+html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-item.selected{background:linear-gradient(110deg,#34796a,#2b6357)!important}
+#app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="rtl"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="rtl"]{direction:rtl;text-align:start}
+#app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="ltr"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="ltr"]{direction:ltr;text-align:start}
+</style>
 </body>
 </html>
