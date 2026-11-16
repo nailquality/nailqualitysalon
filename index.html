@@ -2812,7 +2812,23 @@ async function publishPortalCatalog(){
 }
 async function showPortalBookingsOwner(){try{const snap=await firestore.collection('portalBookings').get();const rows=snap.docs.map(d=>({id:d.id,...d.data()}));$("#portalBookingsOwner").innerHTML=rows.map(b=>`<div class="card" style="margin-bottom:8px"><b>${esc(b.clientName)} — ${esc(b.date)} ${esc(b.time)}</b><p>${esc(b.serviceName)} — ${money(b.price)} — ${esc(b.staffName)}</p><p>${esc(b.location==='home'?'منزل':'صالون')} — ${esc(b.status)}</p>${b.status==='pending'?`<button class="btn small" onclick="confirmPortalBooking('${esc(b.id)}')">تأكيد الحجز</button><button class="btn small danger" onclick="cancelPortalBooking('${esc(b.id)}')">إلغاء الحجز</button>`:`<span class="badge">${esc(b.status)}</span>`}</div>`).join('')||'لا توجد طلبات' }catch(e){toast(e.message)}}
 async function confirmPortalBooking(id){try{await firestore.collection('portalBookings').doc(id).update({status:'confirmed'});await showPortalBookingsOwner()}catch(e){toast(e.message)}}
-async function cancelPortalBooking(id){if(!confirm('هل تريدين إلغاء هذا الحجز؟'))return;try{await firestore.collection('portalBookings').doc(id).update({status:'cancelled'});await showPortalBookingsOwner();toast('تم إلغاء الحجز. يمكنك إبلاغ العميلة من زر واتساب بجانب الحجز.')}catch(e){toast('تعذر الإلغاء: '+e.message)}}
+async function cancelPortalBooking(id){
+ if(!hasOwner())return;
+ const english=lang==='en';
+ if(!confirm(english?'Cancel this booking? It will be removed from active appointments.':'إلغاء هذا الحجز وإزالته من المواعيد النشطة؟'))return;
+ const ref=firestore.collection('portalBookings').doc(id);
+ await firestore.runTransaction(async tx=>{
+  const snap=await tx.get(ref);
+  if(!snap.exists)throw Error(english?'Booking not found.':'الحجز غير موجود.');
+  const booking=snap.data();
+  if(booking.status==='cancelled')return;
+  if(!['pending','confirmed'].includes(booking.status))throw Error(english?'Only pending or confirmed bookings can be canceled here.':'يمكن إلغاء طلبات الانتظار والحجوزات المؤكدة من هنا.');
+  const stamp=firebase.firestore.FieldValue.serverTimestamp();
+  tx.update(ref,{status:'cancelled',cancelledAt:stamp,updatedAt:stamp});
+ });
+ await showPortalBookingsOwner();
+ toast(english?'Booking canceled.':'تم إلغاء الحجز.');
+}
 const legacyOwnerRender=renderOwner;
 renderOwner=function(tab=ownerActiveTab){legacyOwnerRender(tab);if(tab==='appointments'){const div=document.createElement('section');div.innerHTML='<div class="section-head"><h3>حجوزات بوابة العميلات</h3><button class="btn secondary small" onclick="showPortalBookingsOwner()">تحديث</button></div><div id="portalBookingsOwner"></div>';$("#app").append(div);showPortalBookingsOwner()}if(tab==='services'){const btn=document.createElement('button');btn.className='btn gold';btn.textContent='نشر الخدمات والموظفات لبوابة العميلات';btn.onclick=publishPortalCatalog;$("#app").append(btn)}};
 const priorClearSession=clearSession;
@@ -9255,7 +9271,7 @@ function injectBookingArchive(){if(!owner()||ownerActiveTab!=='appointments')ret
  const root=document.querySelector('.owner-content')||document.querySelector('.owner-main');if(!root||root.querySelector('#qualityHistorySearch'))return;
  const card=document.createElement('section');card.className='card quality-booking-archive';card.innerHTML='<h3>أرشيف الحجوزات السابقة</h3><p class="muted">القديمة محفوظة، ولا تظهر إلا بعد البحث برقم الجوال.</p><div class="quality-admin-controls"><input id="qualityHistorySearch" type="tel" placeholder="رقم جوال العميلة 05xxxxxxxx"><button id="qualityHistoryFind" class="btn secondary" type="button">بحث</button></div><div id="qualityHistoryResults"></div>';
  root.append(card);
- const table=root.querySelector('#bookingsTable');if(table){const upcoming=(db.bookings||[]).filter(b=>String(b.date||'')>=today());table.innerHTML=typeof bookingTable==='function'?bookingTable(upcoming):'';}
+ const table=root.querySelector('#bookingsTable');if(table){const upcoming=(db.bookings||[]).filter(b=>b.status!=='cancelled'&&String(b.date||'')>=today());table.innerHTML=typeof bookingTable==='function'?bookingTable(upcoming):'';}
  root.querySelector('#qualityHistoryFind').onclick=async()=>{const query=phone(card.querySelector('#qualityHistorySearch').value),dest=card.querySelector('#qualityHistoryResults');if(!/^5\d{8}$/.test(query)){dest.textContent='اكتبي رقم جوال كامل للبحث';return}dest.textContent='جارٍ البحث…';
   const old=(db.bookings||[]).filter(b=>String(b.date||'')<today()&&phone(b.customerPhone||b.clientPhone||db.clients.find(c=>String(c.id)===String(b.clientId))?.phone)===query);
   try{const calls=['0'+query,'966'+query,'+966'+query,query].map(v=>firestore.collection('portalBookings').where('clientPhone','==',v).get({source:'server'}));const remote=await Promise.all(calls);const seen=new Set(old.map(b=>String(b.id||b.bookingId||'')));for(const snap of remote)snap.forEach(d=>{const b=d.data();if(String(b.date||'')<today()&&phone(b.clientPhone)===query&&!seen.has(String(d.id))){old.push({id:d.id,...b});seen.add(String(d.id))}})}catch(e){console.warn('Portal archive unavailable',e)}
@@ -9272,7 +9288,8 @@ showPortalBookingsOwner=async function(){
   if(!host.isConnected)return;
   const data=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>String(a.date+a.time).localeCompare(String(b.date+b.time))||orderCreatedAt(a)-orderCreatedAt(b));
   const waiting=data.filter(b=>b.status==='pending');
-  const recent=data.filter(b=>b.status!=='pending'&&String(b.date||'')>=today());
+  const recent=data.filter(b=>!['pending','cancelled'].includes(b.status)&&String(b.date||'')>=today());
+  const canceled=data.filter(b=>b.status==='cancelled'&&String(b.date||'')>=today());
   const active=['confirmed','arrived','inProgress','completed'];
   const card=b=>{
    const id=safe(b.id),hasNumber=b.queueNumber&&b.queueDate===b.date;
@@ -9288,17 +9305,18 @@ showPortalBookingsOwner=async function(){
     ${hasNumber?`<p><strong>رقم الدور: ${safe(b.queueNumber)}</strong></p>`:''}
     <div class="row">
      ${b.status==='pending'||b.status==='confirmed'&&!hasNumber?`<button type="button" class="btn success small" data-confirm="${id}">${b.status==='pending'?'موافقة وتخصيص دور':'تخصيص دور للحجز المؤكد'}</button>`:''}
-     ${['pending','confirmed'].includes(b.status)?`<button type="button" class="btn secondary small" data-edit-booking="${id}">تعديل الموعد</button><button type="button" class="btn danger small" data-cancel="${id}">إلغاء</button>`:''}
+     ${['pending','confirmed'].includes(b.status)?`<button type="button" class="btn secondary small" data-edit-booking="${id}">تعديل الموعد</button><button type="button" class="btn danger small" data-cancel="${id}">${tr('إلغاء الحجز','Cancel booking')}</button>`:''}
      ${salonBookingConfirmationLink(b)}${salonCancellationLink(b)}
     </div></article>`;
   };
   host.innerHTML=`<h3>قائمة انتظار طلبات الحجز (${waiting.length})</h3>
    <p class="muted">تستلمين العربون عبر واتساب قبل الموافقة. يبدأ ترقيم الدور من 1 لكل يوم موعد، حسب ترتيب موافقتك.</p>
    ${waiting.length?waiting.map(card).join(''):'<p class="muted">لا توجد طلبات تنتظر الموافقة.</p>'}
-   <h3>الحجوزات المؤكدة والحالات الأخرى</h3>${recent.length?recent.map(card).join(''):'<p class="muted">لا توجد حجوزات حالية.</p>'}`;
+   <h3>الحجوزات المؤكدة والحالات الأخرى</h3>${recent.length?recent.map(card).join(''):'<p class="muted">لا توجد حجوزات حالية.</p>'}
+   ${canceled.length?`<details class="card"><summary>${tr('الحجوزات الملغاة','Canceled bookings')} (${canceled.length})</summary>${canceled.map(card).join('')}</details>`:''}`;
   host.querySelectorAll('[data-edit-booking]').forEach(button=>button.onclick=()=>window.ownerEditSavedBooking(button.dataset.editBooking));
   host.querySelectorAll('[data-confirm]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await confirmPortalBooking(b.dataset.confirm)}catch(e){notifyError('تعذر تأكيد الحجز',e)}});
-  host.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await cancelPortalBooking(b.dataset.cancel)}catch(e){notifyError('تعذر إلغاء الحجز',e)}});
+  host.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await cancelPortalBooking(b.dataset.cancel)}catch(e){notifyError('تعذر إلغاء الحجز',e)}finally{b.disabled=false}});
  }catch(e){host.textContent='تعذر جلب الحجوزات: '+String(e.message||e)}
 };
 
@@ -9966,13 +9984,14 @@ async function salonRequireSiteOpen(){
 const salonOfferSiteRating=(()=>{
   'use strict';
   const ratings=firestore.collection('salonSiteRatings');
-  const bookings=firestore.collection('portalBookings');
   const menuEntry=['siteRatings','تقييمات الموقع','★'];
   OWNER_MENU.push(menuEntry);
   const tr=(ar,en)=>lang==='en'?en:ar;
   const isClient=uid=>Boolean(uid&&auth.currentUser?.uid===uid&&portalRole==='client'&&portalUser&&salonSiteIsOpen());
   let invitation=null;
   let checking=null;
+  const handled=new Set();
+  const dismissed=new Set();
 
   function renderInvitation(){
     const draft=invitation;
@@ -9989,7 +10008,7 @@ const salonOfferSiteRating=(()=>{
     }).join('');
     card.innerHTML=`<h3>${tr('قيّمي تجربتكِ مع الموقع','Rate your website experience')}</h3>
       <form>
-        <fieldset><legend>${tr('كيف كانت تجربتكِ في أول حجز؟','How was your first booking experience?')}</legend><div class="salon-rating-stars">${stars}</div></fieldset>
+        <fieldset><legend>${tr('كيف كانت تجربتكِ مع الحجز؟','How was your booking experience?')}</legend><div class="salon-rating-stars">${stars}</div></fieldset>
         <label class="field"><span data-rating-note-label></span><textarea name="note" maxlength="500" rows="3"></textarea></label>
         <div class="row"><button type="submit" class="btn">${tr('إرسال التقييم','Submit rating')}</button><button type="button" class="btn secondary" data-rating-skip>${tr('تخطي','Skip')}</button></div>
         <p data-rating-status role="status" aria-live="polite"></p>
@@ -10006,7 +10025,7 @@ const salonOfferSiteRating=(()=>{
         input.checked=Number(input.value)===draft.stars;
         input.nextElementSibling.textContent=Number(input.value)<=draft.stars?'★':'☆';
       }
-      const low=draft.stars>0&&draft.stars<=3;
+      const low=draft.stars>0&&draft.stars<5;
       note.required=low;
       note.readOnly=draft.busy;
       fieldset.disabled=draft.busy;
@@ -10019,12 +10038,12 @@ const salonOfferSiteRating=(()=>{
     note.value=draft.note;
     note.oninput=()=>{draft.note=note.value;note.setCustomValidity('')};
     fieldset.onchange=event=>{draft.stars=Number(event.target.value);note.setCustomValidity('');update()};
-    skip.onclick=()=>{invitation=null;card.remove()};
+    skip.onclick=()=>{dismissed.add(draft.bookingId);invitation=null;card.remove()};
     form.onsubmit=async event=>{
       event.preventDefault();
       if(draft.busy||!isClient(draft.uid)||!draft.stars)return;
       const comment=draft.note.trim();
-      if(draft.stars<=3&&!comment){
+      if(draft.stars<5&&!comment){
         note.setCustomValidity(tr('اكتبي سبب التقييم.','Please tell us why you gave this rating.'));
         note.reportValidity();
         return;
@@ -10042,6 +10061,7 @@ const salonOfferSiteRating=(()=>{
           invitation=null;
           document.querySelector('#salonSiteRating')?.remove();
         }
+        handled.add(draft.uid);
         if(isClient(draft.uid))toast(tr('شكرًا على تقييمكِ.','Thank you for your feedback.'));
       }catch(error){
         console.warn('Website rating could not be saved',error);
@@ -10069,6 +10089,13 @@ const salonOfferSiteRating=(()=>{
   renderPortalClient=function(){
     const result=renderClientBeforeRating.apply(this,arguments);
     renderInvitation();
+    if(salonClientPage==='bookings'){
+      const uid=auth.currentUser?.uid;
+      const timestamp=booking=>booking.createdAt?.toMillis?.()||Date.parse(booking.createdAt)||0;
+      const recent=(portalBookings||[]).filter(booking=>booking.id&&booking.clientUid===uid&&booking.status!=='cancelled')
+        .sort((first,second)=>timestamp(second)-timestamp(first))[0];
+      if(recent)void salonOfferSiteRating(recent.id,uid);
+    }
     return result;
   };
   auth.onAuthStateChanged(user=>{
@@ -10081,7 +10108,7 @@ const salonOfferSiteRating=(()=>{
     const heading=tr('تقييمات الموقع','Website ratings');
     const section=document.createElement('section');
     section.className='card salon-site-rating';
-    section.innerHTML=`<h2>${heading}</h2><p class="muted">${tr('تقييمات العميلات بعد أول حجز على الموقع.','Feedback from clients after their first online booking.')}</p>
+    section.innerHTML=`<h2>${heading}</h2><p class="muted">${tr('تقييمات العميلات بعد الحجز على الموقع.','Feedback from clients after booking online.')}</p>
       <p role="status"></p><div data-rating-entries></div><button type="button" class="btn secondary" hidden>${tr('عرض المزيد','Show more')}</button>`;
     host.prepend(section);
     const entries=section.querySelector('[data-rating-entries]');
@@ -10133,14 +10160,12 @@ const salonOfferSiteRating=(()=>{
   };
 
   return async function(bookingId,uid){
-    if(!isClient(uid)||checking===uid||invitation?.uid===uid)return;
+    if(!bookingId||!isClient(uid)||checking===uid||invitation?.uid===uid||handled.has(uid)||dismissed.has(bookingId))return;
     checking=uid;
     try{
-      const [history,rating]=await Promise.all([
-        bookings.where('clientUid','==',uid).limit(2).get({source:'server'}),
-        ratings.doc(uid).get({source:'server'})
-      ]);
-      if(!isClient(uid)||rating.exists||history.size!==1||history.docs[0].id!==bookingId)return;
+      const rating=await ratings.doc(uid).get({source:'server'});
+      if(!isClient(uid))return;
+      if(rating.exists){handled.add(uid);return;}
       invitation={uid,bookingId,stars:0,note:'',busy:false};
       renderInvitation();
     }catch(error){console.warn('Website rating eligibility could not be checked',error)}
@@ -11268,7 +11293,7 @@ html[data-salon-appearance="dark"] .salon-revenue-table{background:#291f2a;borde
  'تسجيل موظفة':'Register employee','تفعيل موظفة':'Activate employee','تعطيل موظفة':'Deactivate employee',
  'سجل الموظفات':'Employee records','الحساب':'Account','البيانات الشخصية':'Personal details',
  'البريد الإلكتروني':'Email address','كلمة المرور':'Password','تسجيل الدخول':'Sign in','تسجيل الخروج':'Sign out',
- 'حسابي':'My account','بيانات الحساب':'Account details','تغيير كلمة المرور':'Change password',
+ 'زيارات العميلات':'Client visits','حسابي':'My account','بيانات الحساب':'Account details','تغيير كلمة المرور':'Change password',
  'استعادة كلمة المرور':'Reset password','نسيت كلمة المرور':'Forgot password?',
  'تحرير':'Edit','تعديل':'Edit','إضافة':'Add','حذف':'Delete','حفظ':'Save',
  'إلغاء':'Cancel','تأكيد':'Confirm','متابعة':'Continue','رجوع':'Back','إغلاق':'Close',
@@ -11584,5 +11609,69 @@ html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-i
 #app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="rtl"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="rtl"]{direction:rtl;text-align:start}
 #app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="ltr"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="ltr"]{direction:ltr;text-align:start}
 </style>
+<script id="salon-client-visit-report">
+(function(){
+ 'use strict';
+ const label=(ar,en)=>lang==='en'?en:ar;
+ OWNER_MENU.push(['clientVisits','زيارات العميلات','♙']);
+
+ function rankClients(invoices, clients){
+  const rows=new Map(clients.filter(c=>c?.id).map(c=>[String(c.id),{name:c.name,visits:new Set(),services:new Map()}]));
+  for(const invoice of invoices){
+   const row=rows.get(String(invoice.clientId||''));
+   if(!row||invoice.voided===true||invoice.cancelled===true||['void','cancelled','refunded'].includes(invoice.status))continue;
+   const invoiceTotal=Number(invoice.total)||0;
+   if(invoiceTotal>0&&salonInvoiceNet(invoice)<=0)continue;
+   const serviceLines=invoiceLineRows(invoice).filter(line=>line.itemKind!=='packagePurchase'&&(line.serviceId||invoice.serviceName||invoice.items?.length));
+   if(!serviceLines.length)continue;
+   const visit=invoice.bookingId?'booking:'+invoice.bookingId:'invoice:'+String(invoice.id||invoice.number);
+   row.visits.add(visit);
+   for(const line of serviceLines){
+    const service=db.services.find(s=>String(s.id)===String(line.serviceId));
+    const name=String(line.name||service?.name||label('خدمة','Service')).trim();
+    const key=String(line.serviceId||name);
+    const entry=row.services.get(key)||{name:lang==='en'&&service?.nameEn?service.nameEn:name,quantity:0};
+    entry.quantity+=Math.max(1,Number(line.quantity)||1);
+    row.services.set(key,entry);
+   }
+  }
+  return [...rows.values()].map(row=>({name:row.name,visits:row.visits.size,services:[...row.services.values()].sort((a,b)=>b.quantity-a.quantity||a.name.localeCompare(b.name))}))
+   .sort((a,b)=>b.visits-a.visits||String(a.name||'').localeCompare(String(b.name||''),lang));
+ }
+
+ function renderVisits(){
+  const host=document.querySelector('#app .owner-content');
+  if(!host)return;
+  const panel=document.createElement('section');panel.className='card';
+  panel.innerHTML=`<div class="spread"><h2>${label('زيارات العميلات','Client visits')}</h2><button type="button" class="btn secondary">${label('تحديث من Firebase','Refresh from Firebase')}</button></div>
+    <p class="muted">${label('الترتيب مبني على فواتير الخدمات المرتبطة بكل عميلة. الفواتير المرتبطة بالحجز نفسه تُحسب زيارة واحدة.','Ranked by invoiced service visits. Invoices linked to the same booking count as one visit.')}</p>
+    <p role="status"></p><div data-client-visits></div>`;
+  host.replaceChildren(panel);
+  const status=panel.querySelector('[role=status]'),list=panel.querySelector('[data-client-visits]'),refresh=panel.querySelector('button');
+  const draw=()=>{
+   const clients=[...new Map([...(db.clientArchive||[]),...(db.clients||[])].filter(c=>c?.id).map(c=>[String(c.id),c])).values()];
+   const rows=rankClients(db.invoices||[],clients);
+   list.innerHTML=rows.map(row=>`<details class="card" style="margin:8px 0"><summary>${esc(row.name||label('عميلة','Client'))} · ${row.visits} ${label('زيارة','visits')}</summary>
+     ${row.services.length?`<ul>${row.services.map(service=>`<li>${esc(service.name)} × ${service.quantity}</li>`).join('')}</ul>`:`<p>${label('لا توجد فواتير خدمات مرتبطة.','No linked service invoices.')}</p>`}</details>`).join('')||`<p>${label('لا توجد عميلات مسجلات.','No clients registered.')}</p>`;
+  };
+  refresh.onclick=async()=>{
+   refresh.disabled=true;
+   status.textContent=label('جارٍ تحميل سجل الفواتير…','Loading invoice history…');
+   try{await salonRefreshInvoices();if(panel.isConnected){draw();status.textContent='';}}
+   catch(error){if(panel.isConnected)status.textContent=label('تعذّر تحديث الفواتير من Firebase.','Could not refresh invoices from Firebase.');console.warn(error);}
+   finally{refresh.disabled=false;}
+  };
+  draw();
+  refresh.click();
+ }
+ const oldRender=renderOwner;
+ renderOwner=function(tab=ownerActiveTab){
+  const result=oldRender.apply(this,arguments);
+  if(tab==='clientVisits'&&db.session?.type==='owner'&&firebaseReady)renderVisits();
+  return result;
+ };
+})();
+
+</script>
 </body>
 </html>
