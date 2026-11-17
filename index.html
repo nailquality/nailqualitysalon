@@ -3254,7 +3254,7 @@ renderPortalClient=function(){
  const settings=portalCatalog.settings||{};const pts=Math.max(0,Number(portalUser.points)||0);const threshold=Math.max(1,Number(settings.redeemPoints)||50);const riyals=Math.max(0,Number(settings.redeemRiyals)||10);
  if(salonClientPage==='bookings'){
   const rows=portalBookings.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  panel.innerHTML='<div class="section-head"><h3>'+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(salonCustomerBookingServices(b)||salonBilingual("خدمة","Service"))}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(salonCustomerStaffName(b))}</p><p>${esc(salonBookingLocationText(b))} • ${esc(salonBookingQueueStatus(b))} • ${b.packageUseRequested?'موعد من رصيد الباقة':(b.depositStatus==='paid'?'العربون مدفوع':'العربون لم يُدفع')}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p>${Number(b.pointsToRedeem)>0?'<p><strong>'+salonBilingual('خصم النقاط المطلوب: ','Requested discount: ')+esc(b.pointsToRedeem)+salonBilingual(' نقطة = ',' points = ')+money(b.loyaltyDiscountRequested)+'</strong> · '+salonBilingual('بعد الخصم المتوقع: ','Estimated after discount: ')+money(Math.max(0,Number(b.price||0)-Number(b.loyaltyDiscountRequested||0)))+'</p>':''}${b.queueNumber&&b.queueDate===b.date&&b.status!=='cancelled'?`<p><strong>رقم دوركِ: ${esc(b.queueNumber)}</strong></p>`:''}<small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد طلبات حجز مسجلة حاليًا.</div>');
+  panel.innerHTML='<div class="section-head"><h3>'+esc(t('myBookings'))+'</h3></div>'+(rows.length?rows.map(b=>`<div class="card" style="margin-bottom:10px"><b>${esc(salonCustomerBookingServices(b)||salonBilingual("خدمة","Service"))}</b><p>${esc(b.date||'')} • ${esc(b.time||'')} • ${esc(salonCustomerStaffName(b))}</p><p>${esc(salonBookingLocationText(b))} • ${esc(salonBookingQueueStatus(b))} • ${b.packageUseRequested?'موعد من رصيد الباقة':(b.depositStatus==='paid'?'العربون مدفوع':'العربون لم يُدفع')}${b.cancelReason==='unpaid'?' · أُلغي بسبب عدم الدفع':''}</p>${Number(b.campaignDiscount)>0?`<div class="notice good" role="status">${salonBilingual('مبروك! كسبتِ الخصم','Congratulations! You earned the discount')} · ${salonBilingual('قبل الخصم','Before discount')} ${money(b.campaignOriginalPrice)} · ${salonBilingual('بعد الخصم','After discount')} ${money(b.price)}</div>`:''}${Number(b.pointsToRedeem)>0?'<p><strong>'+salonBilingual('خصم النقاط المطلوب: ','Requested discount: ')+esc(b.pointsToRedeem)+salonBilingual(' نقطة = ',' points = ')+money(b.loyaltyDiscountRequested)+'</strong> · '+salonBilingual('بعد الخصم المتوقع: ','Estimated after discount: ')+money(Math.max(0,Number(b.price||0)-Number(b.loyaltyDiscountRequested||0)))+'</p>':''}${b.queueNumber&&b.queueDate===b.date&&b.status!=='cancelled'?`<p><strong>رقم دوركِ: ${esc(b.queueNumber)}</strong></p>`:''}<small>رقم الطلب: ${esc(b.requestNumber||b.id||'—')}</small></div>`).join(''):'<div class="card empty">لا توجد طلبات حجز مسجلة حاليًا.</div>');
  }else if(salonClientPage==='points'){
   panel.innerHTML=`<div class="section-head"><h3>🎁 ${lang==='ar'?'نقاطي ومكافآتي':'My points & rewards'}</h3></div><div class="stats"><div class="stat"><span>رصيد النقاط</span><strong>${pts}</strong></div><div class="stat"><span>خصم متاح عند الاستبدال</span><strong>${money(Math.floor(pts/threshold)*riyals)}</strong></div></div><div class="card" style="margin-top:14px"><h3>كيف أستخدم نقاطي؟</h3><p>كل ${threshold} نقطة = خصم ${money(riyals)} حسب سياسة الصالون.</p><p>يمكنك اختيار «نعم، أريد استخدام نقاطي» أثناء طلب الحجز. يراجع الصالون الرصيد ويؤكد قيمة الخصم قبل إصدار الفاتورة.</p><p class="notice">لا تُخصم أي نقاط بمجرد إرسال طلب واتساب. يُعتمد الخصم عند تأكيد الصالون والدفع.</p><button type="button" class="btn" onclick="salonClientPage='home';renderPortalClient()">احجزي واستخدمي نقاطك</button></div>`;
  }
@@ -11752,17 +11752,19 @@ async function salonPublishCampaignReceipt(bookingId,invoice){
     <label class="field">${tr('بداية النشر (توقيت السعودية)','Starts (Saudi time)')}<input name="start" type="datetime-local" required></label>
     <label class="field">${tr('نهاية النشر (توقيت السعودية)','Ends (Saudi time)')}<input name="end" type="datetime-local" required></label>
     <button class="btn" type="submit">${tr('جدولة العرض','Schedule offer')}</button>
-   </form><p role="status"></p><div data-campaign-summary></div>`;
+   </form><p role="status"></p><div data-campaign-summary></div><button type="button" class="btn danger small" data-campaign-cancel hidden>${tr('حذف العرض','Remove offer')}</button>`;
   host.prepend(panel);
-  const form=panel.querySelector('form'),status=panel.querySelector('[role=status]'),summary=panel.querySelector('[data-campaign-summary]'),button=form.querySelector('button');
+  const form=panel.querySelector('form'),status=panel.querySelector('[role=status]'),summary=panel.querySelector('[data-campaign-summary]'),button=form.querySelector('button'),cancel=panel.querySelector('[data-campaign-cancel]');
   form.elements.start.value=salonRiyadhDatetimeInput(5);
   form.elements.end.value=salonRiyadhDatetimeInput(60*24);
   const render=offer=>{
-   if(!offer)return;
+   cancel.hidden=!offer||offer.cancelled||offer.finished;
+   if(!offer){summary.textContent='';return;}
    const stats=kind=>offer.entries.filter(entry=>entry.status===kind).length;
    summary.textContent=tr(
     `خصم ${offer.percent}% لأول ${offer.limit} عميلات · ${clock(offer.start)} إلى ${clock(offer.end)} · مثبت ${stats('used')} · مهلة دفع ${stats('held')} · انتظار ${stats('waiting')}`,
     `${offer.percent}% off for ${offer.limit} clients · ${clock(offer.start)} to ${clock(offer.end)} · Confirmed ${stats('used')} · On hold ${stats('held')} · Waiting ${stats('waiting')}`);
+   if(offer.cancelled)summary.prepend(tr('العرض محذوف · ','Offer removed · '));
   };
   if(!enabled()){
    button.disabled=true;
@@ -11770,6 +11772,12 @@ async function salonPublishCampaignReceipt(bookingId,invoice){
    return;
   }
   void call().then(render).catch(error=>status.textContent=error.message);
+  cancel.onclick=async()=>{
+   if(!confirm(tr('حذف العرض وإيقاف استقبال الطلبات؟ الخصومات المؤكدة والمهل المحجوزة حاليًا تبقى محفوظة.','Remove this offer? Confirmed discounts and current holds remain valid.')))return;
+   cancel.disabled=true;button.disabled=true;
+   try{render(await call({method:'DELETE'}));status.textContent=tr('تم حذف العرض وإيقاف التخصيص الجديد.','Offer removed. No new discounts will be allocated.');}
+   catch(error){status.textContent=error.message}finally{cancel.disabled=false;button.disabled=false;}
+  };
   form.onsubmit=async event=>{
    event.preventDefault();button.disabled=true;
    try{
@@ -11793,13 +11801,14 @@ async function salonPublishCampaignReceipt(bookingId,invoice){
     const offer=await call();if(!offer||!box.isConnected)return;
     const entry=offer.entries[0];
     const held=entry?.status==='held'&&entry.expiresAt>offer.now;
-    const live=!offer.finished&&offer.start<=offer.now&&offer.now<offer.end;
+    const live=!offer.cancelled&&!offer.finished&&offer.start<=offer.now&&offer.now<offer.end;
     const minutes=held?Math.ceil((entry.expiresAt-offer.now)/60000):0;
-    const message=held?tr(
+    const awardAlreadyOnCard=salonClientPage==='bookings'&&entry?.status==='used'&&(portalBookings||[]).some(b=>b.id===entry.id&&Number(b.campaignDiscount)>0);
+    const message=awardAlreadyOnCard?'':held?tr(
       `خصم ${offer.percent}% محجوز لكِ. المتبقي ${minutes} دقيقة للدفع قبل أن ينتقل الخصم لعميلة أخرى. المبلغ بعد الخصم ${money(entry.price)}.`,
       `Your ${offer.percent}% discount is on hold. Pay within ${minutes} minutes before it passes to another client. Discounted amount: ${money(entry.price)}.`)
       :entry?.status==='waiting'?tr(`رقم طلبك في ترتيب العرض ${entry.position}. سنعرض مهلة الدفع هنا إذا وصل الخصم إلى دورك.`,`You are number ${entry.position} in the offer queue. Your payment window will appear here if a spot opens.`)
-      :entry?.status==='used'?tr(`تم تثبيت خصمك. المبلغ بعد الخصم ${money(entry.price)}.`,`Your discount is confirmed. Discounted amount: ${money(entry.price)}.`)
+      :entry?.status==='used'?tr(`مبروك! كسبتِ الخصم. قبل الخصم ${money(entry.originalPrice)}، وبعد الخصم ${money(entry.price)}.`,`Congratulations! You earned the discount. Before: ${money(entry.originalPrice)}. After: ${money(entry.price)}.`)
       :entry?.status==='expired'||entry?.status==='held'?tr('انتهت مهلة خصم العرض لهذا الحجز.','The offer hold for this booking expired.')
       :live?tr(`عرض الحجز: خصم ${offer.percent}% لأول ${offer.limit} عميلات. المهلة 30 دقيقة بعد تخصيص الخصم.`,`Booking offer: ${offer.percent}% off for the first ${offer.limit} clients. Pay within 30 minutes of allocation.`):'';
     if(box.textContent!==message)box.textContent=message;
