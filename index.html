@@ -1735,7 +1735,12 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
  await firestore.runTransaction(async transaction=>{
   const main=await transaction.get(salonDoc);
   const prev=await transaction.get(ref);
-  if(!main.exists)throw Error('مستند الصالون غير موجود في Firebase. لم تُحفظ الفاتورة.');
+ if(proposed.campaignDiscount>0&&!proposed.__edit){
+  const record=await transaction.get(firestore.collection('portalBookings').doc(proposed.bookingId));
+  const b=record.data();
+  if(!b||!['confirmed','arrived','inProgress','completed'].includes(b.status)||b.depositStatus!=='paid'||Number(b.campaignDiscount)!==proposed.campaignDiscount||Number(b.price)!==proposed.total)throw Error('تغيّر الحجز أو سعر العرض. حدّثي القائمة.');
+ }
+ if(!main.exists)throw Error('مستند الصالون غير موجود في Firebase. لم تُحفظ الفاتورة.');
   // invoiceStorageVersion is only a migration marker, not a prerequisite for a
   // new salonInvoices document. Do not delete or modify historical invoices here.
   const remote=main.data()||{};
@@ -4957,10 +4962,10 @@ publishPortalCatalog=async function(){
    const priceNote=campaign?'\n\nعرض الحجز: المبلغ بعد الخصم '+money(campaign.price):'';
    if(!confirm(conflict+approval+priceNote))return;
    const number=await firestore.runTransaction(tx=>salonConfirmBookingWithQueue(tx,target,b,staff));
-   if(campaign){try{await window.salonCampaignQuote(id)}catch(error){console.warn(error.message)}}
    if(ownerActiveTab==='appointments'&&typeof ownerTab==='function')ownerTab('appointments');
    if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();
    toast('تم تأكيد الحجز برقم الدور '+number+'. أرسلي التأكيد للعميلة من زر واتساب.');
+   if(!b.packageUseRequested&&window.salonCampaignAfterConfirmation){try{await window.salonCampaignAfterConfirmation(id)}catch(error){toast('الحجز مؤكد. تعذّر إكمال فاتورة العرض: '+error.message)}}
   }catch(err){console.error('Booking owner confirmation:',err);toast('تعذر تأكيد الحجز: '+(err.code==='permission-denied'?'تأكدي من نشر قواعد Firestore التي تتضمن عداد الأدوار.':String(err.message||err)))}
 
  }
@@ -8090,7 +8095,7 @@ window.salonMakeClientInvoiceView=function(invoice,clientUid,clientId){
   // Missing payment methods are not counted without a known paidAmount.
  }
  const items=(Array.isArray(invoice.items)?invoice.items:[]).slice(0,80).map(x=>({name:String(x.name||x.serviceName||'خدمة').slice(0,120),qty:Math.max(1,Math.min(99,Number(x.quantity)||1)),price:Math.max(0,Number(x.price)||0)}));
- return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,...(invoice.refund?{refundAmount:Number(invoice.refund.amount)||0,refundDate:String(invoice.refund.date||''),netTotal:salonInvoiceNet(invoice)}:{}),payment:String(invoice.payment||''),pointsAdded:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),voucherAmountUsed:Math.max(0,Number(invoice.voucherAmountUsed)||0),amountOtherMethods:Math.max(0,Number(invoice.amountOtherMethods??invoice.total)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+ return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,...(Number(invoice.campaignDiscount)>0?{campaignDiscount:Number(invoice.campaignDiscount),campaignOriginalPrice:Number(invoice.subtotal)}:{}),...(invoice.refund?{refundAmount:Number(invoice.refund.amount)||0,refundDate:String(invoice.refund.date||''),netTotal:salonInvoiceNet(invoice)}:{}),payment:String(invoice.payment||''),pointsAdded:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),voucherAmountUsed:Math.max(0,Number(invoice.voucherAmountUsed)||0),amountOtherMethods:Math.max(0,Number(invoice.amountOtherMethods??invoice.total)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
 };
 function invoiceViewId(id){return encodeURIComponent(String(id));}
 let activeUser='',invoiceStop=null,records=[],invoiceLoadStatus='not-loaded',invoiceLoadError='';
@@ -8117,7 +8122,7 @@ function drawInvoices(){
  const pending=invoiceLoadStatus==='loading';
  const cards=records.map(r=>{
   const items=(r.items||[]).map(i=>`<div>${escText(tr(i.name||'خدمة',i.nameEn||salonCustomerServiceList(i.name)||'Service'))} × ${Math.max(1,Number(i.qty)||1)} — ${moneyVal(i.price)}</div>`).join('');
-  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div>${r.refundDate?`<p>${tr('المسترجع','Refunded')}: ${moneyVal(r.refundAmount)} · ${escText(r.refundDate)} · ${tr('بعد الاسترجاع','After refund')}: ${moneyVal(r.netTotal)}</p>`: ''}<div class="salon-invoice-items">${escText(r.serviceName?tr(r.serviceName,r.serviceNameEn||salonCustomerServiceList(r.serviceName)):tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(tr(payName(r.payment),salonCustomerPaymentLabel(r.payment)))}${Number(r.voucherAmountUsed)>0?' · '+tr('القسيمة','Gift voucher')+': '+moneyVal(r.voucherAmountUsed):''}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
+  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div>${Number(r.campaignDiscount)>0?`<p>${tr("كسبتِ خصم العرض","You earned the booking offer")} · ${tr("قبل الخصم","Before discount")} ${moneyVal(r.campaignOriginalPrice)} · ${tr("الخصم","Discount")} ${moneyVal(r.campaignDiscount)}</p>`:""}${r.refundDate?`<p>${tr('المسترجع','Refunded')}: ${moneyVal(r.refundAmount)} · ${escText(r.refundDate)} · ${tr('بعد الاسترجاع','After refund')}: ${moneyVal(r.netTotal)}</p>`: ''}<div class="salon-invoice-items">${escText(r.serviceName?tr(r.serviceName,r.serviceNameEn||salonCustomerServiceList(r.serviceName)):tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(tr(payName(r.payment),salonCustomerPaymentLabel(r.payment)))}${Number(r.voucherAmountUsed)>0?' · '+tr('القسيمة','Gift voucher')+': '+moneyVal(r.voucherAmountUsed):''}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
  }).join('');
  panel.innerHTML=`<div class="salon-mobile-subpage"><h2>🧾 ${tr('فواتيري','My invoices')}</h2><p>${tr('فواتير مشترياتك المرتبطة بحسابك بعد اعتماد الملكية من الصالون.','Invoices linked to your verified salon account.')}</p><div class="salon-invoice-summary"><div>${tr('إجمالي المدفوع المسجل','Recorded payments')}<strong>${invoiceLoadStatus==='error'||pending?'—':moneyVal(paid)}</strong></div><div>${tr('قيمة جميع الفواتير','Total invoice value')}<strong>${invoiceLoadStatus==='error'||pending?'—':moneyVal(issued)}</strong></div><div>${tr('عدد فواتيري','Invoices')}<strong>${invoiceLoadStatus==='error'||pending?'—':records.length}</strong></div><div>${tr('مبالغ غير محددة','Unverified payments')}<strong>${invoiceLoadStatus==='error'||pending?'—':unknown}</strong></div></div>${unknown?`<p class="notice">${tr('بعض الفواتير طريقة دفعها مختلطة أو غير محددة؛ لا تُضاف إلى إجمالي المدفوع حتى تتحدد القيمة.','Some mixed or unspecified payments are excluded from the paid total until verified.')}</p>`:''}</div><div class="salon-invoice-list">${invoiceLoadStatus==='error'?`<div class="salon-invoice-error">${escText(invoiceLoadError)}</div>`:pending?`<div class="card">${tr('جارٍ تحميل فواتيرك…','Loading your invoices…')}</div>`:cards||`<div class="salon-mobile-subpage"><p>${tr('لا توجد فواتير مرتبطة بحسابك بعد. اطلبِي من الصالون اعتماد ملكية حسابك ومزامنة فواتيرك السابقة.','No invoices have been linked yet. Ask the salon to verify your account and sync previous invoices.')}</p></div>`}</div>`;
 }
@@ -9301,7 +9306,7 @@ showPortalBookingsOwner=async function(){
    const collision=b.status==='pending'&&data.some(other=>other.id!==b.id&&other.date===b.date&&other.staffUid===b.staffUid&&
     (other.status==='pending'||active.includes(other.status))&&timeToMin(b.time)<timeToMin(other.time)+Math.max(5,Number(other.duration)||30)&&
     timeToMin(other.time)<timeToMin(b.time)+Math.max(5,Number(b.duration)||30));
-   return `<article class="quality-order"><header><strong>${safe(b.clientName)} — ${date} · ${time}</strong><span class="badge">${safe(salonBookingQueueStatus(b))}</span></header>
+   return `<article class="quality-order" data-campaign-booking="${id}" data-campaign-discount="${Number(b.campaignDiscount)||0}" data-campaign-price="${Number(b.price)||0}"><header><strong>${safe(b.clientName)} — ${date} · ${time}</strong><span class="badge">${safe(salonBookingQueueStatus(b))}</span></header>
     <p>${safe(b.serviceName)} — ${safe(b.staffName)} · ${safe(b.clientPhone)}</p>
     <p>${safe(salonBookingLocationText(b))}${b.address?' · '+safe(b.address):''}</p>
     ${b.pointsToRedeem>0?`<p>طلب استخدام ${safe(b.pointsToRedeem)} نقطة · الخصم المطلوب ${amount(b.loyaltyDiscountRequested)}</p>`:''}
@@ -11614,6 +11619,90 @@ html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-i
 #app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="ltr"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="ltr"]{direction:ltr;text-align:start}
 </style>
 <script id="salon-booking-campaign">
+async function salonCampaignInvoice(bookingId) {
+ if(!hasOwner())throw Error('دخول المالكة مطلوب');
+ const bookingRef=firestore.collection('portalBookings').doc(bookingId);
+ const snapshot=await bookingRef.get({source:'server'});
+ const booking=snapshot.data();
+ if(!booking||!['confirmed','arrived','inProgress','completed'].includes(booking.status)||booking.depositStatus!=='paid'||!(Number(booking.campaignDiscount)>0))throw Error('الخصم لم يُثبّت لهذا الحجز');
+ const id='booking-offer-'+bookingId;
+ const ref=salonInvoiceDocument(id);
+ const existing=await ref.get({source:'server'});
+ if(existing.exists){
+  if(existing.data().refund)throw Error('فاتورة الحجز مسترجعة');
+  await salonPublishCampaignReceipt(bookingId,existing.data());
+  return existing.data();
+ }
+ const previous=db.invoices.find(row=>String(row.bookingId)===bookingId);
+ if(previous)throw Error('توجد فاتورة مرتبطة بهذا الحجز. راجعي سجل الفواتير.');
+ if(Number(booking.pointsToRedeem)>0)throw Error('هذا الحجز فيه طلب خصم نقاط. أصدري الفاتورة من الكاشير بعد مراجعة النقاط.');
+ const sessionUid=String(booking.clientUid||'');
+ const profile=await firestore.collection('clientProfiles').doc(sessionUid).get({source:'server'});
+ const phone=salonNormalizePhone(booking.clientPhone);
+ if(!profile.exists||!/^5\d{8}$/.test(phone)||salonNormalizePhone(profile.data().phone)!==phone)throw Error('تحققي من بيانات حساب العميلة قبل إصدار الفاتورة');
+ const clients=db.clients||[];
+ const linked=clients.find(c=>c.authUid===sessionUid);
+ const samePhone=clients.filter(c=>salonNormalizePhone(c.phone)===phone);
+ if((linked&&salonNormalizePhone(linked.phone)!==phone)||samePhone.length>1||samePhone.some(c=>c.authUid&&c.authUid!==sessionUid))throw Error('راجعي ربط حساب العميلة قبل إصدار الفاتورة');
+ const client=linked||samePhone[0]||{id:'portal-client-'+sessionUid,name:booking.clientName,phone:booking.clientPhone,authUid:sessionUid,points:0};
+ const total=Math.round(Number(booking.price)*100)/100;
+ const discount=Math.round(Number(booking.campaignDiscount)*100)/100;
+ const before=Math.round(Number(booking.campaignOriginalPrice)*100)/100;
+ if(!Number.isFinite(total)||total<0||!Number.isFinite(before)||Math.abs(before-total-discount)>0.011)throw Error('سعر العرض يحتاج إلى مراجعة');
+ const payment=prompt(`إصدار فاتورة مدفوعة بالكامل بمبلغ ${money(total)}. اكتبي طريقة الدفع (نقدي / شبكة / تحويل). للاحتفاظ بالحجز كعربون فقط اضغطي إلغاء.`, 'تحويل');
+ if(payment===null)return null;
+ const methods={'نقدي':'cash','شبكة':'card','تحويل':'transfer',cash:'cash',card:'card',transfer:'transfer'};
+ const method=methods[payment.trim().toLowerCase()];
+ if(!['transfer','cash','card'].includes(method))throw Error('اختاري طريقة دفع صحيحة');
+ const services=(booking.serviceIds||[]).map(serviceId=>db.services.find(service=>String(service.id)===String(serviceId)));
+ if(!services.length||services.some(service=>!service))throw Error('راجعي الخدمات المرتبطة بالحجز في الكاشير');
+ const weights=services.map(service=>Math.max(0,Number(service.price)||0));
+ const sum=weights.reduce((a,b)=>a+b,0);
+ let previousShare=0;
+ const weightsTotal=sum||services.length;
+ let weightSoFar=0;
+ const staff=db.staff.find(staff=>String(staff.authUid)===String(booking.staffUid));
+ const items=services.map((service,index)=>{
+  weightSoFar+=sum?weights[index]:1;
+  const share=Math.round(before*100*weightSoFar/weightsTotal);
+  const price=(share-previousShare)/100;previousShare=share;
+  return {serviceId:String(service.id),name:String(service.name),quantity:1,price,lineTotal:price,staffId:staff?.id||'',staffName:booking.staffName||''};
+ });
+ const now=new Date().toISOString();
+ const points=services.reduce((total,s)=>total+Math.max(0,Math.floor(Number(s.loyaltyPoints)||0)),0);
+ let saved;
+ try {
+  saved=await salonSaveIndependentInvoice({id,bookingId,clientId:client.id,customerName:client.name,customerPhone:client.phone,
+   staffId:staff?.id||'',staffName:booking.staffName||'',items,serviceId:items[0].serviceId,serviceName:booking.serviceName,
+   subtotal:before,discount,campaignDiscount:discount,taxRate:0,tax:0,total,payment:method,paidAmount:total,paymentStatus:'paid',
+   pointsUsed:0,loyaltyDiscount:0,pointsAdded:points,pointsEarned:points,notes:'خصم عرض الحجز',date:salonSaudiDate(),createdAt:now,updatedAt:now},client,clients.includes(client)?'existing':'new');
+ }catch(error){
+  const concurrent=await ref.get({source:'server'});
+  if(!concurrent.exists||concurrent.data().refund)throw error;
+  saved=concurrent.data();
+ }
+ await salonPublishCampaignReceipt(bookingId,saved);
+ return saved;
+}
+
+async function salonPublishCampaignReceipt(bookingId,invoice){
+ if(invoice.refund||invoice.bookingId!==bookingId)throw Error('الفاتورة غير مرتبطة بالحجز');
+ await firestore.runTransaction(async tx=>{
+  const b=await tx.get(firestore.collection('portalBookings').doc(bookingId));
+  const i=await tx.get(salonInvoiceDocument(invoice.id));
+  if(!b.exists||!i.exists||i.data().refund||i.data().bookingId!==bookingId||i.data().clientId!==invoice.clientId)throw Error('تعذر مطابقة الفاتورة مع الحجز');
+  const booking=b.data();
+  const uid=String(booking.clientUid||'');
+  if(!uid||!['confirmed','arrived','inProgress','completed'].includes(booking.status)||salonNormalizePhone(booking.clientPhone)!==salonNormalizePhone(i.data().customerPhone))throw Error('تعذر التحقق من صاحبة الحجز');
+  const profile=await tx.get(firestore.collection('clientProfiles').doc(uid));
+  if(!profile.exists||salonNormalizePhone(profile.data().phone)!==salonNormalizePhone(booking.clientPhone))throw Error('حساب العميلة يحتاج مراجعة');
+  const view=window.salonMakeClientInvoiceView(i.data(),uid,invoice.clientId);
+  view.campaignDiscount=Number(i.data().campaignDiscount)||0;
+  view.campaignOriginalPrice=Number(i.data().subtotal)||0;
+  tx.set(firestore.collection('clientInvoices').doc(encodeURIComponent(invoice.id)),view);
+ });
+}
+
 (function(){
  'use strict';
  // Replace this value once with the HTTPS URL of the deployed offer Worker.
@@ -11628,6 +11717,19 @@ html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-i
    return offer?.entries.find(entry=>entry.id===id&&entry.status==='held'&&entry.expiresAt>offer.now)||null;
   };
  }
+ window.salonCampaignAfterConfirmation=async id=>{
+  if(!enabled())return;
+  const offer=await call();
+  const entry=offer?.entries.find(row=>row.id===id);
+  if(entry?.status==='used'){
+   toast(tr('العميلة كسبت خصم العرض. السعر بعد الخصم '+money(entry.price),'The client earned the offer discount. Final price: '+money(entry.price)));
+   const invoice=await salonCampaignInvoice(id);
+   if(invoice)toast(tr('حُفظت الفاتورة رقم '+invoice.number+' وظهرت في حساب العميلة.','Invoice #'+invoice.number+' was saved and sent to the client account.'));
+  }else if(entry?.status==='expired')toast(tr('تأكد الحجز بعد انتهاء مهلة الخصم.','The booking was confirmed after the discount expired.'));
+  else if(entry?.status==='waiting'||entry?.status==='closed')toast(tr('تأكد الحجز بدون خصم العرض؛ لم يُخصَّص له دور للدفع.','Booking confirmed without an offer discount. No payment window was allocated.'));
+  else if(entry?.status==='held')toast(tr('تأكد الحجز، لكن تثبيت الخصم قيد المراجعة. حدّثي الحجوزات.','Booking confirmed. The discount is still being verified. Refresh bookings.'));
+  else if(offer)toast(tr('تأكد الحجز بدون خصم العرض؛ هذا الطلب خارج قائمة المؤهلات.','Booking confirmed without an offer discount. This request was not eligible.'));
+ };
  async function call(options={}){
   const token=await auth.currentUser?.getIdToken();
   if(!token)throw Error(tr('سجّلي الدخول أولًا.','Sign in first.'));
@@ -11716,17 +11818,24 @@ html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-i
   if(!enabled()||!list?.isConnected||!hasOwner())return result;
   try{
    const offer=await call();
-   if(!offer||!list.isConnected)return result;
-   for(const button of list.querySelectorAll('[data-confirm]')){
-    const card=button.closest('article');
-    const entry=offer.entries.find(item=>item.id===button.dataset.confirm);
+   if(!list.isConnected)return result;
+   for(const card of list.querySelectorAll('[data-campaign-booking]')){
+    const recordedDiscount=Number(card.dataset.campaignDiscount);
+    const entry=recordedDiscount>0?{id:card.dataset.campaignBooking,status:'used',discount:recordedDiscount,price:Number(card.dataset.campaignPrice)}:offer?.entries.find(item=>item.id===card.dataset.campaignBooking);
     if(!card||!entry||card.querySelector('[data-offer-payment]'))continue;
     const note=document.createElement('p');note.dataset.offerPayment='';
     if(entry.status==='held'&&entry.expiresAt>offer.now)note.textContent=tr(
       `عرض الحجز: بعد الخصم ${money(entry.price)} · مهلة تسجيل الدفع إلى ${clock(entry.expiresAt)}`,
       `Booking offer: ${money(entry.price)} after discount · Record payment by ${clock(entry.expiresAt)}`);
     else if(entry.status==='waiting')note.textContent=tr(`ترتيب الحجز في العرض: ${entry.position} · بانتظار شاغر`,`Offer queue position: ${entry.position} · Waiting for a spot`);
-    if(note.textContent)card.insertBefore(note,button.parentElement);
+    else if(entry.status==='used'){
+     note.textContent=tr(`العميلة كسبت الخصم · خصم ${money(entry.discount)} · المبلغ بعد الخصم ${money(entry.price)}`,`Discount earned · ${money(entry.discount)} off · Final amount ${money(entry.price)}`);
+     const button=document.createElement('button');button.type='button';button.className='btn secondary small';
+     button.textContent=tr('إصدار أو مزامنة فاتورة العرض','Issue or sync offer invoice');
+     button.onclick=async()=>{button.disabled=true;try{const invoice=await salonCampaignInvoice(entry.id);if(invoice)toast(tr('تم حفظ ومزامنة الفاتورة رقم '+invoice.number,'Invoice #'+invoice.number+' saved and synced.'));}catch(error){toast(error.message)}finally{button.disabled=false}};
+     note.append(' ',button);
+    }else if(entry.status==='expired')note.textContent=tr('انتهت مهلة خصم العرض لهذا الحجز.','The offer hold for this booking expired.');
+    if(note.textContent)card.append(note);
    }
   }catch(error){console.warn(error.message)}
   return result;
