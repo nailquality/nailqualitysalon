@@ -1243,6 +1243,7 @@ async function salonConfirmBookingWithQueue(tx,ref,expected,staff){
  queue.write();
  tx.update(ref,{status:'confirmed',depositStatus:booking.packageUseRequested?'not_required':'paid',
   staffUid:String(staff.authUid),staffName:String(staff.name),queueNumber:queue.number,queueDate:booking.date,
+  ...(!booking.packageUseRequested&&!booking.paidAt?{paidAt:firebase.firestore.FieldValue.serverTimestamp()}:{}),
   updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
  return queue.number;
 }
@@ -4548,7 +4549,7 @@ function salonBindOffersForm(){const form=document.getElementById('salonTimedOff
  };
 }
 function salonOpenOffersPage(){if(db.session?.type!=='owner'||!firebaseReady){renderHome();return}
- ownerActiveTab='offers';document.getElementById('app').innerHTML=ownerLayout('offers',salonOffersPage());changeOwnerAccent(ownerThemeColor());salonBindOffersForm();if(typeof showBrand==='function')showBrand();}
+ ownerActiveTab='offers';document.getElementById('app').innerHTML=ownerLayout('offers',salonOffersPage());changeOwnerAccent(ownerThemeColor());salonBindOffersForm();window.salonRenderCampaignOwner?.();if(typeof showBrand==='function')showBrand();}
 window.salonEditScheduledOffer=id=>{salonOpenOffersPage();const o=salonOffersMap()[id];if(!o)return;const form=document.getElementById('salonTimedOfferForm');form.querySelectorAll('.salonOfferService').forEach(x=>x.checked=x.value===id);form.elements.percent.value=o.percent;form.elements.onlineOnly.checked=o.onlineOnly===true;form.elements.occasion.value=String(o.occasion||'');form.elements.occasionEn.value=String(o.occasionEn||'');form.elements.description.value=String(o.description||'');form.elements.descriptionEn.value=String(o.descriptionEn||'');salonSeedCatalogPreview(form);
  const search=document.getElementById('salonOfferSearch');if(search){search.value='';search.dispatchEvent(new Event('input'))}
  const isoToLocal=x=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(x)).replace(' ','T');
@@ -4952,8 +4953,11 @@ publishPortalCatalog=async function(){
    const approval=b.packageUseRequested?'هل تريدين الموافقة على حجز '+(b.clientName||'العميلة')+' من رصيد الباقة؟':
     'هل استلمتِ العربون وتريدين تأكيد حجز '+(b.clientName||'العميلة')+' للموظفة '+staff.name+'؟';
    const conflict=overlaps.length?'يوجد '+confirmed.length+' حجز مؤكد و'+pending.length+' طلب انتظار يتداخل مع الموعد لنفس الموظفة. التأكيد هنا يخص هذا الحجز فقط.\n\n':'';
-   if(!confirm(conflict+approval))return;
+   const campaign=!b.packageUseRequested&&window.salonCampaignQuote?await window.salonCampaignQuote(id):null;
+   const priceNote=campaign?'\n\nعرض الحجز: المبلغ بعد الخصم '+money(campaign.price):'';
+   if(!confirm(conflict+approval+priceNote))return;
    const number=await firestore.runTransaction(tx=>salonConfirmBookingWithQueue(tx,target,b,staff));
+   if(campaign){try{await window.salonCampaignQuote(id)}catch(error){console.warn(error.message)}}
    if(ownerActiveTab==='appointments'&&typeof ownerTab==='function')ownerTab('appointments');
    if(typeof showPortalBookingsOwner==='function')await showPortalBookingsOwner();
    toast('تم تأكيد الحجز برقم الدور '+number+'. أرسلي التأكيد للعميلة من زر واتساب.');
@@ -11609,6 +11613,128 @@ html[data-salon-appearance="dark"] #app .owner-shell .owner-menu button.oq-nav-i
 #app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="rtl"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="rtl"]{direction:rtl;text-align:start}
 #app :is(#serviceForm,#salonTimedOfferForm,#salonPackageForm) :is(input,textarea)[dir="ltr"],#modalRoot #salonEditServiceForm :is(input,textarea)[dir="ltr"]{direction:ltr;text-align:start}
 </style>
+<script id="salon-booking-campaign">
+(function(){
+ 'use strict';
+ // Replace this value once with the HTTPS URL of the deployed offer Worker.
+ const endpoint="https://salon-booking-offer.abo-harb7036.workers.dev";
+ const tr=(ar,en)=>lang==='en'?en:ar;
+ const enabled=()=>Boolean(endpoint);
+ if(!enabled()){
+  window.salonCampaignQuote=async()=>null;
+ }else{
+  window.salonCampaignQuote=async id=>{
+   const offer=await call();
+   return offer?.entries.find(entry=>entry.id===id&&entry.status==='held'&&entry.expiresAt>offer.now)||null;
+  };
+ }
+ async function call(options={}){
+  const token=await auth.currentUser?.getIdToken();
+  if(!token)throw Error(tr('سجّلي الدخول أولًا.','Sign in first.'));
+  const response=await fetch(new URL('/offer',endpoint),{...options,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},cache:'no-store'});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||tr('تعذر الوصول للعرض.','Could not access the offer.'));
+  return result;
+ }
+ const clock=ms=>new Intl.DateTimeFormat(lang==='en'?'en-GB':'ar-SA-u-ca-gregory',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Riyadh'}).format(ms);
+
+ function drawOwner(){
+  const host=document.querySelector('#app .owner-content')||document.querySelector('#app');
+  if(!host||host.querySelector('#salonBookingCampaignForm'))return;
+  const panel=document.createElement('section');panel.className='card';
+  panel.innerHTML=`<h2>${tr('عرض أول عميلات يحجزن','Offer for the first clients to book')}</h2>
+   <p class="muted">${tr('يُحجز الخصم حسب ترتيب طلبات الحجز. تُمنح كل عميلة 30 دقيقة من وقت تخصيص الخصم. بعدها ينتقل الدور تلقائيًا إلى أول طلب مؤهل في الانتظار.','Offer spots follow booking order. Each client has 30 minutes from allocation before the spot passes automatically to the next eligible request.')}</p>
+   <form id="salonBookingCampaignForm" class="form-grid">
+    <label class="field">${tr('عدد العميلات','Number of clients')}<input name="limit" type="number" min="1" max="100" step="1" value="10" required></label>
+    <label class="field">${tr('نسبة الخصم %','Discount (%)')}<input name="percent" type="number" min="1" max="100" step="1" required></label>
+    <label class="field">${tr('بداية النشر (توقيت السعودية)','Starts (Saudi time)')}<input name="start" type="datetime-local" required></label>
+    <label class="field">${tr('نهاية النشر (توقيت السعودية)','Ends (Saudi time)')}<input name="end" type="datetime-local" required></label>
+    <button class="btn" type="submit">${tr('جدولة العرض','Schedule offer')}</button>
+   </form><p role="status"></p><div data-campaign-summary></div>`;
+  host.prepend(panel);
+  const form=panel.querySelector('form'),status=panel.querySelector('[role=status]'),summary=panel.querySelector('[data-campaign-summary]'),button=form.querySelector('button');
+  form.elements.start.value=salonRiyadhDatetimeInput(5);
+  form.elements.end.value=salonRiyadhDatetimeInput(60*24);
+  const render=offer=>{
+   if(!offer)return;
+   const stats=kind=>offer.entries.filter(entry=>entry.status===kind).length;
+   summary.textContent=tr(
+    `خصم ${offer.percent}% لأول ${offer.limit} عميلات · ${clock(offer.start)} إلى ${clock(offer.end)} · مثبت ${stats('used')} · مهلة دفع ${stats('held')} · انتظار ${stats('waiting')}`,
+    `${offer.percent}% off for ${offer.limit} clients · ${clock(offer.start)} to ${clock(offer.end)} · Confirmed ${stats('used')} · On hold ${stats('held')} · Waiting ${stats('waiting')}`);
+  };
+  if(!enabled()){
+   button.disabled=true;
+   status.textContent=tr('يلزم ربط خدمة العرض قبل تفعيل الجدولة.','Connect the offer service to enable scheduling.');
+   return;
+  }
+  void call().then(render).catch(error=>status.textContent=error.message);
+  form.onsubmit=async event=>{
+   event.preventDefault();button.disabled=true;
+   try{
+    const {limit,percent,start,end}=form.elements;
+    const offer=await call({method:'PUT',body:JSON.stringify({limit:Number(limit.value),percent:Number(percent.value),start:Date.parse(salonOfferLocalToIso(start.value)),end:Date.parse(salonOfferLocalToIso(end.value))})});
+    render(offer);status.textContent=tr('تمت جدولة العرض.','Offer scheduled.');
+   }catch(error){status.textContent=error.message}finally{button.disabled=false}
+  };
+ }
+
+ let poll;
+ function clientOffer(){
+  clearTimeout(poll);
+  if(!enabled()||portalRole!=='client'||!auth.currentUser||!['book','bookings'].includes(salonClientPage))return;
+  const host=document.querySelector('#salonClientPagePanel')||document.querySelector('#app');
+  if(!host)return;
+  let box=host.querySelector('#salonClientCampaign');
+  if(!box){box=document.createElement('section');box.className='notice';box.id='salonClientCampaign';box.hidden=true;host.prepend(box);}
+  const update=async()=>{
+   try{
+    const offer=await call();if(!offer||!box.isConnected)return;
+    const entry=offer.entries[0];
+    const held=entry?.status==='held'&&entry.expiresAt>offer.now;
+    const live=!offer.finished&&offer.start<=offer.now&&offer.now<offer.end;
+    const minutes=held?Math.ceil((entry.expiresAt-offer.now)/60000):0;
+    const message=held?tr(
+      `خصم ${offer.percent}% محجوز لكِ. المتبقي ${minutes} دقيقة للدفع قبل أن ينتقل الخصم لعميلة أخرى. المبلغ بعد الخصم ${money(entry.price)}.`,
+      `Your ${offer.percent}% discount is on hold. Pay within ${minutes} minutes before it passes to another client. Discounted amount: ${money(entry.price)}.`)
+      :entry?.status==='waiting'?tr(`رقم طلبك في ترتيب العرض ${entry.position}. سنعرض مهلة الدفع هنا إذا وصل الخصم إلى دورك.`,`You are number ${entry.position} in the offer queue. Your payment window will appear here if a spot opens.`)
+      :entry?.status==='used'?tr(`تم تثبيت خصمك. المبلغ بعد الخصم ${money(entry.price)}.`,`Your discount is confirmed. Discounted amount: ${money(entry.price)}.`)
+      :entry?.status==='expired'||entry?.status==='held'?tr('انتهت مهلة خصم العرض لهذا الحجز.','The offer hold for this booking expired.')
+      :live?tr(`عرض الحجز: خصم ${offer.percent}% لأول ${offer.limit} عميلات. المهلة 30 دقيقة بعد تخصيص الخصم.`,`Booking offer: ${offer.percent}% off for the first ${offer.limit} clients. Pay within 30 minutes of allocation.`):'';
+    if(box.textContent!==message)box.textContent=message;
+    box.hidden=!message;
+   }catch(error){console.warn(error.message)}
+   finally{if(box.isConnected)poll=setTimeout(update,30_000)}
+  };
+  void update();
+ }
+ const originalClient=renderPortalClient;
+ renderPortalClient=function(...args){const result=originalClient.apply(this,args);clientOffer();return result;};
+ const originalOwnerBookings=showPortalBookingsOwner;
+ showPortalBookingsOwner=async function(...args){
+  const result=await originalOwnerBookings.apply(this,args);
+  const list=document.querySelector('#portalBookingsOwner');
+  if(!enabled()||!list?.isConnected||!hasOwner())return result;
+  try{
+   const offer=await call();
+   if(!offer||!list.isConnected)return result;
+   for(const button of list.querySelectorAll('[data-confirm]')){
+    const card=button.closest('article');
+    const entry=offer.entries.find(item=>item.id===button.dataset.confirm);
+    if(!card||!entry||card.querySelector('[data-offer-payment]'))continue;
+    const note=document.createElement('p');note.dataset.offerPayment='';
+    if(entry.status==='held'&&entry.expiresAt>offer.now)note.textContent=tr(
+      `عرض الحجز: بعد الخصم ${money(entry.price)} · مهلة تسجيل الدفع إلى ${clock(entry.expiresAt)}`,
+      `Booking offer: ${money(entry.price)} after discount · Record payment by ${clock(entry.expiresAt)}`);
+    else if(entry.status==='waiting')note.textContent=tr(`ترتيب الحجز في العرض: ${entry.position} · بانتظار شاغر`,`Offer queue position: ${entry.position} · Waiting for a spot`);
+    if(note.textContent)card.insertBefore(note,button.parentElement);
+   }
+  }catch(error){console.warn(error.message)}
+  return result;
+ };
+ window.salonRenderCampaignOwner=drawOwner;
+})();
+
+</script>
 <script id="salon-client-visit-report">
 (function(){
  'use strict';
