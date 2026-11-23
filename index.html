@@ -22273,7 +22273,7 @@ window.salonOperationsCommission=function(invoices,staff){let revenue=0,commissi
   if(button)button.disabled=true;const popup=salonOpenRequestWindow();let saved=false;
   try{
    const token=await auth.currentUser.getIdToken();const response=await fetch('https://salon-booking-offer.abo-harb7036.workers.dev/operations/book',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(input)});const data=await response.json();
-   if(!response.ok){const messages={'No consecutive availability at this time. Choose another time.':'الموظفة غير متاحة في هذا الوقت. اختاري موعدًا آخر.','Approved loyalty points are insufficient':'رصيد النقاط المعتمد غير كافٍ.','Online bookings are closed':'الحجوزات مغلقة حاليًا.','The selected specialist is unavailable':'الموظفة المحددة غير متاحة.','Choose a future appointment within one year':'اختاري موعدًا قادمًا خلال سنة.'};throw Error(lang==='en'?(data.error||'Booking could not be saved'):(messages[data.error]||'تعذر حفظ الحجز. تأكدي من نشر ملف Cloudflare الجديد ثم أعيدي المحاولة.'));}
+   if(!response.ok){const messages={'No consecutive availability at this time. Choose another time.':'الموظفة غير متاحة في هذا الوقت. اختاري موعدًا آخر.','The specialist does not provide the selected services':'الموظفة لا تقدم الخدمات المحددة؛ اختاري موظفة تقدمها.','The service ends after midnight':'مدة الخدمات تتجاوز نهاية اليوم؛ اختاري وقتًا أبكر.','The salon explicitly closed this appointment time':'هذا الموعد مغلق من إدارة الصالون أو ضمن استراحة الموظفة؛ اختاري وقتًا آخر.','Approved loyalty points are insufficient':'رصيد النقاط المعتمد غير كافٍ.','Online bookings are closed':'الحجوزات مغلقة حاليًا.','The selected specialist is unavailable':'الموظفة المحددة غير متاحة.','Choose a future appointment within one year':'اختاري موعدًا قادمًا خلال سنة.'};throw Error(lang==='en'?(data.error||'Booking could not be saved'):(messages[data.error]||'تعذر حفظ الحجز. تأكدي من نشر ملف Cloudflare الجديد ثم أعيدي المحاولة.'));}
    saved=true;await loadPortalBookings().catch(()=>{});const record=(portalBookings||[]).find(b=>b.id===data.id);if(record){const url=bookingWhatsApp(record,data.id);salonFinishRequestWhatsApp(url,popup);}else popup?.close();
    salonClientPage='bookings';renderPortalClient();void window.salonOfferSiteRating?.(data.id,auth.currentUser.uid);toast(tr('تم حفظ طلب الحجز، وينتظر تأكيد الصالون.','Booking request saved and awaiting salon confirmation.'));
   }catch(error){if(!saved)popup?.close();toast(saved?tr('الحجز محفوظ. افتحي مواعيدي لمراجعته.','Booking saved. Open Appointments to review it.'):error.message);}
@@ -22338,6 +22338,50 @@ async function salonRegularBookingInvoice(bookingId){
   }
   return oldSave.call(this,proposed,client,mode);
  };
+})();
+
+(function(){
+ 'use strict';
+ const tr=(a,b)=>lang==='en'?b:a,owner=()=>hasOwner()&&auth.currentUser?.uid==='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+ function digits(value){return String(value??'').replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-1776)).replace(/[\u200e\u200f\u061c]/g,'').trim();}
+ function valid(y,m,d){const stamp=new Date(Date.UTC(Number(y),Number(m)-1,Number(d)));return stamp.getUTCFullYear()===Number(y)&&stamp.getUTCMonth()+1===Number(m)&&stamp.getUTCDate()===Number(d)?`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`:'';}
+ function invoiceDay(invoice){
+  try{
+  const v=invoice?.date;
+  if(v?.toDate)return salonSaudiDate(v.toDate());
+  if(v?.seconds!==undefined)return salonSaudiDate(new Date(Number(v.seconds)*1000));
+  const text=digits(v),iso=text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:$|[T\s])/);if(iso&&valid(iso[1],iso[2],iso[3]))return valid(iso[1],iso[2],iso[3]);
+  const local=text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);if(local&&valid(local[3],local[2],local[1]))return valid(local[3],local[2],local[1]);
+  const created=invoice?.createdAt;if(created?.toDate)return salonSaudiDate(created.toDate());if(created?.seconds!==undefined)return salonSaudiDate(new Date(Number(created.seconds)*1000));
+  const parsed=new Date(created||invoice?.issuedAt||'');return Number.isFinite(parsed.getTime())?salonSaudiDate(parsed):'';
+  }catch{return '';}
+ }
+ let state={from:today(),to:today(),all:false},loading=false,request=0;
+ function drawRows(panel){
+  const from=panel.querySelector('[data-from]').value,to=panel.querySelector('[data-to]').value,status=panel.querySelector('[data-search-state]'),out=panel.querySelector('[data-invoice-results]');
+  if(!state.all&&from&&to&&from>to){status.textContent=tr('تاريخ البداية بعد تاريخ النهاية.','Start date is after end date.');return;}
+  state={from,to,all:state.all};const rows=(db.invoices||[]).filter(i=>state.all||((!from||invoiceDay(i)>=from)&&(!to||invoiceDay(i)<=to)&&!!invoiceDay(i))).sort((a,b)=>invoiceDay(b).localeCompare(invoiceDay(a))||String(b.number||'').localeCompare(String(a.number||''),undefined,{numeric:true}));
+  out.innerHTML=invoiceTable(rows.map(i=>({...i,date:invoiceDay(i)||tr('بلا تاريخ','Undated')})));status.textContent=tr(`عدد الفواتير: ${rows.length} من إجمالي ${(db.invoices||[]).length} فاتورة محفوظة.`,`Showing ${rows.length} of ${(db.invoices||[]).length} saved invoices.`)+(state.all?tr(' كل الفترات.',' All dates.'):tr(` الفترة: ${from||'البداية'} إلى ${to||'النهاية'}.`,` Range: ${from||'beginning'} to ${to||'end'}.`));
+  const missing=(db.invoices||[]).filter(i=>!invoiceDay(i)).length;if(missing)status.textContent+=tr(` توجد ${missing} فاتورة بلا تاريخ صالح؛ تظهر في «كل الفواتير».`,` ${missing} invoices have no valid date; use All invoices to view them.`);
+  let summary=panel.querySelector('[data-invoice-summary]');if(!summary){summary=document.createElement('p');summary.dataset.invoiceSummary='';status.after(summary);}const gross=rows.reduce((n,i)=>n+(Number(i.total)||0),0),net=rows.reduce((n,i)=>n+(typeof salonInvoiceNet==='function'?salonInvoiceNet(i):Number(i.total)||0),0);summary.textContent=tr('إجمالي الفواتير: ','Invoice total: ')+gross.toFixed(2)+tr(' ريال — المحصل بعد الاسترجاع: ',' SAR — collected after refunds: ')+net.toFixed(2)+tr(' ريال',' SAR');
+ }
+ function archiveTools(panel){
+  const tools=document.createElement('details');tools.innerHTML=`<summary>${tr('الطباعة وأدوات الفواتير القديمة','Print and legacy invoice tools')}</summary><button type="button" data-print class="btn secondary">${tr('طباعة النتائج','Print results')}</button><p data-tool-state role="status"></p>`;tools.querySelector('[data-print]').onclick=()=>window.print();
+  if(typeof salonMigrateInvoices==='function'){const b=document.createElement('button');b.type='button';b.className='btn secondary';b.textContent=tr('فحص ونقل الفواتير القديمة','Check and migrate legacy invoices');b.onclick=async()=>{b.disabled=true;try{await salonMigrateInvoices();await search(panel);}catch(e){tools.querySelector('[data-tool-state]').textContent=String(e.message||e);}finally{b.disabled=false;}};tools.append(b);}
+  if(typeof salonShowInvoiceMigrationDifferences==='function'){const b=document.createElement('button');b.type='button';b.className='btn secondary';b.textContent=tr('مراجعة اختلافات الفواتير','Review invoice differences');b.onclick=()=>salonShowInvoiceMigrationDifferences();tools.append(b);}panel.append(tools);
+ }
+ async function search(panel){
+  if(!owner()||loading)return;const from=panel.querySelector('[data-from]').value,to=panel.querySelector('[data-to]').value;
+  if(!state.all&&from&&to&&from>to){panel.querySelector('[data-search-state]').textContent=tr('تحققي من ترتيب التاريخين.','Check the date range.');return;}
+  state={from,to,all:state.all};loading=true;const ticket=++request,uid=auth.currentUser.uid;panel.querySelector('[data-search-state]').textContent=tr('جارٍ قراءة جميع الفواتير من Firebase…','Loading all invoices from Firebase…');panel.querySelectorAll('button').forEach(b=>b.disabled=true);
+  try{await Promise.resolve(saveQueue).catch(()=>{});await salonRefreshInvoices();if(ticket!==request||auth.currentUser?.uid!==uid||!owner())return;const target=document.getElementById('salonInvoiceRangeSearch');if(target){target.querySelector('[data-from]').value=state.from;target.querySelector('[data-to]').value=state.to;drawRows(target);}}
+  catch(error){if(panel.isConnected)panel.querySelector('[data-search-state]').textContent=tr('تعذر تحميل الفواتير من Firebase؛ لا يعني هذا عدم وجودها. ','Could not load invoices from Firebase; this does not mean there are no invoices. ')+String(error.message||error);}
+  finally{loading=false;document.getElementById('salonInvoiceRangeSearch')?.querySelectorAll('button').forEach(b=>b.disabled=false);}
+ }
+ function render(){if(!owner())return;const host=document.querySelector('#app .owner-content');if(!host)return;const panel=document.createElement('section');panel.className='card';panel.id='salonInvoiceRangeSearch';panel.innerHTML=`<h2>${tr('الفواتير والبحث بالفترة','Invoices and date-range search')}</h2><div class="row" style="flex-wrap:wrap"><label>${tr('من تاريخ','From date')}<input data-from type="date" value="${esc(state.from)}"></label><label>${tr('إلى تاريخ','To date')}<input data-to type="date" value="${esc(state.to)}"></label><button class="btn" type="button" data-search>${tr('بحث بالفترة','Search date range')}</button><button class="btn secondary" type="button" data-today>${tr('اليوم','Today')}</button><button class="btn secondary" type="button" data-all>${tr('كل الفواتير','All invoices')}</button></div><p role="status" data-search-state aria-live="polite"></p><div data-invoice-results></div>`;host.replaceChildren(panel);const help=document.createElement('p');help.textContent=tr('البحث حسب تاريخ إصدار الفاتورة، وليس تاريخ الموعد. يشمل الفواتير القديمة والمستقلة.','Search uses the invoice issue date, not the appointment date, and includes legacy and separate invoices.');panel.querySelector('h2').after(help);archiveTools(panel);const remember=()=>{state={from:panel.querySelector('[data-from]').value,to:panel.querySelector('[data-to]').value,all:false};};panel.querySelector('[data-from]').oninput=remember;panel.querySelector('[data-to]').oninput=remember;panel.querySelector('[data-search]').onclick=()=>{state.all=false;void search(panel);};panel.querySelector('[data-today]').onclick=()=>{state={from:today(),to:today(),all:false};panel.querySelector('[data-from]').value=state.from;panel.querySelector('[data-to]').value=state.to;void search(panel);};panel.querySelector('[data-all]').onclick=()=>{state.all=true;void search(panel);};drawRows(panel);if(loading){panel.querySelectorAll('button').forEach(b=>b.disabled=true);panel.querySelector('[data-search-state]').textContent=tr('جارٍ تحميل الفواتير…','Loading invoices…');}else void search(panel);}
+ const old=renderOwner;renderOwner=function(tab=ownerActiveTab){const result=old.apply(this,arguments);if(tab==='invoices'&&owner())render();return result;};
+ auth.onAuthStateChanged(()=>{state={from:today(),to:today(),all:false};request++;loading=false;});
+ window.salonInvoiceSearchDate=invoiceDay;
 })();
 
 </script>
