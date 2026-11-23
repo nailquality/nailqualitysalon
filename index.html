@@ -1801,6 +1801,7 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
    const v=appliedVoucherSnap.data()||{};
    const pn=x=>{let z=String(x||'').replace(/\D/g,'');if(z.startsWith('00966'))z=z.slice(5);else if(z.startsWith('966'))z=z.slice(3);return z.startsWith('0')?z.slice(1):z};
    if(v.status!=='active')throw Error('القسيمة غير مفعلة أو انتهى رصيدها');
+   if(onlineUID&&v.recipientUid&&v.recipientUid!==onlineUID)throw Error('القسيمة مرتبطة بحساب مستلمة أخرى');
    if(!/^5\d{8}$/.test(pn(v.recipientPhone))||pn(v.recipientPhone)!==pn(target.phone))throw Error('القسيمة مخصصة لرقم جوال مستلمة أخرى؛ تحققي من ملكية المستلمة');
    if(!proposed.voucherOwnershipConfirmed)throw Error('يلزم تأكيد التحقق من هوية المستلمة قبل صرف القسيمة');
    const due=Math.round(Number(proposed.total||0)*100),spend=Math.round(appliedVoucherAmount*100),balance=Math.round(Number(v.remainingAmount||0)*100);
@@ -1861,10 +1862,10 @@ async function salonSaveIndependentInvoice(proposed,client,mode){
   if(appliedVoucherRef){
    const v=appliedVoucherSnap.data(),balance=Math.round(Number(v.remainingAmount)*100),spend=Math.round(appliedVoucherAmount*100);
    const left=(balance-spend)/100;
-   transaction.update(appliedVoucherRef,{remainingAmount:left,spentAmount:Math.round((Number(v.spentAmount||0)+appliedVoucherAmount)*100)/100,status:left===0?'redeemed':'active',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),lastInvoiceId:String(proposed.id)});
-   if(v.recipientUid){
-    const viewRef=firestore.collection('clientGiftViews').doc(String(v.recipientUid)).collection('gifts').doc(String(v.orderId));
-    transaction.set(viewRef,{remainingAmount:left,status:left===0?'redeemed':'active'},{merge:true});
+   transaction.update(appliedVoucherRef,{recipientUid:v.recipientUid||onlineUID||'',remainingAmount:left,spentAmount:Math.round((Number(v.spentAmount||0)+appliedVoucherAmount)*100)/100,status:left===0?'redeemed':'active',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),lastInvoiceId:String(proposed.id)});
+   if(v.recipientUid||onlineUID){
+    const viewRef=firestore.collection('clientGiftViews').doc(String(v.recipientUid||onlineUID)).collection('gifts').doc(String(v.orderId));
+    transaction.set(viewRef,{kind:'voucher',orderId:String(v.orderId),recipientUid:v.recipientUid||onlineUID,amount:Number(v.initialAmount)||0,remainingAmount:left,status:left===0?'redeemed':'active'},{merge:true});
    }
   }
   // Save the source invoice, canonical points and inventory ATOMICALLY.
@@ -2085,7 +2086,7 @@ function openInvoiceInCashier(id){
 function editInvoice(id){openInvoiceInCashier(id)}
 
 function invoiceTable(list=db.invoices){if(!list.length)return `<div class="empty">لا توجد فواتير مطابقة.</div>`;
- return `<div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميلة</th><th>الخدمات والموظفات</th><th>الموظفة المنفذة</th><th>الدفع</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead><tbody>${list.slice().sort((a,b)=>(b.date||String(b.createdAt||'').slice(0,10)).localeCompare(a.date||String(a.createdAt||'').slice(0,10))).map(i=>`<tr><td>#${esc(i.number)}</td><td>${esc(i.date||String(i.createdAt||'').slice(0,10))}</td><td>${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))}<br><small>${esc(i.customerPhone||'')}</small></td><td>${invoiceServiceStaffHTML(i)}</td><td><b>${esc(invoiceStaffDisplay(i))}</b></td><td>${esc(i.payment||'cash')}</td><td>${money(i.total)}${i.paymentStatus==='partial'?'<br><b>غير مسددة — المتبقي: '+money(Math.max(0,Number(i.total)-Number(i.paidAmount||0)))+'</b>':''}${i.refund?'<br><small>مسترجعة: '+money(i.refund.amount)+' · '+esc(i.refund.date)+'<br>بعد الاسترجاع: '+money(salonInvoiceNet(i))+'</small>':''}</td><td><div class="row">${i.refund?'':`<button class="btn secondary small" onclick="openInvoiceInCashier('${esc(i.id)}')">تعديل في الكاشير</button><button class="btn secondary small" onclick="refundInvoice('${esc(i.id)}')">استرجاع كامل</button><button class="btn danger small" onclick="deleteInvoice('${esc(i.id)}')">حذف</button>`}<button class="btn small" onclick="printInvoice('${esc(i.id)}')">طباعة</button><button class="btn success small" onclick="shareInvoiceWhatsApp('${esc(i.id)}')">${i.refund?'إبلاغ العميلة عبر واتساب':'إرسال الفاتورة واتساب'}</button></div></td></tr>`).join('')}</tbody></table></div>`;
+ return `<div class="table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>التاريخ</th><th>العميلة</th><th>الخدمات والموظفات</th><th>الموظفة المنفذة</th><th>الدفع</th><th>الإجمالي</th><th>الإجراءات</th></tr></thead><tbody>${list.slice().sort((a,b)=>(b.date||String(b.createdAt||'').slice(0,10)).localeCompare(a.date||String(a.createdAt||'').slice(0,10))).map(i=>`<tr><td>#${esc(i.number)}</td><td>${esc(i.date||String(i.createdAt||'').slice(0,10))}</td><td>${esc(window.salonInvoiceCustomerName?window.salonInvoiceCustomerName(i):(i.customerName||clientName(i.clientId)||'—'))}<br><small>${esc(i.customerPhone||'')}</small></td><td>${invoiceServiceStaffHTML(i)}</td><td><b>${esc(invoiceStaffDisplay(i))}</b></td><td>${esc(i.payment||'cash')}</td><td>${money(i.total)}${i.paymentStatus==='partial'&&!i.refund?'<br><b>غير مسددة — المتبقي: '+money(Math.max(0,Number(i.total)-Number(i.paidAmount||0)))+'</b>':''}${i.refund?'<br><small>مسترجعة: '+money(i.refund.amount)+' · '+esc(i.refund.date)+'<br>بعد الاسترجاع: '+money(salonInvoiceNet(i))+'</small>':''}</td><td><div class="row">${i.refund?'':`<button class="btn secondary small" onclick="openInvoiceInCashier('${esc(i.id)}')">تعديل في الكاشير</button><button class="btn secondary small" onclick="refundInvoice('${esc(i.id)}')">استرجاع كامل</button><button class="btn danger small" onclick="deleteInvoice('${esc(i.id)}')">حذف</button>`}<button class="btn small" onclick="printInvoice('${esc(i.id)}')">طباعة</button><button class="btn success small" onclick="shareInvoiceWhatsApp('${esc(i.id)}')">${i.refund?'إبلاغ العميلة عبر واتساب':'إرسال الفاتورة واتساب'}</button></div></td></tr>`).join('')}</tbody></table></div>`;
 }
 
 async function chooseInvoiceEmployee(invoiceId){openInvoiceInCashier(invoiceId)}
@@ -2153,7 +2154,7 @@ async function salonReverseInvoice(id,refund){
  if(!refund&&(source.voucherId||Number(source.voucherAmountUsed)>0)){toast('استخدمي الاسترجاع الكامل لإعادة رصيد القسيمة وحفظ حركة الاسترجاع');return}
  let reason='';
  if(refund){
-  const value=prompt('استرجاع الفاتورة #'+source.number+' بالكامل ('+money(source.total)+'). اكتبي سبب الاسترجاع لتأكيد التسجيل. المبلغ المدفوع يُرد عبر وسيلة الدفع الأصلية، ويعاد رصيد القسيمة داخل النظام إن وُجد.');
+  const value=prompt('استرجاع الفاتورة #'+source.number+' بالكامل ('+money(source.paymentStatus==='partial'?Number(source.paidAmount)||0:source.total)+'). اكتبي سبب الاسترجاع لتأكيد التسجيل. المبلغ المدفوع يُرد عبر وسيلة الدفع الأصلية، ويعاد رصيد القسيمة داخل النظام إن وُجد.');
   if(!value?.trim())return;
   reason=value.trim().slice(0,300);
  }else if(!confirm('حذف الفاتورة نهائيًا؟ تُسوّى نقاط وأرصدة الباقة إذا كانت الفاتورة تحتوي على باقة. للحفاظ على سجل المبالغ المردودة استخدمي «استرجاع كامل».'))return;
@@ -2174,13 +2175,13 @@ async function salonReverseInvoice(id,refund){
    const settle=refund||packageChange;
    const clients=(remote.clients||[]).map(c=>({...c}));
    const inventory=(remote.inventory||[]).map(x=>({...x}));
-   if(refund)for(const line of invoiceLineRows(invoice).filter(x=>x.itemKind==='product')){
+   if(refund&&invoice.paymentStatus!=='partial')for(const line of invoiceLineRows(invoice).filter(x=>x.itemKind==='product')){
     const stock=inventory.find(x=>String(x.id)===String(line.productId));if(stock)stock.quantity=Number(stock.quantity||0)+Number(line.quantity||1);
    }
    const balances=packageChange?salonReconcilePackageLines(remote,invoice,null,''):(remote.clientPackages||[]);
    if(settle)salonApplyInvoicePoints(clients,invoice,null);
    const writes=settle?await salonPreparePackageViews(tx,clients,balances,[invoice.clientId]):[];
-   const amount=Math.round(Number(invoice.total)*100)/100;
+   const amount=Math.round(Number(invoice.paymentStatus==='partial'?invoice.paidAmount||0:invoice.total)*100)/100;
    const voucherAmount=Math.round(Number(invoice.voucherAmountUsed||0)*100)/100;
    const saved=refund?{...invoice,refund:{amount,voucherAmount,reason,date:salonSaudiDate(),recordedAt:new Date().toISOString(),recordedBy:auth.currentUser.uid}}:null;
    if(refund){
@@ -8137,7 +8138,7 @@ window.salonMakeClientInvoiceView=function(invoice,clientUid,clientId){
   // Missing payment methods are not counted without a known paidAmount.
  }
  const items=(Array.isArray(invoice.items)?invoice.items:[]).slice(0,80).map(x=>({name:String(x.name||x.serviceName||'خدمة').slice(0,120),qty:Math.max(1,Math.min(99,Number(x.quantity)||1)),price:Math.max(0,Number(x.price)||0)}));
- return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,...(invoice.depositAmount!==undefined?{depositAmount:Number(invoice.depositAmount),balanceCollected:Number(invoice.balanceCollected)}:{}),...(Number(invoice.campaignDiscount)>0?{campaignDiscount:Number(invoice.campaignDiscount),campaignOriginalPrice:Number(invoice.subtotal)}:{}),...(invoice.refund?{refundAmount:Number(invoice.refund.amount)||0,refundDate:String(invoice.refund.date||''),netTotal:salonInvoiceNet(invoice)}:{}),payment:String(invoice.payment||''),paymentStatus:String(invoice.paymentStatus||"paid"),pendingPoints:invoice.pendingPoints===true,pendingPointsAmount:invoice.pendingPoints===true?Math.max(0,Number(invoice.pointsAdded)||0):0,pointsAdded:invoice.pendingPoints===true?0:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),voucherAmountUsed:Math.max(0,Number(invoice.voucherAmountUsed)||0),amountOtherMethods:Math.max(0,Number(invoice.amountOtherMethods??invoice.total)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+ return {clientUid:String(clientUid),clientId:String(clientId||''),invoiceId:String(invoice.id),number:String(invoice.number||''),date:String(invoice.date||String(invoice.createdAt||'').slice(0,10)),serviceName:String(invoice.serviceName||items.map(x=>x.name).join('، ')).slice(0,500),items,total:amount,paidAmount:paid,...(invoice.depositAmount!==undefined?{depositAmount:Number(invoice.depositAmount),balanceCollected:Number(invoice.balanceCollected)}:{}),...(Number(invoice.campaignDiscount)>0?{campaignDiscount:Number(invoice.campaignDiscount),campaignOriginalPrice:Number(invoice.subtotal)}:{}),...(invoice.refund?{refundAmount:Number(invoice.refund.amount)||0,refundDate:String(invoice.refund.date||''),netTotal:salonInvoiceNet(invoice)}:{}),payment:String(invoice.payment||''),couponCode:String(invoice.couponCode||""),couponName:String(invoice.couponName||""),couponDiscount:Math.max(0,Number(invoice.couponDiscount)||0),paymentStatus:String(invoice.paymentStatus||"paid"),pendingPoints:invoice.pendingPoints===true,pendingPointsAmount:invoice.pendingPoints===true?Math.max(0,Number(invoice.pointsAdded)||0):0,pointsAdded:invoice.pendingPoints===true?0:Math.max(0,Number(invoice.pointsAdded)||0),pointsUsed:Math.max(0,Number(invoice.pointsUsed)||0),discount:Math.max(0,Number(invoice.discount)||0),loyaltyDiscount:Math.max(0,Number(invoice.loyaltyDiscount)||0),voucherAmountUsed:Math.max(0,Number(invoice.voucherAmountUsed)||0),amountOtherMethods:Math.max(0,Number(invoice.amountOtherMethods??invoice.total)||0),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
 };
 function invoiceViewId(id){return encodeURIComponent(String(id));}
 let activeUser='',invoiceStop=null,records=[],invoiceLoadStatus='not-loaded',invoiceLoadError='';
@@ -8164,7 +8165,7 @@ function drawInvoices(){
  const pending=invoiceLoadStatus==='loading';
  const cards=records.map(r=>{
   const items=(r.items||[]).map(i=>`<div>${escText(tr(i.name||'خدمة',i.nameEn||salonCustomerServiceList(i.name)||'Service'))} × ${Math.max(1,Number(i.qty)||1)} — ${moneyVal(i.price)}</div>`).join('');
-  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div>${r.paymentStatus==="partial"?`<p>${tr("غير مسددة — المبلغ المتبقي","Outstanding — balance due")} ${moneyVal(Math.max(0,Number(r.total)-Number(r.paidAmount||0)))} · ${tr("نقاط تُضاف عند السداد","Points after full payment")}: ${Number(r.pendingPointsAmount)||0}</p>`:""}${r.depositAmount>0?`<p>${tr("العربون","Deposit")} ${moneyVal(r.depositAmount)} · ${tr("المبلغ المتبقي المستلم","Balance collected")} ${moneyVal(r.balanceCollected)}</p>`:""}${Number(r.campaignDiscount)>0?`<p>${tr("كسبتِ خصم العرض","You earned the booking offer")} · ${tr("قبل الخصم","Before discount")} ${moneyVal(r.campaignOriginalPrice)} · ${tr("الخصم","Discount")} ${moneyVal(r.campaignDiscount)}</p>`:""}${r.refundDate?`<p>${tr('المسترجع','Refunded')}: ${moneyVal(r.refundAmount)} · ${escText(r.refundDate)} · ${tr('بعد الاسترجاع','After refund')}: ${moneyVal(r.netTotal)}</p>`: ''}<div class="salon-invoice-items">${escText(r.serviceName?tr(r.serviceName,r.serviceNameEn||salonCustomerServiceList(r.serviceName)):tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(tr(payName(r.payment),salonCustomerPaymentLabel(r.payment)))}${Number(r.voucherAmountUsed)>0?' · '+tr('القسيمة','Gift voucher')+': '+moneyVal(r.voucherAmountUsed):''}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
+  return `<article class="salon-invoice-card"><header><span>🧾 ${tr('فاتورة رقم','Invoice #')} ${escText(r.number||r.invoiceId||'—')}</span><span>${escText(r.date||'')}</span></header><div class="salon-invoice-money">${moneyVal(r.total)}</div>${r.couponCode?`<p>${tr("كود الخصم","Discount code")} ${escText(r.couponCode)} · ${moneyVal(r.couponDiscount)}</p>`:""}${r.paymentStatus==="partial"&&!r.refundDate?`<p>${tr("غير مسددة — المبلغ المتبقي","Outstanding — balance due")} ${moneyVal(Math.max(0,Number(r.total)-Number(r.paidAmount||0)))} · ${tr("نقاط تُضاف عند السداد","Points after full payment")}: ${Number(r.pendingPointsAmount)||0}</p>`:""}${r.depositAmount>0?`<p>${tr("العربون","Deposit")} ${moneyVal(r.depositAmount)} · ${tr("المبلغ المتبقي المستلم","Balance collected")} ${moneyVal(r.balanceCollected)}</p>`:""}${Number(r.campaignDiscount)>0?`<p>${tr("كسبتِ خصم العرض","You earned the booking offer")} · ${tr("قبل الخصم","Before discount")} ${moneyVal(r.campaignOriginalPrice)} · ${tr("الخصم","Discount")} ${moneyVal(r.campaignDiscount)}</p>`:""}${r.refundDate?`<p>${tr('المسترجع','Refunded')}: ${moneyVal(r.refundAmount)} · ${escText(r.refundDate)} · ${tr('بعد الاسترجاع','After refund')}: ${moneyVal(r.netTotal)}</p>`: ''}<div class="salon-invoice-items">${escText(r.serviceName?tr(r.serviceName,r.serviceNameEn||salonCustomerServiceList(r.serviceName)):tr('خدمات الصالون','Salon services'))}</div><div class="salon-invoice-items" style="margin-top:7px">${tr('المدفوع المسجل','Recorded paid')}: <b>${r.paidAmount==null?tr('غير محدد','Unknown'):moneyVal(r.paidAmount)}</b> · ${tr('الدفع','Payment')}: ${escText(tr(payName(r.payment),salonCustomerPaymentLabel(r.payment)))}${Number(r.voucherAmountUsed)>0?' · '+tr('القسيمة','Gift voucher')+': '+moneyVal(r.voucherAmountUsed):''}</div><details><summary>${tr('تفاصيل الفاتورة والنقاط','Invoice and points details')}</summary><div class="salon-invoice-items">${items||tr('لا يوجد تفصيل خدمات','No detailed services')}<div>${tr('نقاط مكتسبة','Points earned')}: ${Number(r.pointsAdded)||0} · ${tr('نقاط مستخدمة','Points used')}: ${Number(r.pointsUsed)||0}</div></div></details></article>`;
  }).join('');
  panel.innerHTML=`<div class="salon-mobile-subpage"><h2>🧾 ${tr('فواتيري','My invoices')}</h2><p>${tr('فواتير مشترياتك المرتبطة بحسابك بعد اعتماد الملكية من الصالون.','Invoices linked to your verified salon account.')}</p><div class="salon-invoice-summary"><div>${tr('إجمالي المدفوع المسجل','Recorded payments')}<strong>${invoiceLoadStatus==='error'||pending?'—':moneyVal(paid)}</strong></div><div>${tr('قيمة جميع الفواتير','Total invoice value')}<strong>${invoiceLoadStatus==='error'||pending?'—':moneyVal(issued)}</strong></div><div>${tr('عدد فواتيري','Invoices')}<strong>${invoiceLoadStatus==='error'||pending?'—':records.length}</strong></div><div>${tr('مبالغ غير محددة','Unverified payments')}<strong>${invoiceLoadStatus==='error'||pending?'—':unknown}</strong></div></div>${unknown?`<p class="notice">${tr('بعض الفواتير طريقة دفعها مختلطة أو غير محددة؛ لا تُضاف إلى إجمالي المدفوع حتى تتحدد القيمة.','Some mixed or unspecified payments are excluded from the paid total until verified.')}</p>`:''}</div><div class="salon-invoice-list">${invoiceLoadStatus==='error'?`<div class="salon-invoice-error">${escText(invoiceLoadError)}</div>`:pending?`<div class="card">${tr('جارٍ تحميل فواتيرك…','Loading your invoices…')}</div>`:cards||`<div class="salon-mobile-subpage"><p>${tr('لا توجد فواتير مرتبطة بحسابك بعد. اطلبِي من الصالون اعتماد ملكية حسابك ومزامنة فواتيرك السابقة.','No invoices have been linked yet. Ask the salon to verify your account and sync previous invoices.')}</p></div>`}</div>`;
 }
@@ -9447,10 +9448,11 @@ function watchBookingQueue(){
  bookingQueueWatchUid=uid;
  bookingQueueWatch=firestore.collection('portalBookings').where('clientUid','==',uid).onSnapshot(snapshot=>{
   if(!client()||auth.currentUser.uid!==uid||salonClientPage!=='bookings'){stopBookingQueueWatch();return}
+  if(snapshot.metadata?.fromCache)return;
   const rows=snapshot.docs.map(d=>({...d.data(),id:d.id}));
   if(salonInvoiceSame(rows,portalBookings))return;
   portalBookings=rows;
-  const notice=document.querySelector('#salonBookingRequestNotice');
+  const notice=document.querySelector('#salonBookingSavedNotice,#salonBookingRequestNotice');
   renderPortalClient();
   if(notice)document.querySelector('#salonClientPagePanel')?.prepend(notice);
  },err=>{console.warn('Booking queue watch:',err);stopBookingQueueWatch()});
@@ -11344,7 +11346,7 @@ html[data-salon-appearance="dark"] .salon-revenue-table{background:#291f2a;borde
  'تسجيل موظفة':'Register employee','تفعيل موظفة':'Activate employee','تعطيل موظفة':'Deactivate employee',
  'سجل الموظفات':'Employee records','الحساب':'Account','البيانات الشخصية':'Personal details',
  'البريد الإلكتروني':'Email address','كلمة المرور':'Password','تسجيل الدخول':'Sign in','تسجيل الخروج':'Sign out',
- 'قائمة الحجوزات والحضور':'Bookings and attendance','التذكيرات وفوات الموعد':'Reminders and missed appointments','صلاحية مسح QR':'QR scanning permission','أرشيف الجلسات':'Session archive','دوام الموظفات':'Staff working hours','زيارات العميلات':'Client visits','حسابي':'My account','بيانات الحساب':'Account details','تغيير كلمة المرور':'Change password',
+ 'أكواد الخصم':'Discount codes','قائمة الحجوزات والحضور':'Bookings and attendance','التذكيرات وفوات الموعد':'Reminders and missed appointments','صلاحية مسح QR':'QR scanning permission','أرشيف الجلسات':'Session archive','دوام الموظفات':'Staff working hours','زيارات العميلات':'Client visits','حسابي':'My account','بيانات الحساب':'Account details','تغيير كلمة المرور':'Change password',
  'استعادة كلمة المرور':'Reset password','نسيت كلمة المرور':'Forgot password?',
  'تحرير':'Edit','تعديل':'Edit','إضافة':'Add','حذف':'Delete','حفظ':'Save',
  'إلغاء':'Cancel','تأكيد':'Confirm','متابعة':'Continue','رجوع':'Back','إغلاق':'Close',
@@ -11962,6 +11964,211 @@ async function salonPublishCampaignReceipt(bookingId,invoice){
 </script>
 <script id="salon-qr-decoder">
 /* jsQR (c) Cosmo Wolfe, Apache-2.0. License supplied in the update package. */
+/* jsQR Apache-2.0 license
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "{}"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright {yyyy} {name of copyright owner}
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+
+*/
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
 		module.exports = factory();
@@ -22262,30 +22469,45 @@ window.salonOperationsCommission=function(invoices,staff){let revenue=0,commissi
 <script id="salon-booking-repair">
 (function(){
  'use strict';
- const tr=(a,b)=>lang==='en'?b:a,requests=new WeakMap();
+ const tr=(a,b)=>lang==='en'?b:a,requests=new WeakMap();let pendingLoad=false,lastLoad=0,loadedUID='',loadIssue='';
+ const endpoint='https://salon-booking-offer.abo-harb7036.workers.dev';
+ // Keep gift/package request flows on the salon page too; expose a real link only after save.
+ if(typeof salonOpenRequestWindow==='function')salonOpenRequestWindow=()=>null;
+ if(typeof salonFinishRequestWhatsApp==='function'){const finish=salonFinishRequestWhatsApp;salonFinishRequestWhatsApp=function(url,popup,container){popup?.close();return finish(url,null,container||document.getElementById('salonBookingRequestNotice')||document.getElementById('app'));};}
+ async function requestFetch(url,options){const controller=typeof AbortController==='function'?new AbortController():null;const timer=controller?setTimeout(()=>controller.abort(),30000):null;try{return await fetch(url,{...options,...(controller?{signal:controller.signal}:{})});}catch(error){throw Error(tr('تعذر الاتصال أو تأخر رد الخادم. افتحي مواعيدي أو أعيدي المحاولة بنفس الطلب؛ لن يتكرر الحجز.','Could not connect or the server timed out. Open Appointments or retry the same request; it will not duplicate the booking.'));}finally{if(timer)clearTimeout(timer);}}
+ window.salonClientAPI=async(path,body)=>{if(!auth.currentUser)throw Error(tr('سجلي الدخول أولًا','Sign in first'));const token=await auth.currentUser.getIdToken(),response=await requestFetch(endpoint+'/operations/'+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});let data;try{data=await response.json();}catch{throw Error(tr('تعذر قراءة رد الخادم. راجعي نشر ملف Cloudflare الجديد.','Invalid server response. Check the Worker deployment.'));}if(!response.ok){const messages={'The specialist does not provide the selected services':'الموظفة لا تقدم الخدمات المحددة.','The service ends after midnight':'مدة الخدمات تتجاوز نهاية اليوم؛ اختاري وقتًا أبكر.','The salon explicitly closed this appointment time':'هذا الموعد مغلق من الصالون أو ضمن استراحة الموظفة.','Approved loyalty points are insufficient':'رصيد النقاط المعتمد غير كافٍ.','Online bookings are closed':'الحجوزات مغلقة حاليًا.','The selected specialist is unavailable':'الموظفة المحددة غير متاحة.','Choose the current time or a future appointment':'هذا الوقت مضى؛ اختاري الوقت الحالي أو موعدًا قادمًا.','Bookings can be made up to one year ahead':'التاريخ بعيد؛ يمكن الحجز حتى سنة قادمة.','Choose a valid appointment date':'اختاري تاريخًا صحيحًا.','Voucher is invalid, used, or belongs to another account':'القسيمة غير صالحة أو مستهلكة أو لا تخص هذا الحساب.','Discount code is invalid or expired':'كود الخصم غير صالح أو انتهى وقته.','Enter a valid voucher or discount code':'اكتبي رمز القسيمة أو كود الخصم بشكل صحيح.'};throw Error(lang==='en'?(data.error||'Request failed'):(messages[data.error]||'تعذر إتمام الطلب. تحققي من الاتصال ونشر آخر ملف Cloudflare.'));}return data;};
+ const oldLoad=loadPortalBookings;
+ loadPortalBookings=async function(){
+  if(portalRole!=='client'||!auth.currentUser)return oldLoad.apply(this,arguments);const uid=auth.currentUser.uid;let rows;
+  try{rows=await window.salonClientAPI('my-bookings');if(!Array.isArray(rows))throw Error('Invalid bookings response');}
+  catch(error){const snap=await firestore.collection('portalBookings').where('clientUid','==',uid).get({source:'server'});rows=snap.docs.map(d=>({...d.data(),id:d.id}));}
+  if(auth.currentUser?.uid!==uid||portalRole!=='client')return [];portalBookings=rows.filter(b=>b.clientUid===uid);loadedUID=uid;lastLoad=Date.now();loadIssue='';return portalBookings;
+ };
  async function submitNormal(event){
-  event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type=submit]');if(button?.disabled)return;
-  if(portalRole!=='client'||!auth.currentUser)return;
-  const f=new FormData(form),ids=[];
-  for(const service of portalCatalog.services||[]){const qty=Number(f.get('serviceQty_'+service.id)||0);if(!Number.isSafeInteger(qty)||qty<0||qty>10){toast(tr('اختاري كمية صحيحة للخدمات','Choose valid service quantities'));return;}for(let i=0;i<qty;i++)ids.push(String(service.id));}
+  event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type=submit]');if(button?.disabled)return;if(portalRole!=='client'||!auth.currentUser)return;
+  const uid=auth.currentUser.uid,f=new FormData(form),ids=[];
+  for(const service of portalCatalog.services||[]){const qty=Number(f.get('serviceQty_'+service.id)||0);if(!Number.isSafeInteger(qty)||qty<0||qty>10){toast(tr('اختاري كمية صحيحة للخدمات','Choose valid quantities'));return;}for(let i=0;i<qty;i++)ids.push(String(service.id));}
   if(!ids.length||!f.get('staff')||!f.get('date')||!f.get('time')){toast(tr('اختاري الخدمات والموظفة والتاريخ والوقت','Choose services, specialist, date and time'));return;}
-  const input={requestId:requests.get(form)||'booking-'+crypto.randomUUID(),serviceIds:ids,staffId:String(f.get('staff')),date:String(f.get('date')),time:String(f.get('time')),location:String(f.get('location')||'salon'),address:String(f.get('address')||''),notes:String(f.get('notes')||''),redeemRequested:f.get('redeem')==='on',pointsToRedeem:Number(f.get('pointsToRedeem')||0)};requests.set(form,input.requestId);
-  if(button)button.disabled=true;const popup=salonOpenRequestWindow();let saved=false;
+  const input={requestId:requests.get(form)||'booking-'+crypto.randomUUID(),serviceIds:ids,staffId:String(f.get('staff')),date:String(f.get('date')),time:String(f.get('time')).slice(0,5),location:String(f.get('location')||'salon'),address:String(f.get('address')||''),notes:String(f.get('notes')||''),redeemRequested:f.get('redeem')==='on',pointsToRedeem:Number(f.get('pointsToRedeem')||0),benefitCode:String(f.get('benefitCode')||'').trim()};requests.set(form,input.requestId);
+  if(button)button.disabled=true;let status=form.querySelector('[data-booking-save-state]');if(!status){status=document.createElement('p');status.dataset.bookingSaveState='';status.setAttribute('role','status');form.append(status);}status.textContent=tr('جارٍ حفظ طلب الحجز…','Saving your booking request…');
   try{
-   const token=await auth.currentUser.getIdToken();const response=await fetch('https://salon-booking-offer.abo-harb7036.workers.dev/operations/book',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(input)});const data=await response.json();
-   if(!response.ok){const messages={'No consecutive availability at this time. Choose another time.':'الموظفة غير متاحة في هذا الوقت. اختاري موعدًا آخر.','The specialist does not provide the selected services':'الموظفة لا تقدم الخدمات المحددة؛ اختاري موظفة تقدمها.','The service ends after midnight':'مدة الخدمات تتجاوز نهاية اليوم؛ اختاري وقتًا أبكر.','The salon explicitly closed this appointment time':'هذا الموعد مغلق من إدارة الصالون أو ضمن استراحة الموظفة؛ اختاري وقتًا آخر.','Approved loyalty points are insufficient':'رصيد النقاط المعتمد غير كافٍ.','Online bookings are closed':'الحجوزات مغلقة حاليًا.','The selected specialist is unavailable':'الموظفة المحددة غير متاحة.','Choose a future appointment within one year':'اختاري موعدًا قادمًا خلال سنة.'};throw Error(lang==='en'?(data.error||'Booking could not be saved'):(messages[data.error]||'تعذر حفظ الحجز. تأكدي من نشر ملف Cloudflare الجديد ثم أعيدي المحاولة.'));}
-   saved=true;await loadPortalBookings().catch(()=>{});const record=(portalBookings||[]).find(b=>b.id===data.id);if(record){const url=bookingWhatsApp(record,data.id);salonFinishRequestWhatsApp(url,popup);}else popup?.close();
-   salonClientPage='bookings';renderPortalClient();void window.salonOfferSiteRating?.(data.id,auth.currentUser.uid);toast(tr('تم حفظ طلب الحجز، وينتظر تأكيد الصالون.','Booking request saved and awaiting salon confirmation.'));
-  }catch(error){if(!saved)popup?.close();toast(saved?tr('الحجز محفوظ. افتحي مواعيدي لمراجعته.','Booking saved. Open Appointments to review it.'):error.message);}
-  finally{if(button?.isConnected)button.disabled=false;}
+   const data=await window.salonClientAPI('book',input);if(auth.currentUser?.uid!==uid)return;
+   let record=data.booking;if(!record||record.id!==data.id||record.clientUid!==uid){const snap=await firestore.collection('portalBookings').doc(data.id).get({source:'server'});if(!snap.exists||snap.data().clientUid!==uid)throw Error(tr('تعذر التحقق من الحفظ. أعيدي المحاولة بنفس الطلب.','Could not verify the save. Retry the same request.'));record={...snap.data(),id:snap.id};}
+   portalBookings=[record,...(portalBookings||[]).filter(b=>b.id!==record.id)];loadedUID=uid;lastLoad=Date.now();loadIssue='';salonClientPage='bookings';renderPortalClient();
+   const panel=document.getElementById('salonClientPagePanel')||document.getElementById('app'),notice=document.createElement('section');notice.className='card';notice.id='salonBookingSavedNotice';notice.innerHTML=`<h3>${tr('تم حفظ طلب الحجز','Booking request saved')}</h3><p>${tr('رقم الطلب','Request number')}: <b dir="ltr">${esc(record.id)}</b></p><p>${tr('حجزكِ ظاهر في مواعيدي وينتظر موافقة الصالون. افتحي واتساب إذا أردتِ إرسال التفاصيل وتنسيق الدفع.','Your request is in Appointments and awaits salon confirmation. Open WhatsApp to send details and arrange payment.')}</p>`;
+   let url=bookingWhatsApp(record,record.id);if(url){try{const u=new URL(url),extra=record.voucherId?'\nالقسيمة المطلوبة: '+record.voucherId:record.couponCode?'\nكود الخصم: '+record.couponCode:'';u.searchParams.set('text',(u.searchParams.get('text')||'')+extra);url=u.href;}catch{}const link=document.createElement('a');link.className='btn';link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=tr('فتح واتساب وإرسال تفاصيل الحجز','Open WhatsApp with booking details');notice.append(link);}panel.prepend(notice);void window.salonOfferSiteRating?.(record.id,uid);toast(tr('تم حفظ الحجز في مواعيدي.','Booking saved in Appointments.'));
+  }catch(error){status.textContent=error.message;toast(error.message);}finally{if(button?.isConnected)button.disabled=false;}
  }
  submitPortalBooking=submitNormal;
- const oldRender=renderPortalClient;renderPortalClient=function(){const result=oldRender.apply(this,arguments);document.getElementById('salonMultiPlanner')?.remove();const form=document.getElementById('portalBooking');if(form)form.onsubmit=submitNormal;return result;};
+ function bookingLoadState(){if(portalRole!=='client'||salonClientPage!=='bookings')return;const host=document.getElementById('salonClientPagePanel');if(!host)return;let p=host.querySelector('[data-bookings-load]');if(!p){p=document.createElement('p');p.dataset.bookingsLoad='';p.setAttribute('role','status');host.prepend(p);}p.textContent=loadIssue||((loadedUID!==auth.currentUser?.uid||pendingLoad)?tr('جارٍ التحقق من مواعيدك من الخادم…','Checking appointments with the server…'):'');if(loadIssue){const retry=document.createElement('button');retry.type='button';retry.className='btn secondary';retry.textContent=tr('إعادة تحميل مواعيدي','Reload appointments');retry.onclick=()=>{lastLoad=0;loadIssue='';void refreshBookings();};p.append(retry);}}
+ async function refreshBookings(){if(pendingLoad||portalRole!=='client'||!auth.currentUser)return;pendingLoad=true;bookingLoadState();try{await loadPortalBookings();if(salonClientPage==='bookings')renderPortalClient();}catch(error){loadIssue=tr('تعذر تحميل المواعيد. هذا لا يعني اختفاء الحجز. تحققي من الاتصال ثم أعيدي التحميل.','Could not load appointments. This does not mean your booking disappeared. Check the connection and retry.');}finally{pendingLoad=false;bookingLoadState();}}
+ const oldRender=renderPortalClient;renderPortalClient=function(){const result=oldRender.apply(this,arguments);document.getElementById('salonMultiPlanner')?.remove();const form=document.getElementById('portalBooking');if(form)form.onsubmit=submitNormal;if(portalRole==='client'&&salonClientPage==='bookings'){bookingLoadState();if(!pendingLoad&&(loadedUID!==auth.currentUser?.uid||Date.now()-lastLoad>15000))void refreshBookings();}return result;};
+ auth.onAuthStateChanged(()=>{loadedUID='';lastLoad=0;loadIssue='';});
 })();
 
-function salonBookingPaymentChoice(total,booking,client){
- const tr=(a,b)=>lang==='en'?b:a;
- return new Promise(resolve=>{const d=document.createElement('dialog');d.style.cssText='max-width:540px;width:calc(100% - 32px);border:1px solid var(--line);border-radius:16px;padding:20px';d.innerHTML=`<h3>${tr('فاتورة الحجز وطريقة السداد','Booking invoice and payment')}</h3><p>${esc(booking.clientName)} · ${esc(booking.clientPhone)} · ${money(total)}</p><p>${tr('تحققي من هوية العميلة ورقمها. ستُربط الفاتورة والنقاط بحسابها، مع سجلها المطابق لهذا الجوال إن وجد.','Verify the client and phone. The invoice and points will be linked to her account and the matching client record.')}</p><form><label class="checkline"><input name="mode" value="deposit" type="radio" checked> ${tr('عربون فقط — فاتورة غير مسددة','Deposit only — outstanding invoice')}</label><label class="checkline"><input name="mode" value="full" type="radio"> ${tr('دفع كامل — فاتورة مسددة وإضافة النقاط','Full payment — paid invoice and award points')}</label><label>${tr('المبلغ المستلم فعليًا','Amount actually received')}<input name="received" type="number" min="0" max="${total}" step="0.01" required value="${Number(booking.depositAmount)||0}"></label><label>${tr('طريقة الدفع','Payment method')}<select name="method"><option value="transfer">${tr('تحويل','Transfer')}</option><option value="card">${tr('شبكة','Card')}</option><option value="cash">${tr('نقدًا','Cash')}</option></select></label><p>${tr('نقاط الخدمة تُضاف عند السداد الكامل فقط، ولا تتكرر عند تعديل الفاتورة.','Service points are awarded only after full payment and are not duplicated when editing the invoice.')}</p><button class="btn" type="submit">${tr('حفظ الفاتورة','Save invoice')}</button><button class="btn secondary" type="button" data-cancel>${tr('لاحقًا','Later')}</button></form>`;document.body.append(d);const f=d.querySelector('form');let previous=Number(booking.depositAmount)||0;const finish=value=>{d.close();d.remove();resolve(value);};f.onchange=e=>{if(e.target.name!=='mode')return;if(f.elements.mode.value==='full'){previous=Number(f.elements.received.value)||0;f.elements.received.value=total;f.elements.received.readOnly=true;}else{f.elements.received.value=previous;f.elements.received.readOnly=false;}};f.onsubmit=e=>{e.preventDefault();const paid=Number(f.elements.received.value);if(!Number.isFinite(paid)||paid<0||paid>total)return;finish({paid,method:f.elements.method.value});};d.querySelector('[data-cancel]').onclick=()=>finish(null);d.oncancel=e=>{e.preventDefault();finish(null);};d.showModal();});
+function salonBookingPaymentChoice(total,booking,client,voucherAmount=0){
+ const tr=(a,b)=>lang==='en'?b:a,due=Math.max(0,total-voucherAmount);
+ return new Promise(resolve=>{const d=document.createElement('dialog');d.style.cssText='max-width:540px;width:calc(100% - 32px);border:1px solid var(--line);border-radius:16px;padding:20px';d.innerHTML=`<h3>${tr('فاتورة الحجز وطريقة السداد','Booking invoice and payment')}</h3><p>${esc(booking.clientName)} · ${esc(booking.clientPhone)} · ${money(total)}</p>${voucherAmount>0?`<p>${tr("مدفوع بقسيمة الهدية","Gift voucher payment")}: ${money(voucherAmount)} · ${tr("المطلوب بوسيلة أخرى","Due by another method")}: ${money(due)}</p><label class="checkline"><input type="checkbox" name="verifyVoucher" form="salonBookingPaymentForm" required> ${tr("تحققت من هوية مستلمة القسيمة ورقمها","I verified the voucher recipient and phone")}</label>`:""}<p>${tr('تحققي من هوية العميلة ورقمها. ستُربط الفاتورة والنقاط بحسابها، مع سجلها المطابق لهذا الجوال إن وجد.','Verify the client and phone. The invoice and points will be linked to her account and the matching client record.')}</p><form id="salonBookingPaymentForm"><label class="checkline"><input name="mode" value="deposit" type="radio" checked> ${tr('عربون فقط — فاتورة غير مسددة','Deposit only — outstanding invoice')}</label><label class="checkline"><input name="mode" value="full" type="radio"> ${tr('دفع كامل — فاتورة مسددة وإضافة النقاط','Full payment — paid invoice and award points')}</label><label>${tr('المبلغ المستلم فعليًا','Amount actually received')}<input name="received" type="number" min="0" max="${due}" step="0.01" required value="${Number(booking.depositAmount)||0}"></label><label>${tr('طريقة الدفع','Payment method')}<select name="method"><option value="transfer">${tr('تحويل','Transfer')}</option><option value="card">${tr('شبكة','Card')}</option><option value="cash">${tr('نقدًا','Cash')}</option></select></label><p>${tr('نقاط الخدمة تُضاف عند السداد الكامل فقط، ولا تتكرر عند تعديل الفاتورة.','Service points are awarded only after full payment and are not duplicated when editing the invoice.')}</p><button class="btn" type="submit">${tr('حفظ الفاتورة','Save invoice')}</button><button class="btn secondary" type="button" data-cancel>${tr('لاحقًا','Later')}</button></form>`;document.body.append(d);const f=d.querySelector('form');let previous=Number(booking.depositAmount)||0;const finish=value=>{d.close();d.remove();resolve(value);};f.onchange=e=>{if(e.target.name!=='mode')return;if(f.elements.mode.value==='full'){previous=Number(f.elements.received.value)||0;f.elements.received.value=due;f.elements.received.readOnly=true;}else{f.elements.received.value=previous;f.elements.received.readOnly=false;}};f.onsubmit=e=>{e.preventDefault();const paid=Number(f.elements.received.value);if(!Number.isFinite(paid)||paid<0||paid>due||voucherAmount>0&&!f.elements.verifyVoucher.checked)return;finish({paid,method:f.elements.method.value,voucherConfirmed:voucherAmount===0||f.elements.verifyVoucher.checked});};d.querySelector('[data-cancel]').onclick=()=>finish(null);d.oncancel=e=>{e.preventDefault();finish(null);};d.showModal();});
 }
 async function salonRegularBookingInvoice(bookingId){
  if(!hasOwner())throw Error('دخول المالكة مطلوب');
@@ -22307,16 +22529,22 @@ async function salonRegularBookingInvoice(bookingId){
  }
  const services=(booking.serviceIds||[]).map(id=>(db.services||[]).find(s=>String(s.id)===String(id)));
  if(!services.length||services.some(s=>!s))throw Error(tr('الخدمة أو الباقة تحتاج مراجعة في الكاشير','This service or package requires checkout review'));
- const original=Number(booking.campaignOriginalPrice??booking.price),campaign=Number(booking.campaignDiscount)||0,pointsUsed=Number(booking.pointsToRedeem)||0,loyalty=Number(booking.loyaltyDiscountRequested)||0,total=Math.max(0,Math.round((Number(booking.price)-loyalty)*100)/100);
+ const original=Number(booking.couponOriginalPrice??booking.campaignOriginalPrice??booking.price),campaign=Number(booking.campaignDiscount)||0,coupon=Number(booking.couponDiscount)||0,pointsUsed=Number(booking.pointsToRedeem)||0,loyalty=Number(booking.loyaltyDiscountRequested)||0,total=Math.max(0,Math.round((Number(booking.price)-loyalty)*100)/100);
  if(!Number.isFinite(original)||original<0||!Number.isFinite(total)||total<0)throw Error(tr('سعر الحجز غير صالح','Invalid booking total'));
- const payment=await salonBookingPaymentChoice(total,booking,client);if(!payment)return null;
- const paid=payment.paid;
+ let voucherAmount=0;
+ if(booking.voucherId){
+  const record=await firestore.collection('salonGiftVouchers').doc(booking.voucherId).get({source:'server'}),v=record.data();
+  if(!record.exists||v.status!=='active'||Number(v.remainingAmount)<=0||v.recipientUid&&v.recipientUid!==uid||salonNormalizePhone(v.recipientPhone)!==phone)throw Error(tr('القسيمة المطلوبة تغير رصيدها أو لا تخص هذه العميلة. راجعيها في الكاشير.','The voucher changed or does not belong to this client. Review it at checkout.'));
+  voucherAmount=Math.min(Math.max(0,total-Number(booking.depositAmount||0)),Number(v.remainingAmount),Number(booking.voucherAmountRequested)||Number(v.remainingAmount));
+ }
+ const payment=await salonBookingPaymentChoice(total,booking,client,voucherAmount);if(!payment)return null;
+ const paid=Math.round((payment.paid+voucherAmount)*100)/100;
  if(!Number.isFinite(paid)||paid<0||paid>total)throw Error(tr('المبلغ المستلم يجب أن يكون بين صفر وإجمالي الفاتورة','Received amount must be between zero and the invoice total'));
  const paidInFull=paid>=total,weights=services.map(s=>Math.max(0,Number(s.price)||0)),sum=weights.reduce((a,b)=>a+b,0);let cumulative=0,prior=0;
  const staff=(db.staff||[]).find(s=>s.authUid===booking.staffUid),items=services.map((s,i)=>{cumulative+=sum?weights[i]:1;const share=Math.round(original*100*cumulative/(sum||services.length)),price=(share-prior)/100;prior=share;const segment=booking.servicePlan?.[i];return {serviceId:String(s.id),name:s.name,price,quantity:1,lineTotal:price,duration:Number(s.duration)||30,staffId:segment?.staffId||staff?.id||'',staffName:segment?.staffName||staff?.name||booking.staffName||''};});
  const earned=services.reduce((n,s)=>n+Math.max(0,Math.floor(Number(s.loyaltyPoints)||0)),0),now=new Date().toISOString();
  let saved;
- try{saved=await salonSaveIndependentInvoice({id,bookingId,clientUid:uid,clientId:client.id,customerName:client.name,customerPhone:client.phone,staffId:staff?.id||'',staffName:booking.staffName,items,serviceId:items[0].serviceId,serviceName:booking.serviceName,subtotal:original,discount:campaign+loyalty,campaignDiscount:campaign,campaignOriginalPrice:original,loyaltyDiscount:loyalty,pointsUsed,pointsEarned:earned,pointsAdded:earned,pendingPoints:!paidInFull,paymentStatus:paidInFull?'paid':'partial',paidAmount:paid,depositAmount:paid,balanceCollected:0,total,tax:0,taxRate:0,payment:payment.method,date:salonSaudiDate(),createdAt:now,updatedAt:now,notes:booking.notes||''}, {...client,authUid:uid},(db.clients||[]).some(c=>c.id===client.id)?'existing':'new');}
+ try{saved=await salonSaveIndependentInvoice({id,bookingId,clientUid:uid,clientId:client.id,customerName:client.name,customerPhone:client.phone,staffId:staff?.id||'',staffName:booking.staffName,items,serviceId:items[0].serviceId,serviceName:booking.serviceName,subtotal:original,discount:campaign+coupon+loyalty,couponCode:booking.couponCode||'',couponName:booking.couponName||'',couponDiscount:coupon,campaignDiscount:campaign,campaignOriginalPrice:original,loyaltyDiscount:loyalty,pointsUsed,pointsEarned:earned,pointsAdded:earned,pendingPoints:!paidInFull,paymentStatus:paidInFull?'paid':'partial',paidAmount:paid,depositAmount:paidInFull?0:payment.paid,balanceCollected:paidInFull?payment.paid:0,voucherId:voucherAmount>0?booking.voucherId:'',voucherAmountUsed:voucherAmount,voucherOwnershipConfirmed:payment.voucherConfirmed,total,tax:0,taxRate:0,payment:payment.method,date:salonSaudiDate(),createdAt:now,updatedAt:now,notes:booking.notes||''}, {...client,authUid:uid},(db.clients||[]).some(c=>c.id===client.id)?'existing':'new');}
  catch(error){const result=await ref.get({source:'server'});if(!result.exists||result.data().bookingId!==bookingId)throw error;saved=result.data();}
  toast(saved.paymentStatus==='paid'?tr('صدرت الفاتورة وأضيفت نقاط الخدمات إلى الحساب.','Invoice issued and service points added to the account.'):tr('صدرت الفاتورة بالعربون والمبلغ المتبقي. تُضاف النقاط عند السداد الكامل.','Deposit invoice issued with a balance. Points are added after full payment.'));return saved;
 }
@@ -22329,12 +22557,12 @@ async function salonRegularBookingInvoice(bookingId){
  };
  const oldShow=showPortalBookingsOwner;showPortalBookingsOwner=async function(){const r=await oldShow.apply(this,arguments);if(!hasOwner())return r;const host=document.getElementById('portalBookingsOwner');if(!host)return r;host.querySelectorAll('[data-campaign-booking]').forEach(card=>{const id=card.dataset.campaignBooking;if(card.querySelector('[data-regular-invoice]'))return;const button=document.createElement('button');button.type='button';button.className='btn secondary small';button.dataset.regularInvoice=id;button.textContent=lang==='en'?'Booking invoice and service points':'فاتورة الحجز ونقاط الخدمة';button.onclick=async()=>{button.disabled=true;try{await window.salonCampaignAfterConfirmation(id);}catch(e){toast(e.message);}finally{button.disabled=false;}};card.append(button);});return r;};
  const oldSave=salonSaveIndependentInvoice;
- const oldOpen=openInvoiceInCashier;openInvoiceInCashier=function(id){const result=oldOpen.apply(this,arguments);const i=(db.invoices||[]).find(i=>i.id===id),form=document.getElementById('invoiceForm');if(i?.paymentStatus==='partial'&&form){const panel=document.createElement('div');panel.className='card full';panel.innerHTML=`<label>${lang==='en'?'Deposit already received':'العربون المستلم سابقًا'}<input id="salonBookingDepositRecorded" type="number" min="0" step="0.01" value="${Number(i.depositAmount)||0}"></label><p>${lang==='en'?'Saving after confirming payment settles the remaining balance and awards points once.':'الحفظ بعد تأكيد الدفع يسدد المبلغ المتبقي ويضيف النقاط مرة واحدة.'}</p>`;form.prepend(panel);}return result;};
+ const oldOpen=openInvoiceInCashier;openInvoiceInCashier=function(id){const result=oldOpen.apply(this,arguments);const i=(db.invoices||[]).find(i=>i.id===id),form=document.getElementById('invoiceForm');if(i?.paymentStatus==='partial'&&form){const panel=document.createElement('div');panel.className='card full';panel.innerHTML=`<label>${lang==='en'?'Deposit already received':'العربون المستلم سابقًا'}<input id="salonBookingDepositRecorded" type="number" min="0" step="0.01" value="${Number(i.depositAmount)||0}"></label><p>${lang==='en'?'Saving after confirming payment settles the remaining balance and awards points once.':'الحفظ بعد تأكيد الدفع يسدد المبلغ المتبقي ويضيف النقاط مرة واحدة.'}</p>`;form.prepend(panel);if(i.voucherId){const code=document.getElementById('invoiceGiftVoucherCode'),amount=document.getElementById('invoiceGiftVoucherAmount'),verified=document.getElementById('invoiceGiftVoucherVerified');if(code)code.value=i.voucherId;if(amount)amount.value=Number(i.voucherAmountUsed)||0;if(verified)verified.checked=true;}}return result;};
  salonSaveIndependentInvoice=async function(proposed,client,mode){
   if(proposed.__edit&&proposed.bookingId&&proposed.paymentStatus==='partial'){
    if(!confirm(lang==='en'?'Have you now received the full invoice balance? Saving will mark it paid and award the service points.':'هل استلمتِ الآن كامل المبلغ المتبقي؟ الحفظ سيسجل سداد الفاتورة ويضيف نقاط الخدمات.'))throw Error(lang==='en'?'Payment was not confirmed.':'لم يتم تأكيد استلام باقي المبلغ.');
    const deposit=Number(document.getElementById('salonBookingDepositRecorded')?.value??proposed.depositAmount??0);if(!Number.isFinite(deposit)||deposit<0||deposit>proposed.total)throw Error('راجعي مبلغ العربون');
-   proposed={...proposed,paymentStatus:'paid',paidAmount:proposed.total,pendingPoints:false,depositAmount:deposit,balanceCollected:Math.max(0,proposed.total-deposit)};
+   proposed={...proposed,paymentStatus:'paid',paidAmount:proposed.total,pendingPoints:false,depositAmount:deposit,balanceCollected:Math.max(0,proposed.total-deposit-Number(proposed.voucherAmountUsed||0))};
   }
   return oldSave.call(this,proposed,client,mode);
  };
@@ -22382,6 +22610,62 @@ async function salonRegularBookingInvoice(bookingId){
  const old=renderOwner;renderOwner=function(tab=ownerActiveTab){const result=old.apply(this,arguments);if(tab==='invoices'&&owner())render();return result;};
  auth.onAuthStateChanged(()=>{state={from:today(),to:today(),all:false};request++;loading=false;});
  window.salonInvoiceSearchDate=invoiceDay;
+})();
+
+(function(){
+ 'use strict';
+ const tr=(a,b)=>lang==='en'?b:a,owner=()=>hasOwner()&&auth.currentUser?.uid==='AvRinM2frzLkDWH1CsH7CnIhFnK2';
+ const api=(path,body)=>window.salonClientAPI(path,body);let vouchers=[],voucherUID='',loading=null;
+ async function myVouchers(){const uid=auth.currentUser?.uid;if(!uid)return [];if(loading&&voucherUID===uid)return loading;voucherUID=uid;loading=api('my-vouchers').then(rows=>{if(auth.currentUser?.uid===uid)vouchers=rows;return rows;}).finally(()=>{loading=null;});return loading;}
+ function selectedServices(form){const f=new FormData(form),ids=[];for(const s of portalCatalog.services||[]){const qty=Number(f.get('serviceQty_'+s.id)||0);if(Number.isInteger(qty)&&qty>0&&qty<=10)for(let i=0;i<qty;i++)ids.push(String(s.id));}return ids;}
+ async function copyCode(code,input,status){try{await navigator.clipboard.writeText(code);status.textContent=tr('تم نسخ الرمز','Code copied');}catch{input.focus();input.select();status.textContent=tr('الرمز محدد؛ انسخيه من الجهاز','The code is selected; copy it on your device');}}
+ function bookingBenefitForm(){const form=document.getElementById('portalBooking');if(portalRole!=='client'||salonClientPage!=='book'||!form||form.querySelector('#salonBookingBenefit'))return;
+  const p=document.createElement('fieldset');p.id='salonBookingBenefit';p.className='full';p.innerHTML=`<legend>${tr('قسيمة هدية أو كود خصم','Gift voucher or discount code')}</legend><label>${tr('اختاري من قسائمي','Choose from my vouchers')}<select data-vouchers><option value="">${tr('بدون قسيمة / إدخال رمز يدويًا','No voucher / enter a code manually')}</option></select></label><label>${tr('رمز القسيمة أو كود الخصم','Voucher or discount code')}<input name="benefitCode" dir="ltr" maxlength="160" placeholder="GV-… / sa96" autocomplete="off"></label><button type="button" class="btn secondary" data-check>${tr('التحقق وعرض القيمة','Check and preview')}</button><p data-state role="status"></p><small>${tr('تجدين رمز القسيمة في صفحة الهدايا وتنسخينه هنا. القسيمة وسيلة دفع، ويعتمد صرفها مع الفاتورة بعد تحقق المالكة. كود الخصم لا يجتمع مع عرض أول العميلات.','Copy the voucher code from Gifts. A voucher is a payment method, redeemed with the invoice after owner verification. A discount code does not combine with the first-client offer.')}</small>`;
+  form.querySelector('button[type=submit]')?.before(p);const select=p.querySelector('select'),input=p.querySelector('input'),state=p.querySelector('[data-state]');let sequence=0;
+  const invalidate=()=>{sequence++;state.textContent='';};input.oninput=()=>{select.value='';invalidate();};select.onchange=()=>{input.value=select.value;invalidate();};
+  p.querySelector('[data-check]').onclick=async e=>{const code=input.value.trim(),ids=selectedServices(form);if(!ids.length){state.textContent=tr('اختاري الخدمات أولًا لعرض قيمة القسيمة أو الخصم','Choose services first to preview the voucher or discount');return;}if(!code){state.textContent=tr('اختاري قسيمة أو اكتبي رمزًا','Select a voucher or enter a code');return;}const ticket=++sequence;e.target.disabled=true;state.textContent=tr('جارٍ التحقق…','Checking…');try{const data=await api('benefit',{code,serviceIds:ids});if(ticket!==sequence||!p.isConnected)return;const b=data.benefit;state.textContent=b.kind==='coupon'?tr(`قبل الكود ${money(data.basePrice)} — خصم ${money(b.amount)} — بعد الكود ${money(b.price)}.`,`Before code ${money(data.basePrice)} — discount ${money(b.amount)} — after code ${money(b.price)}.`):tr(`رصيد القسيمة ${money(b.available)} — المتوقع استخدامه ${money(b.amount)} — المتبقي بوسيلة أخرى ${money(Math.max(0,data.basePrice-b.amount))}. يعتمد المبلغ النهائي عند الفاتورة.`,`Voucher balance ${money(b.available)} — expected use ${money(b.amount)} — expected other payment ${money(Math.max(0,data.basePrice-b.amount))}. Final amount is verified at invoicing.`);}catch(error){state.textContent=error.message;}finally{e.target.disabled=false;}};
+  form.addEventListener('change',e=>{if(!p.contains(e.target)&&e.target.name?.startsWith('serviceQty_'))invalidate();});
+  myVouchers().then(rows=>{if(!p.isConnected)return;rows.forEach(v=>{const option=document.createElement('option');option.value=v.code;option.textContent=v.code+' — '+money(v.remainingAmount);select.append(option);});}).catch(()=>{if(p.isConnected)state.textContent=tr('تعذر تحميل القسائم. يمكنك إدخال الرمز يدويًا ثم التحقق منه.','Could not load vouchers. Enter the code manually and verify it.');});
+ }
+ function giftCodes(){if(portalRole!=='client'||salonClientPage!=='gifts')return;const host=document.getElementById('salonClientPagePanel')||document.getElementById('app');if(!host||document.getElementById('salonMyVoucherCodes'))return;const p=document.createElement('section');p.id='salonMyVoucherCodes';p.className='card';p.innerHTML=`<h3>${tr('قسائمي ورموز الاستبدال','My vouchers and redemption codes')}</h3><p role="status">${tr('جارٍ تحميل القسائم…','Loading vouchers…')}</p><div data-list></div>`;host.append(p);
+  myVouchers().then(rows=>{if(!p.isConnected)return;const state=p.querySelector('[role=status]'),list=p.querySelector('[data-list]');state.textContent=rows.length?'':tr('لا توجد قسائم نشطة مربوطة بحسابك. إذا عندك الرمز، أدخليه يدويًا عند الحجز لتتحقق منه المالكة.','No active vouchers are linked to your account. If you have a code, enter it manually when booking for verification.');for(const v of rows){const row=document.createElement('article');row.className='card';row.innerHTML=`<p>${tr('الرصيد المتبقي','Remaining balance')}: ${money(v.remainingAmount)}</p><input value="${esc(v.code)}" dir="ltr" readonly aria-label="${tr('رمز القسيمة','Voucher code')}"><button type="button" class="btn secondary" data-copy>${tr('نسخ الرمز','Copy code')}</button><button type="button" class="btn" data-use>${tr('استخدام عند الحجز','Use when booking')}</button><p data-status role="status"></p>`;row.querySelector('[data-copy]').onclick=()=>copyCode(v.code,row.querySelector('input'),row.querySelector('[data-status]'));row.querySelector('[data-use]').onclick=()=>{salonClientPage='book';renderPortalClient();const input=document.querySelector('#portalBooking [name=benefitCode]');if(input)input.value=v.code;};list.append(row);}}).catch(error=>{if(p.isConnected)p.querySelector('[role=status]').textContent=error.message;});
+ }
+ async function ownerCodes(){const host=document.querySelector('#app .owner-content');if(!host||!owner())return;const p=document.createElement('section');p.className='card';p.innerHTML=`<h2>${tr('أكواد الخصم','Discount codes')}</h2><form class="form-grid"><label>${tr('رمز الكود الذي تكتبه العميلة','Code entered by the client')}<input name="code" pattern="[A-Za-z0-9_-]{2,32}" maxlength="32" placeholder="sa96" required dir="ltr"></label><label>${tr('اسم الخصم في العرض','Discount display name')}<input name="label" maxlength="80"></label><label>${tr('نوع الخصم','Discount type')}<select name="type"><option value="percent">${tr('نسبة مئوية','Percentage')}</option><option value="fixed">${tr('مبلغ بالريال','SAR amount')}</option></select></label><label>${tr('قيمة الخصم','Discount value')}<input name="value" type="number" min="0.01" max="100" step="0.01" required></label><label>${tr('بداية النشر (اختياري)','Starts (optional)')}<input name="startsAt" type="datetime-local"></label><label>${tr('نهاية النشر (اختياري)','Ends (optional)')}<input name="endsAt" type="datetime-local"></label><label class="checkline"><input name="active" type="checkbox" checked> ${tr('الكود مفعّل','Code active')}</label><button class="btn" type="submit">${tr('حفظ الكود','Save code')}</button><button type="button" class="btn secondary" data-new>${tr('كود جديد','New code')}</button></form><p role="status"></p><div data-codes></div>`;host.replaceChildren(p);const f=p.querySelector('form'),state=p.querySelector('[role=status]'),list=p.querySelector('[data-codes]');f.elements.type.onchange=()=>f.elements.value.max=f.elements.type.value==='percent'?'100':'10000';
+  const local=value=>value?new Date(Date.parse(value)+10800000).toISOString().slice(0,16):'';const edit=c=>{f.elements.code.value=c.code;f.elements.code.readOnly=true;f.elements.label.value=c.label||'';f.elements.type.value=c.type;f.elements.type.onchange();f.elements.value.value=c.value;f.elements.startsAt.value=local(c.startsAt);f.elements.endsAt.value=local(c.endsAt);f.elements.active.checked=c.active;};
+  p.querySelector('[data-new]').onclick=()=>{f.reset();f.elements.code.readOnly=false;f.elements.type.onchange();};
+  const draw=async()=>{const rows=await api('discount-codes');if(!p.isConnected)return;list.replaceChildren();for(const c of rows){const row=document.createElement('article');row.className='card';row.innerHTML=`<b dir="ltr">${esc(c.code)}</b> · ${esc(c.label||'')} · ${c.value}${c.type==='percent'?'%':' SAR'} · ${c.active?tr('مفعّل','Active'):tr('متوقف','Inactive')} <button type="button" class="btn secondary">${tr('تعديل / إيقاف','Edit / deactivate')}</button>`;row.querySelector('button').onclick=()=>edit(c);list.append(row);}};
+  f.onsubmit=async e=>{e.preventDefault();const button=f.querySelector('[type=submit]');button.disabled=true;try{await api('discount-codes',{code:f.elements.code.value,label:f.elements.label.value,type:f.elements.type.value,value:Number(f.elements.value.value),active:f.elements.active.checked,startsAt:f.elements.startsAt.value?new Date(f.elements.startsAt.value+':00+03:00').toISOString():'',endsAt:f.elements.endsAt.value?new Date(f.elements.endsAt.value+':00+03:00').toISOString():''});state.textContent=tr('تم حفظ الكود','Code saved');await draw();}catch(error){state.textContent=error.message;}finally{button.disabled=false;}};try{await draw();}catch(error){state.textContent=error.message;}
+ }
+ OWNER_MENU.push(['discountCodes','أكواد الخصم','%']);const oldOwner=renderOwner;renderOwner=function(tab=ownerActiveTab){const result=oldOwner.apply(this,arguments);if(tab==='discountCodes'&&owner())void ownerCodes();return result;};
+ function bookingActions(){if(portalRole!=='client'||salonClientPage!=='bookings')return;const host=document.getElementById('salonClientPagePanel');if(!host||document.getElementById('salonBookingActions'))return;const p=document.createElement('section');p.id='salonBookingActions';p.className='card';p.innerHTML='<h3>'+tr('متابعة طلبات الحجز والقسائم','Booking requests and vouchers')+'</h3>';let count=0;for(const b of portalBookings||[]){if(!['pending','confirmed','arrived','inProgress'].includes(b.status))continue;count++;const row=document.createElement('article');row.className='card';row.innerHTML=`<b>${esc(b.date)} · ${esc(b.time)}</b><p dir="ltr">${esc(b.id)}</p>${b.couponCode?`<p>${tr('كود الخصم','Discount code')}: <b dir="ltr">${esc(b.couponCode)}</b> · ${tr('الخصم','Discount')}: ${money(b.couponDiscount)} · ${tr('السعر بعده','Price after discount')}: ${money(b.price)}</p>`:''}${b.voucherId?`<p>${tr('القسيمة المطلوبة للمراجعة مع الفاتورة','Voucher requested for invoice review')}: <b dir="ltr">${esc(b.voucherId)}</b></p>`:''}`;let url=bookingWhatsApp(b,b.id);if(url){try{const u=new URL(url);u.searchParams.set('text',(u.searchParams.get('text')||'')+(b.voucherId?'\nالقسيمة: '+b.voucherId:b.couponCode?'\nكود الخصم: '+b.couponCode:''));url=u.href;}catch{}const link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.className='btn secondary';link.textContent=tr('واتساب لتفاصيل هذا الحجز','WhatsApp for this booking');row.append(link);}p.append(row);}if(count)host.append(p);}
+ const oldClient=renderPortalClient;renderPortalClient=function(){const result=oldClient.apply(this,arguments);bookingBenefitForm();giftCodes();bookingActions();return result;};
+ auth.onAuthStateChanged(()=>{vouchers=[];voucherUID='';loading=null;});
+})();
+
+(function(){
+ 'use strict';
+ const tr=(a,b)=>lang==='en'?b:a,owner=()=>hasOwner()&&auth.currentUser?.uid==='AvRinM2frzLkDWH1CsH7CnIhFnK2';let busy=false;
+ function message(text){let p=document.getElementById('salonClosingSaveState');if(!p){p=document.createElement('p');p.id='salonClosingSaveState';p.setAttribute('role','status');document.getElementById('blocksList')?.before(p);}p.textContent=text;toast(text);}
+ function buttons(disabled){document.querySelectorAll('button[onclick^="addBlock"],#blocksList button').forEach(b=>b.disabled=disabled);}
+ async function changeBlocks(change){
+  if(!owner()||busy)return;busy=true;buttons(true);message(tr('جارٍ حفظ الإغلاق ونشره…','Saving and publishing booking availability…'));
+  try{
+   await Promise.resolve(saveQueue).catch(()=>{});const catalogRef=firestore.collection('portal').doc('catalog');let saved;
+   await firestore.runTransaction(async tx=>{const main=await tx.get(salonDoc),catalog=await tx.get(catalogRef);if(!main.exists)throw Error(tr('بيانات الصالون غير موجودة','Salon data is missing'));const remote=main.data(),blocks=change(Array.isArray(remote.blocks)?remote.blocks:[]),old=catalog.data()?.bookingControl||{};
+    const control={...old,acceptingBookings:remote.settings?.onlineBookingOpen===false?false:old.acceptingBookings===true,blocks:blocks.map(b=>({date:String(b.date),staffId:String(b.staffId||'all'),fullDay:b.fullDay===true,startTime:String(b.startTime||'00:00'),endTime:String(b.endTime||'23:59')})),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    tx.update(salonDoc,{blocks,updatedAt:new Date().toISOString()});tx.set(catalogRef,{bookingControl:control},{merge:true});saved=blocks;
+   });
+   db.blocks=saved;if(typeof salonCloudBaseline!=='undefined')salonCloudBaseline={...(salonCloudBaseline||{}),blocks:saved};refreshBlocksList();message(tr('تم الحفظ وتطبيق الأوقات على حجز العميلات.','Saved. Client booking availability is updated.'));
+  }catch(error){message(tr('لم يتم تأكيد حفظ الإغلاق. أعيدي المحاولة: ','Could not confirm the availability change. Retry: ')+String(error.message||error));}
+  finally{busy=false;buttons(false);}
+ }
+ addBlock=async function(fullDay){
+  if(!owner())return;const date=document.getElementById('blockDate')?.value,start=String(document.getElementById('blockStart')?.value||'').slice(0,5),end=String(document.getElementById('blockEnd')?.value||'').slice(0,5);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!fullDay&&(!/^([01]\d|2[0-3]):[0-5]\d$/.test(start)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(end)||start>=end)){message(tr('حددي تاريخًا ووقت بداية ونهاية صحيحين.','Choose a valid date, start and end time.'));return;}
+  const block={id:uid('blk'),date,fullDay:fullDay===true,startTime:fullDay?'00:00':start,endTime:fullDay?'23:59':end,staffId:String(document.getElementById('blockStaff')?.value||'all'),reason:String(document.getElementById('blockReason')?.value||'').trim().slice(0,120),createdAt:new Date().toISOString()};
+  return changeBlocks(rows=>[...rows,block]);
+ };
+ reopenBlock=async function(id){if(!owner()||!id)return;return changeBlocks(rows=>rows.filter(b=>String(b.id)!==String(id)));};
 })();
 
 </script>
