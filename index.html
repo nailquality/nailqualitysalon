@@ -22677,6 +22677,40 @@ async function salonRegularBookingInvoice(bookingId){
  reopenBlock=async function(id){if(!owner()||!id)return;return changeBlocks(rows=>rows.filter(b=>String(b.id)!==String(id)));};
 })();
 
+(function(){
+ 'use strict';
+ const tr=(a,b)=>lang==='en'?b:a;
+ const originalLocations=salonServiceLocations;
+ salonServiceLocations=function(settings={}){const places={...originalLocations(settings)};if(settings.homeServiceEnabled===false)delete places.home;return places;};
+ const oldSettings=ownerSettings;
+ ownerSettings=function(){
+  const result=oldSettings.apply(this,arguments),form=document.getElementById('settingsForm');if(!hasOwner()||!form)return result;
+  const home=form.elements.namedItem('homeServiceEnabled');if(!home)return result;home.closest('.field').hidden=false;
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();event.stopImmediatePropagation();if(!hasOwner()||form.dataset.homeSaving==='1')return;
+   const fields=new FormData(form),enabled=home.checked,button=form.querySelector('button');form.dataset.homeSaving='1';if(button)button.disabled=true;
+   let status=form.querySelector('[data-home-save-status]');if(!status){status=document.createElement('p');status.dataset.homeSaveStatus='';status.setAttribute('role','status');form.append(status);}status.textContent=tr('جارٍ حفظ الإعدادات ونشرها…','Saving and publishing settings…');
+   try{
+    await Promise.resolve(saveQueue);let committed;
+    await firestore.runTransaction(async tx=>{
+     const catalog=firestore.collection('portal').doc('catalog'),main=await tx.get(salonDoc),published=await tx.get(catalog);
+     if(!main.exists||!published.exists)throw Error(tr('بيانات الصالون أو الخدمات المنشورة غير متاحة.','Salon data or the published catalog is unavailable.'));
+     const remote=main.data().settings||{},locations={...originalLocations(remote)};
+     if(enabled)locations.home=locations.home||{name:'خدمة منزلية',nameEn:'Home service',addressRequired:true};else delete locations.home;
+     const patch={salonName:String(fields.get('salonName')||'').trim(),whatsapp:String(fields.get('whatsapp')||'').replace(/\D/g,''),homeServiceEnabled:enabled,serviceLocations:locations};
+     const updates=Object.fromEntries(Object.entries(patch).map(([key,value])=>['settings.'+key,value]));
+     // A field-path update replaces the map. Recursive merge would retain deleted places.
+     tx.update(salonDoc,updates);tx.update(catalog,updates);committed={...remote,...patch};
+    });
+    db.settings=committed;if(typeof salonCloudBaseline!=='undefined'&&salonCloudBaseline)salonCloudBaseline.settings={...committed};
+    closeModal();renderOwner(ownerActiveTab);toast(tr('تم حفظ الإعدادات ونشرها للعميلات.','Settings saved and published to clients.'));
+   }catch(error){status.textContent=tr('لم يتم حفظ الإعدادات: ','Settings were not saved: ')+String(error.message||error);toast(status.textContent);}
+   finally{delete form.dataset.homeSaving;if(button?.isConnected)button.disabled=false;}
+  },true);
+  return result;
+ };
+})();
+
 </script>
 </body>
 </html>
